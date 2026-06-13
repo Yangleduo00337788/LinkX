@@ -288,11 +288,14 @@ public class ApiClient {
 
         try (Response response = httpClient.newCall(request).execute()) {
             String body = response.body().string();
-            ApiResponse<java.util.List<MessageData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<MessageData>>>(){}.getType());
-            if (resp.code == 200) {
-                return resp.data;
+            if (body == null || body.isEmpty()) {
+                return java.util.List.of();
             }
-            throw new IOException(resp.message);
+            ApiResponse<java.util.List<MessageData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<MessageData>>>(){}.getType());
+            if (resp != null && resp.code == 200) {
+                return resp.data != null ? resp.data : java.util.List.of();
+            }
+            return java.util.List.of();
         }
     }
 
@@ -305,11 +308,14 @@ public class ApiClient {
 
         try (Response response = httpClient.newCall(request).execute()) {
             String body = response.body().string();
-            ApiResponse<java.util.List<SessionData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<SessionData>>>(){}.getType());
-            if (resp.code == 200) {
-                return resp.data;
+            if (body == null || body.isEmpty()) {
+                return java.util.List.of();
             }
-            throw new IOException(resp.message);
+            ApiResponse<java.util.List<SessionData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<SessionData>>>(){}.getType());
+            if (resp != null && resp.code == 200) {
+                return resp.data != null ? resp.data : java.util.List.of();
+            }
+            return java.util.List.of();
         }
     }
 

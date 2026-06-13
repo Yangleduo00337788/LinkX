@@ -109,6 +109,10 @@ public class ChatController {
         new Thread(() -> {
             try {
                 List<ApiClient.MessageData> messages = ApiClient.getChatHistory(targetId);
+                ApiClient.UserData myProfile = ApiClient.getMyProfile();
+                String myAvatar = myProfile.avatar != null ? myProfile.avatar : "";
+                String myNickname = myProfile.nickname != null ? myProfile.nickname : "我";
+
                 Platform.runLater(() -> {
                     messageItems.clear();
                     Long myId = ApiClient.getUserId();
@@ -118,10 +122,11 @@ public class ChatController {
                             time = m.createTime.substring(11, 16);
                         }
                         if (m.fromUserId != null && m.fromUserId.equals(myId)) {
-                            messageItems.add("我: " + time + ": " + m.content);
+                            String avatarUrl = myAvatar;
+                            messageItems.add("ME|" + myNickname + "|" + avatarUrl + "|" + time + "|" + m.content);
                         } else {
                             String name = m.fromNickname != null ? m.fromNickname : "对方";
-                            messageItems.add(name + ": " + time + ": " + m.content);
+                            messageItems.add("OTHER|" + name + "||" + time + "|" + m.content);
                         }
                     }
                     if (!messageItems.isEmpty()) {

@@ -15,7 +15,6 @@ import javafx.scene.text.TextFlow;
 public class ChatCell extends ListCell<String> {
 
     private final VBox container = new VBox();
-    private static final Image DEFAULT_AVATAR = new Image(ChatCell.class.getResourceAsStream("/images/default-avatar.png"));
 
     public ChatCell() {
         container.setPadding(new Insets(2, 10, 2, 10));
@@ -29,37 +28,43 @@ public class ChatCell extends ListCell<String> {
         } else {
             container.getChildren().clear();
 
+            String[] parts = item.split("\\|", 5);
+            if (parts.length < 5) {
+                setGraphic(null);
+                return;
+            }
+
+            String type = parts[0];
+            String nickname = parts[1];
+            String avatarUrl = parts[2];
+            String time = parts[3];
+            String content = parts[4];
+
             ImageView avatar = new ImageView();
             avatar.setFitWidth(40);
             avatar.setFitHeight(40);
             avatar.setPreserveRatio(true);
+            avatar.setStyle("-fx-background-color: #ddd; -fx-background-radius: 20;");
 
-            if (item.startsWith("我: ")) {
-                String[] parts = item.split(": ", 3);
-                String time = parts.length > 1 ? parts[1] : "";
-                String msg = parts.length > 2 ? parts[2] : "";
+            if (!avatarUrl.isEmpty()) {
+                try {
+                    avatar.setImage(new Image(avatarUrl, 40, 40, true, true));
+                } catch (Exception e) {
+                    avatar.setImage(null);
+                }
+            }
 
-                TextFlow textFlow = new TextFlow(new Text(msg));
+            TextFlow textFlow = new TextFlow(new Text(content));
+            Text timeText = new Text(time);
+            timeText.setStyle("-fx-font-size: 10px; -fx-fill: #999;");
+
+            if ("ME".equals(type)) {
                 textFlow.setStyle("-fx-padding: 8 12; -fx-background-color: #95ec69; -fx-background-radius: 10; -fx-wrap-text: true;");
                 textFlow.setMaxWidth(250);
-
-                Text timeText = new Text(time);
-                timeText.setStyle("-fx-font-size: 10px; -fx-fill: #ccc;");
 
                 VBox bubble = new VBox(textFlow, timeText);
                 bubble.setSpacing(2);
                 bubble.setAlignment(Pos.CENTER_RIGHT);
-
-                try {
-                    String avatarUrl = ApiClient.getMyProfile().avatar;
-                    if (avatarUrl != null && !avatarUrl.isEmpty()) {
-                        avatar.setImage(new Image(avatarUrl, 40, 40, true, true));
-                    } else {
-                        avatar.setImage(DEFAULT_AVATAR);
-                    }
-                } catch (Exception e) {
-                    avatar.setImage(DEFAULT_AVATAR);
-                }
 
                 HBox row = new HBox();
                 row.setAlignment(Pos.CENTER_RIGHT);
@@ -71,27 +76,15 @@ public class ChatCell extends ListCell<String> {
                 container.getChildren().add(row);
                 container.setAlignment(Pos.CENTER_RIGHT);
             } else {
-                int firstColon = item.indexOf(": ");
-                int secondColon = item.indexOf(": ", firstColon + 2);
-                String name = item.substring(0, firstColon);
-                String time = item.substring(firstColon + 2, secondColon);
-                String msg = item.substring(secondColon + 2);
-
-                Text nameText = new Text(name);
-                nameText.setStyle("-fx-font-size: 11px; -fx-fill: #999;");
-
-                TextFlow textFlow = new TextFlow(new Text(msg));
                 textFlow.setStyle("-fx-padding: 8 12; -fx-background-color: white; -fx-background-radius: 10; -fx-wrap-text: true; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 2, 0, 0, 1);");
                 textFlow.setMaxWidth(250);
 
-                Text timeText = new Text(time);
-                timeText.setStyle("-fx-font-size: 10px; -fx-fill: #ccc;");
+                Text nameText = new Text(nickname);
+                nameText.setStyle("-fx-font-size: 11px; -fx-fill: #999;");
 
                 VBox bubble = new VBox(nameText, textFlow, timeText);
                 bubble.setSpacing(2);
                 bubble.setAlignment(Pos.CENTER_LEFT);
-
-                avatar.setImage(DEFAULT_AVATAR);
 
                 HBox row = new HBox();
                 row.setAlignment(Pos.CENTER_LEFT);
