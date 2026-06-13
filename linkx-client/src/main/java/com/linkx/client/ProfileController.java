@@ -80,6 +80,7 @@ public class ProfileController {
                 try {
                     String url = ApiClient.uploadAvatar(file.getAbsolutePath());
                     currentAvatarUrl = url;
+                    ApiClient.updateProfile(nicknameField.getText().trim(), genderBox.getSelectionModel().getSelectedIndex(), url);
                     Platform.runLater(() -> {
                         loadAvatar(url);
                         messageText.setText("头像上传成功");
@@ -109,7 +110,7 @@ public class ProfileController {
 
         new Thread(() -> {
             try {
-                ApiClient.updateProfile(nickname, genderIndex);
+                ApiClient.updateProfile(nickname, genderIndex, currentAvatarUrl);
                 Platform.runLater(() -> {
                     messageText.setText("保存成功");
                     messageText.setStyle("-fx-text-fill: green;");

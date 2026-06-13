@@ -119,16 +119,19 @@ public class ApiClient {
 
         try (Response response = httpClient.newCall(request).execute()) {
             String body = response.body().string();
+            if (body == null || body.isEmpty()) {
+                return null;
+            }
             ApiResponse<UserData> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<UserData>>(){}.getType());
-            if (resp.code == 200) {
+            if (resp != null && resp.code == 200) {
                 return resp.data;
             }
-            throw new IOException(resp.message);
+            return null;
         }
     }
 
-    public static UserData updateProfile(String nickname, Integer gender) throws IOException {
-        String json = gson.toJson(new UpdateProfileReq(nickname, gender));
+    public static UserData updateProfile(String nickname, Integer gender, String avatar) throws IOException {
+        String json = gson.toJson(new UpdateProfileReq(nickname, gender, avatar));
         Request request = new Request.Builder()
                 .url(BASE_URL + "/api/user/me")
                 .addHeader("Authorization", "Bearer " + accessToken)
@@ -137,11 +140,14 @@ public class ApiClient {
 
         try (Response response = httpClient.newCall(request).execute()) {
             String body = response.body().string();
+            if (body == null || body.isEmpty()) {
+                return null;
+            }
             ApiResponse<UserData> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<UserData>>(){}.getType());
-            if (resp.code == 200) {
+            if (resp != null && resp.code == 200) {
                 return resp.data;
             }
-            throw new IOException(resp.message);
+            return null;
         }
     }
 
@@ -409,8 +415,9 @@ public class ApiClient {
     private static class UpdateProfileReq {
         String nickname;
         Integer gender;
-        UpdateProfileReq(String n, Integer g) {
-            nickname = n; gender = g;
+        String avatar;
+        UpdateProfileReq(String n, Integer g, String a) {
+            nickname = n; gender = g; avatar = a;
         }
     }
 
