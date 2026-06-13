@@ -4,7 +4,8 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox spacing="20" style="-fx-background-color: white; -fx-background-radius: 10;">
+<VBox spacing="20" style="-fx-background-color: white; -fx-background-radius: 10;"
+      xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.ProfileController">
     <padding>
         <Insets top="30" right="30" bottom="30" left="30"/>
     </padding>
