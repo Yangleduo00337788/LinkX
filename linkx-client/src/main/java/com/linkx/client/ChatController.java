@@ -107,7 +107,10 @@ public class ChatController {
     private void loadMessages(Long targetId) {
         new Thread(() -> {
             try {
+                System.out.println("=== Loading messages for targetId: " + targetId + " ===");
+                System.out.println("Current userId: " + ApiClient.getUserId());
                 List<ApiClient.MessageData> messages = ApiClient.getChatHistory(targetId);
+                System.out.println("Got " + messages.size() + " messages");
                 Platform.runLater(() -> {
                     messageItems.clear();
                     Long myId = ApiClient.getUserId();
@@ -119,6 +122,7 @@ public class ChatController {
                             prefix = m.fromNickname != null ? m.fromNickname : "对方";
                         }
                         String display = prefix + ": " + m.content;
+                        System.out.println("Message: " + display);
                         messageItems.add(display);
                     }
                     if (!messageItems.isEmpty()) {
@@ -127,6 +131,7 @@ public class ChatController {
                 });
                 ApiClient.markAsRead(targetId);
             } catch (Exception ex) {
+                System.out.println("Error loading messages: " + ex.getMessage());
                 ex.printStackTrace();
             }
         }).start();
