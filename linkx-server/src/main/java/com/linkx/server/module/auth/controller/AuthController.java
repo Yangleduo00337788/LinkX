@@ -27,7 +27,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public Result<AuthResponse> refreshToken(@RequestParam String refreshToken) {
+    public Result<AuthResponse> refreshToken(@RequestParam(value = "refreshToken") String refreshToken) {
         return Result.success(authService.refreshToken(refreshToken));
     }
 }
