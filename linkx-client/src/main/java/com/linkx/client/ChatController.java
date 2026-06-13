@@ -3,8 +3,9 @@ package com.linkx.client;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.VBox;
+
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class ChatController {
 
@@ -15,45 +16,45 @@ public class ChatController {
     @FXML private Label chatTargetLabel;
 
     private Long currentTargetId;
+    private String currentTargetName;
+    private Timer refreshTimer;
 
     @FXML
     public void initialize() {
         sendBtn.setOnAction(e -> handleSend());
 
         sessionList.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null) {
-                selectSession(newVal);
+            if (newVal != null && !newVal.equals(oldVal)) {
+                handleSessionClick(newVal);
             }
         });
 
         loadSessions();
-    }
 
-    private void loadSessions() {
-        new Thread(() -> {
-            try {
-                java.util.List<ApiClient.SessionData> sessions = ApiClient.getSessions();
+        refreshTimer = new Timer(true);
+        refreshTimer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
                 Platform.runLater(() -> {
-                    sessionList.getItems().clear();
-                    for (ApiClient.SessionData s : sessions) {
-                        String unread = s.unreadCount > 0 ? " [" + s.unreadCount + "]" : "";
-                        String display = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
-                        sessionList.getItems().add(display);
+                    loadSessions();
+                    if (currentTargetId != null) {
+                        loadMessages(currentTargetId);
                     }
                 });
-            } catch (Exception ex) {
-                ex.printStackTrace();
             }
-        }).start();
+        }, 3000, 3000);
     }
 
-    private void selectSession(String sessionStr) {
+    private void handleSessionClick(String sessionStr) {
         new Thread(() -> {
             try {
                 java.util.List<ApiClient.SessionData> sessions = ApiClient.getSessions();
                 for (ApiClient.SessionData s : sessions) {
-                    if (sessionStr.startsWith(s.targetNickname)) {
+                    String unread = s.unreadCount > 0 ? " [" + s.unreadCount + "]" : "";
+                    String display = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
+                    if (display.equals(sessionStr)) {
                         currentTargetId = s.targetId;
+                        currentTargetName = s.targetNickname;
                         Platform.runLater(() -> {
                             chatTargetLabel.setText("与 " + s.targetNickname + " 的对话");
                             loadMessages(s.targetId);
@@ -61,6 +62,28 @@ public class ChatController {
                         break;
                     }
                 }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }).start();
+    }
+
+    private void loadSessions() {
+        new Thread(() -> {
+            try {
+                java.util.List<ApiClient.SessionData> sessions = ApiClient.getSessions();
+                int selectedIndex = sessionList.getSelectionModel().getSelectedIndex();
+                Platform.runLater(() -> {
+                    sessionList.getItems().clear();
+                    for (ApiClient.SessionData s : sessions) {
+                        String unread = s.unreadCount > 0 ? " [" + s.unreadCount + "]" : "";
+                        String display = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
+                        sessionList.getItems().add(display);
+                    }
+                    if (selectedIndex >= 0 && selectedIndex < sessionList.getItems().size()) {
+                        sessionList.getSelectionModel().select(selectedIndex);
+                    }
+                });
             } catch (Exception ex) {
                 ex.printStackTrace();
             }
@@ -84,7 +107,9 @@ public class ChatController {
                         String display = prefix + ": " + m.content;
                         messageList.getItems().add(display);
                     }
-                    messageList.scrollTo(messageList.getItems().size() - 1);
+                    if (!messageList.getItems().isEmpty()) {
+                        messageList.scrollTo(messageList.getItems().size() - 1);
+                    }
                 });
                 ApiClient.markAsRead(targetId);
             } catch (Exception ex) {
@@ -120,5 +145,11 @@ public class ChatController {
                 ex.printStackTrace();
             }
         }).start();
+    }
+
+    public void shutdown() {
+        if (refreshTimer != null) {
+            refreshTimer.cancel();
+        }
     }
 }
