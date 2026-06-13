@@ -9,9 +9,9 @@
         <Insets top="40" right="40" bottom="40" left="40"/>
     </padding>
 
-    <Text text="LinkX IM" style="-fx-font-size: 32px; -fx-font-weight: bold; -fx-fill: #1890ff;"/>
+    <Label text="LinkX IM" style="-fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: #1890ff;"/>
 
-    <Text text="用户注册" style="-fx-font-size: 18px; -fx-fill: #666;"/>
+    <Label text="用户注册" style="-fx-font-size: 18px; -fx-text-fill: #666;"/>
 
     <VBox spacing="10">
         <TextField fx:id="usernameField" promptText="用户名（3-50位）" prefHeight="40"/>
@@ -25,5 +25,5 @@
         <Button fx:id="backBtn" text="返回登录" prefHeight="40" style="-fx-background-color: white; -fx-text-fill: #666; -fx-font-size: 14px; -fx-background-radius: 5; -fx-border-color: #ddd;"/>
     </VBox>
 
-    <Text fx:id="errorText" style="-fx-fill: red; -fx-font-size: 12px;"/>
+    <Label fx:id="errorText" style="-fx-text-fill: red; -fx-font-size: 12px;"/>
 </VBox>

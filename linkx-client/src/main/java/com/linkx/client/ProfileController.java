@@ -4,18 +4,18 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.text.Text;
+import javafx.scene.control.Label;
 
 public class ProfileController {
 
-    @FXML private Text usernameText;
+    @FXML private Label usernameText;
     @FXML private TextField nicknameField;
     @FXML private TextField signatureField;
     @FXML private ComboBox<String> genderBox;
     @FXML private TextField regionField;
-    @FXML private Text createTimeText;
+    @FXML private Label createTimeText;
     @FXML private Button saveBtn;
-    @FXML private Text messageText;
+    @FXML private Label messageText;
 
     @FXML
     public void initialize() {
@@ -67,14 +67,14 @@ public class ProfileController {
                 ApiClient.updateProfile(nickname, signature, genderIndex, region);
                 Platform.runLater(() -> {
                     messageText.setText("保存成功");
-                    messageText.setStyle("-fx-fill: green;");
+                    messageText.setStyle("-fx-text-fill: green;");
                     saveBtn.setDisable(false);
                     saveBtn.setText("保存修改");
                 });
             } catch (Exception ex) {
                 Platform.runLater(() -> {
                     messageText.setText("保存失败: " + ex.getMessage());
-                    messageText.setStyle("-fx-fill: red;");
+                    messageText.setStyle("-fx-text-fill: red;");
                     saveBtn.setDisable(false);
                     saveBtn.setText("保存修改");
                 });

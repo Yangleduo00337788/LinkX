@@ -7,7 +7,7 @@ import javafx.scene.Parent;
 import javafx.scene.control.Button;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
-import javafx.scene.text.Text;
+import javafx.scene.control.Label;
 
 public class LoginController {
 
@@ -15,7 +15,7 @@ public class LoginController {
     @FXML private PasswordField passwordField;
     @FXML private Button loginBtn;
     @FXML private Button registerBtn;
-    @FXML private Text errorText;
+    @FXML private Label errorText;
 
     @FXML
     public void initialize() {

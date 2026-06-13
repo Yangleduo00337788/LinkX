@@ -42,17 +42,17 @@ public class MainController {
     private void showContacts() {
         // TODO: Sprint 3 好友系统
         contentArea.getChildren().clear();
-        javafx.scene.text.Text text = new javafx.scene.text.Text("联系人功能开发中...");
-        text.setStyle("-fx-font-size: 18px; -fx-fill: #999;");
-        contentArea.getChildren().add(text);
+        javafx.scene.control.Label label = new javafx.scene.control.Label("联系人功能开发中...");
+        label.setStyle("-fx-font-size: 18px; -fx-text-fill: #999;");
+        contentArea.getChildren().add(label);
     }
 
     private void showChat() {
         // TODO: Sprint 4 单聊系统
         contentArea.getChildren().clear();
-        javafx.scene.text.Text text = new javafx.scene.text.Text("消息功能开发中...");
-        text.setStyle("-fx-font-size: 18px; -fx-fill: #999;");
-        contentArea.getChildren().add(text);
+        javafx.scene.control.Label label = new javafx.scene.control.Label("消息功能开发中...");
+        label.setStyle("-fx-font-size: 18px; -fx-text-fill: #999;");
+        contentArea.getChildren().add(label);
     }
 
     private void handleLogout() {
