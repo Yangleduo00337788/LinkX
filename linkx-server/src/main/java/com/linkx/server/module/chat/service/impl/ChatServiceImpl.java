@@ -62,11 +62,9 @@ public class ChatServiceImpl implements ChatService {
     @Override
     public List<MessageDTO> getChatHistory(Long userId, Long targetId, int page, int size) {
         LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
-        wrapper.and(w -> w
-                .and(inner -> inner.eq(ImMessage::getFromUserId, userId).eq(ImMessage::getToUserId, targetId))
+        wrapper.eq(ImMessage::getFromUserId, userId).eq(ImMessage::getToUserId, targetId)
                 .or()
-                .and(inner -> inner.eq(ImMessage::getFromUserId, targetId).eq(ImMessage::getToUserId, userId))
-        );
+                .eq(ImMessage::getFromUserId, targetId).eq(ImMessage::getToUserId, userId);
         wrapper.orderByAsc(ImMessage::getCreateTime);
         wrapper.last("LIMIT " + size + " OFFSET " + (page - 1) * size);
 
