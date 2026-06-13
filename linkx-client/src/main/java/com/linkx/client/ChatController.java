@@ -1,9 +1,12 @@
 package com.linkx.client;
 
 import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 
+import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -18,14 +21,22 @@ public class ChatController {
     private Long currentTargetId;
     private String currentTargetName;
     private Timer refreshTimer;
+    private ObservableList<String> sessionItems = FXCollections.observableArrayList();
+    private ObservableList<String> messageItems = FXCollections.observableArrayList();
 
     @FXML
     public void initialize() {
         sendBtn.setOnAction(e -> handleSend());
 
-        sessionList.getSelectionModel().selectedItemProperty().addListener((obs, oldVal, newVal) -> {
-            if (newVal != null && !newVal.equals(oldVal)) {
-                handleSessionClick(newVal);
+        sessionList.setItems(sessionItems);
+        messageList.setItems(messageItems);
+
+        sessionList.setOnMouseClicked(event -> {
+            if (event.getClickCount() == 1) {
+                String selected = sessionList.getSelectionModel().getSelectedItem();
+                if (selected != null) {
+                    selectSession(selected);
+                }
             }
         });
 
@@ -45,21 +56,21 @@ public class ChatController {
         }, 3000, 3000);
     }
 
-    private void handleSessionClick(String sessionStr) {
+    private void selectSession(String displayText) {
         new Thread(() -> {
             try {
-                java.util.List<ApiClient.SessionData> sessions = ApiClient.getSessions();
+                List<ApiClient.SessionData> sessions = ApiClient.getSessions();
                 for (ApiClient.SessionData s : sessions) {
                     String unread = s.unreadCount > 0 ? " [" + s.unreadCount + "]" : "";
-                    String display = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
-                    if (display.equals(sessionStr)) {
+                    String sessionDisplay = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
+                    if (sessionDisplay.equals(displayText)) {
                         currentTargetId = s.targetId;
                         currentTargetName = s.targetNickname;
                         Platform.runLater(() -> {
                             chatTargetLabel.setText("与 " + s.targetNickname + " 的对话");
-                            loadMessages(s.targetId);
                         });
-                        break;
+                        loadMessages(s.targetId);
+                        return;
                     }
                 }
             } catch (Exception ex) {
@@ -71,17 +82,20 @@ public class ChatController {
     private void loadSessions() {
         new Thread(() -> {
             try {
-                java.util.List<ApiClient.SessionData> sessions = ApiClient.getSessions();
-                int selectedIndex = sessionList.getSelectionModel().getSelectedIndex();
+                List<ApiClient.SessionData> sessions = ApiClient.getSessions();
                 Platform.runLater(() -> {
-                    sessionList.getItems().clear();
+                    String selectedBefore = sessionList.getSelectionModel().getSelectedItem();
+                    sessionItems.clear();
                     for (ApiClient.SessionData s : sessions) {
                         String unread = s.unreadCount > 0 ? " [" + s.unreadCount + "]" : "";
                         String display = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
-                        sessionList.getItems().add(display);
+                        sessionItems.add(display);
                     }
-                    if (selectedIndex >= 0 && selectedIndex < sessionList.getItems().size()) {
-                        sessionList.getSelectionModel().select(selectedIndex);
+                    if (selectedBefore != null) {
+                        int idx = sessionItems.indexOf(selectedBefore);
+                        if (idx >= 0) {
+                            sessionList.getSelectionModel().select(idx);
+                        }
                     }
                 });
             } catch (Exception ex) {
@@ -93,9 +107,9 @@ public class ChatController {
     private void loadMessages(Long targetId) {
         new Thread(() -> {
             try {
-                java.util.List<ApiClient.MessageData> messages = ApiClient.getChatHistory(targetId);
+                List<ApiClient.MessageData> messages = ApiClient.getChatHistory(targetId);
                 Platform.runLater(() -> {
-                    messageList.getItems().clear();
+                    messageItems.clear();
                     Long myId = ApiClient.getUserId();
                     for (ApiClient.MessageData m : messages) {
                         String prefix;
@@ -105,10 +119,10 @@ public class ChatController {
                             prefix = m.fromNickname != null ? m.fromNickname : "对方";
                         }
                         String display = prefix + ": " + m.content;
-                        messageList.getItems().add(display);
+                        messageItems.add(display);
                     }
-                    if (!messageList.getItems().isEmpty()) {
-                        messageList.scrollTo(messageList.getItems().size() - 1);
+                    if (!messageItems.isEmpty()) {
+                        messageList.scrollTo(messageItems.size() - 1);
                     }
                 });
                 ApiClient.markAsRead(targetId);
@@ -145,11 +159,5 @@ public class ChatController {
                 ex.printStackTrace();
             }
         }).start();
-    }
-
-    public void shutdown() {
-        if (refreshTimer != null) {
-            refreshTimer.cancel();
-        }
     }
 }
