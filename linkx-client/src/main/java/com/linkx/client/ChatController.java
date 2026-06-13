@@ -108,23 +108,21 @@ public class ChatController {
     private void loadMessages(Long targetId) {
         new Thread(() -> {
             try {
-                System.out.println("=== Loading messages for targetId: " + targetId + " ===");
-                System.out.println("Current userId: " + ApiClient.getUserId());
                 List<ApiClient.MessageData> messages = ApiClient.getChatHistory(targetId);
-                System.out.println("Got " + messages.size() + " messages");
                 Platform.runLater(() -> {
                     messageItems.clear();
                     Long myId = ApiClient.getUserId();
                     for (ApiClient.MessageData m : messages) {
-                        String prefix;
-                        if (m.fromUserId != null && m.fromUserId.equals(myId)) {
-                            prefix = "我";
-                        } else {
-                            prefix = m.fromNickname != null ? m.fromNickname : "对方";
+                        String time = "";
+                        if (m.createTime != null && m.createTime.length() >= 16) {
+                            time = m.createTime.substring(11, 16);
                         }
-                        String display = prefix + ": " + m.content;
-                        System.out.println("Message: " + display);
-                        messageItems.add(display);
+                        if (m.fromUserId != null && m.fromUserId.equals(myId)) {
+                            messageItems.add("我: " + time + ": " + m.content);
+                        } else {
+                            String name = m.fromNickname != null ? m.fromNickname : "对方";
+                            messageItems.add(name + ": " + time + ": " + m.content);
+                        }
                     }
                     if (!messageItems.isEmpty()) {
                         messageList.scrollTo(messageItems.size() - 1);
@@ -132,7 +130,6 @@ public class ChatController {
                 });
                 ApiClient.markAsRead(targetId);
             } catch (Exception ex) {
-                System.out.println("Error loading messages: " + ex.getMessage());
                 ex.printStackTrace();
             }
         }).start();
