@@ -19,25 +19,27 @@ public class ChatController {
     @FXML private Label chatTargetLabel;
 
     private Long currentTargetId;
-    private String currentTargetName;
     private Timer refreshTimer;
     private ObservableList<String> sessionItems = FXCollections.observableArrayList();
     private ObservableList<String> messageItems = FXCollections.observableArrayList();
+    private java.util.Map<String, Long> sessionMap = new java.util.HashMap<>();
 
     @FXML
     public void initialize() {
         sendBtn.setOnAction(e -> handleSend());
+        messageInput.setOnAction(e -> handleSend());
 
         sessionList.setItems(sessionItems);
         messageList.setItems(messageItems);
         messageList.setCellFactory(list -> new ChatCell());
 
         sessionList.setOnMouseClicked(event -> {
-            if (event.getClickCount() == 1) {
-                String selected = sessionList.getSelectionModel().getSelectedItem();
-                if (selected != null) {
-                    selectSession(selected);
-                }
+            String selected = sessionList.getSelectionModel().getSelectedItem();
+            if (selected != null && sessionMap.containsKey(selected)) {
+                currentTargetId = sessionMap.get(selected);
+                String name = selected.split(" - ")[0].replaceAll(" \\[\\d+\\]", "");
+                chatTargetLabel.setText(name);
+                loadMessages(currentTargetId);
             }
         });
 
@@ -57,27 +59,6 @@ public class ChatController {
         }, 3000, 3000);
     }
 
-    private void selectSession(String displayText) {
-        new Thread(() -> {
-            try {
-                List<ApiClient.SessionData> sessions = ApiClient.getSessions();
-                for (ApiClient.SessionData s : sessions) {
-                    String unread = s.unreadCount > 0 ? " [" + s.unreadCount + "]" : "";
-                    String sessionDisplay = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
-                    if (sessionDisplay.equals(displayText)) {
-                        currentTargetId = s.targetId;
-                        currentTargetName = s.targetNickname;
-                        Platform.runLater(() -> chatTargetLabel.setText("与 " + s.targetNickname + " 的对话"));
-                        loadMessages(s.targetId);
-                        return;
-                    }
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
-        }).start();
-    }
-
     private void loadSessions() {
         new Thread(() -> {
             try {
@@ -85,12 +66,14 @@ public class ChatController {
                 Platform.runLater(() -> {
                     String selectedBefore = sessionList.getSelectionModel().getSelectedItem();
                     sessionItems.clear();
+                    sessionMap.clear();
                     for (ApiClient.SessionData s : sessions) {
                         String unread = s.unreadCount > 0 ? " [" + s.unreadCount + "]" : "";
                         String display = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
                         sessionItems.add(display);
+                        sessionMap.put(display, s.targetId);
                     }
-                    if (selectedBefore != null) {
+                    if (selectedBefore != null && sessionMap.containsKey(selectedBefore)) {
                         int idx = sessionItems.indexOf(selectedBefore);
                         if (idx >= 0) sessionList.getSelectionModel().select(idx);
                     }
@@ -139,7 +122,6 @@ public class ChatController {
     @FXML
     private void handleSend() {
         if (currentTargetId == null) return;
-
         String content = messageInput.getText().trim();
         if (content.isEmpty()) return;
 
