@@ -4,15 +4,19 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox spacing="0" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.FriendController" style="-fx-background-color: white;">
+<VBox spacing="0" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.FriendController" style="-fx-background-color: #f0f2f5;">
     <padding>
-        <Insets top="16" right="0" bottom="0" left="0"/>
+        <Insets top="24" right="24" bottom="24" left="24"/>
     </padding>
 
-    <VBox spacing="12" styleClass="profile-card" VBox.vgrow="ALWAYS">
+    <VBox spacing="0" style="-fx-background-color: white; -fx-background-radius: 12; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 8, 0, 0, 2);" VBox.vgrow="ALWAYS">
         <padding>
             <Insets top="20" right="20" bottom="20" left="20"/>
         </padding>
+
+        <Label text="联系人" style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #262626;">
+            <VBox.margin><Insets bottom="16"/></VBox.margin>
+        </Label>
 
         <HBox spacing="10" alignment="CENTER_LEFT">
             <TextField fx:id="searchField" promptText="搜索用户" prefHeight="36" styleClass="input-field" VBox.vgrow="ALWAYS"/>
@@ -20,18 +24,18 @@
             <Button fx:id="refreshBtn" text="刷新" prefHeight="36" styleClass="success-btn"/>
         </HBox>
 
-        <TabPane prefHeight="480" VBox.vgrow="ALWAYS">
+        <TabPane prefHeight="480" VBox.vgrow="ALWAYS" style="-fx-padding: 12 0 0 0;">
             <Tab text="好友列表">
-                <ListView fx:id="friendListView" prefHeight="450" styleClass="message-list"/>
+                <ListView fx:id="friendListView" prefHeight="450" style="-fx-background-color: transparent;"/>
             </Tab>
             <Tab text="好友申请">
-                <ListView fx:id="requestListView" prefHeight="450" styleClass="message-list"/>
+                <ListView fx:id="requestListView" prefHeight="450" style="-fx-background-color: transparent;"/>
             </Tab>
             <Tab text="搜索结果">
-                <ListView fx:id="searchResultView" prefHeight="450" styleClass="message-list"/>
+                <ListView fx:id="searchResultView" prefHeight="450" style="-fx-background-color: transparent;"/>
             </Tab>
         </TabPane>
 
-        <Label fx:id="statusText" style="-fx-font-size: 12px; -fx-text-fill: #999;"/>
+        <Label fx:id="statusText" style="-fx-font-size: 12px; -fx-text-fill: #999; -fx-padding: 8 0 0 0;"/>
     </VBox>
 </VBox>

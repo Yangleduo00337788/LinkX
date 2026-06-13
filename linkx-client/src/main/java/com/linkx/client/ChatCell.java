@@ -17,7 +17,9 @@ public class ChatCell extends ListCell<String> {
     private static final int AVATAR_SIZE = 36;
 
     public ChatCell() {
-        setPadding(new Insets(0));
+        setPadding(new Insets(2, 0, 2, 0));
+        setPrefWidth(USE_COMPUTED_SIZE);
+        setMaxWidth(Double.MAX_VALUE);
     }
 
     @Override
@@ -42,49 +44,48 @@ public class ChatCell extends ListCell<String> {
         String readStatus = parts[5];
 
         ImageView avatar = createAvatar(avatarUrl);
-        TextFlow textFlow = new TextFlow(new Text(content));
-        textFlow.setMaxWidth(260);
 
-        Text timeText = new Text("  " + time);
-        timeText.setStyle("-fx-font-size: 10px; -fx-fill: #aaa;");
+        Text contentText = new Text(content);
+        contentText.setStyle("-fx-font-size: 14px;");
+        TextFlow textFlow = new TextFlow(contentText);
+        textFlow.setMaxWidth(280);
+        textFlow.setLineSpacing(2);
 
-        HBox timeRow = new HBox(4);
-        timeRow.setAlignment(Pos.CENTER_RIGHT);
+        Text timeText = new Text(time);
+        timeText.setStyle("-fx-font-size: 10px; -fx-fill: #bfbfbf;");
 
         if ("ME".equals(type)) {
-            Text readText = new Text(readStatus);
+            textFlow.setStyle("-fx-padding: 10 14; -fx-background-color: #95ec69; -fx-background-radius: 12;");
+
+            Text readText = new Text(" " + readStatus);
             readText.setStyle("-fx-font-size: 10px; -fx-fill: #1890ff;");
-            timeRow.getChildren().addAll(timeText, readText);
 
-            textFlow.setStyle("-fx-padding: 8 14; -fx-background-color: #95ec69; -fx-background-radius: 12; -fx-wrap-text: true;");
+            HBox timeRow = new HBox(2, timeText, readText);
+            timeRow.setAlignment(Pos.CENTER_RIGHT);
 
-            VBox bubbleBox = new VBox(2, textFlow, timeRow);
-            bubbleBox.setAlignment(Pos.CENTER_RIGHT);
-            bubbleBox.setMaxWidth(300);
+            VBox bubble = new VBox(2, textFlow, timeRow);
+            bubble.setAlignment(Pos.CENTER_RIGHT);
 
-            HBox row = new HBox(8);
+            HBox row = new HBox(6, bubble, avatar);
             row.setAlignment(Pos.CENTER_RIGHT);
-            row.setPadding(new Insets(2, 12, 2, 60));
-            row.getChildren().addAll(bubbleBox, avatar);
+            row.setPadding(new Insets(0, 12, 0, 50));
 
             setGraphic(row);
         } else {
-            Text nameText = new Text(nickname);
-            nameText.setStyle("-fx-font-size: 11px; -fx-fill: #999;");
+            textFlow.setStyle("-fx-padding: 10 14; -fx-background-color: white; -fx-background-radius: 12; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 3, 0, 0, 1);");
 
-            timeRow.getChildren().add(timeText);
+            Text nameText = new Text(nickname);
+            nameText.setStyle("-fx-font-size: 11px; -fx-fill: #bfbfbf;");
+
+            HBox timeRow = new HBox(2, timeText);
             timeRow.setAlignment(Pos.CENTER_LEFT);
 
-            textFlow.setStyle("-fx-padding: 8 14; -fx-background-color: white; -fx-background-radius: 12; -fx-wrap-text: true; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 3, 0, 0, 1);");
+            VBox bubble = new VBox(2, nameText, textFlow, timeRow);
+            bubble.setAlignment(Pos.CENTER_LEFT);
 
-            VBox bubbleBox = new VBox(2, nameText, textFlow, timeRow);
-            bubbleBox.setAlignment(Pos.CENTER_LEFT);
-            bubbleBox.setMaxWidth(300);
-
-            HBox row = new HBox(8);
+            HBox row = new HBox(6, avatar, bubble);
             row.setAlignment(Pos.CENTER_LEFT);
-            row.setPadding(new Insets(2, 60, 2, 12));
-            row.getChildren().addAll(avatar, bubbleBox);
+            row.setPadding(new Insets(0, 50, 0, 12));
 
             setGraphic(row);
         }
@@ -96,7 +97,7 @@ public class ChatCell extends ListCell<String> {
         avatar.setFitHeight(AVATAR_SIZE);
         avatar.setPreserveRatio(true);
         avatar.setSmooth(true);
-        avatar.setStyle("-fx-background-radius: 18; -fx-background-color: #e8e8e8;");
+        avatar.setStyle("-fx-background-radius: 18; -fx-background-color: #e6e6e6;");
 
         if (url != null && !url.isEmpty()) {
             try {

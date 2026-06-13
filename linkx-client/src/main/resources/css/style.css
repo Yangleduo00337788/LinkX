@@ -2,9 +2,74 @@
     -fx-font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
 }
 
-/* 左侧菜单 */
+/* Field labels */
+.field-label {
+    -fx-font-size: 14px;
+    -fx-text-fill: #8c8c8c;
+    -fx-min-width: 60;
+}
+
+/* Login/Register */
+.login-bg {
+    -fx-background-color: linear-gradient(to bottom right, #e6f7ff, #f0f5ff, #fff);
+}
+
+/* Input fields */
+.input-field {
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-color: #d9d9d9;
+    -fx-border-width: 1;
+    -fx-padding: 6 12;
+    -fx-font-size: 14px;
+    -fx-background-color: white;
+}
+
+.input-field:focused {
+    -fx-border-color: #1890ff;
+    -fx-effect: dropshadow(three-pass-box, rgba(24,144,255,0.15), 6, 0, 0, 0);
+}
+
+/* Buttons */
+.primary-btn {
+    -fx-background-color: #1890ff;
+    -fx-text-fill: white;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 0 16;
+}
+
+.primary-btn:hover {
+    -fx-background-color: #40a9ff;
+}
+
+.primary-btn:pressed {
+    -fx-background-color: #096dd9;
+}
+
+.success-btn {
+    -fx-background-color: #52c41a;
+    -fx-text-fill: white;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+    -fx-font-size: 14px;
+    -fx-padding: 0 16;
+}
+
+.success-btn:hover {
+    -fx-background-color: #73d13d;
+}
+
+.danger-btn {
+    -fx-background-color: #ff4d4f;
+    -fx-text-fill: white;
+    -fx-background-radius: 6;
+}
+
+/* Side menu */
 .side-menu {
-    -fx-background-color: #001529;
+    -fx-background-color: linear-gradient(to bottom, #001529, #002140);
 }
 
 .menu-btn {
@@ -13,6 +78,7 @@
     -fx-font-size: 14px;
     -fx-alignment: CENTER_LEFT;
     -fx-cursor: hand;
+    -fx-background-radius: 0;
 }
 
 .menu-btn:hover {
@@ -20,46 +86,9 @@
     -fx-text-fill: white;
 }
 
-.menu-btn-active {
-    -fx-background-color: #1890ff;
-    -fx-text-fill: white;
-}
-
-/* 会话列表 */
-.session-item {
-    -fx-padding: 10 12;
-    -fx-cursor: hand;
-}
-
-.session-item:selected {
-    -fx-background-color: #e6f7ff;
-}
-
-.session-name {
-    -fx-font-size: 14px;
-    -fx-font-weight: bold;
-    -fx-text-fill: #333;
-}
-
-.session-preview {
-    -fx-font-size: 12px;
-    -fx-text-fill: #999;
-    -fx-text-overrun: ellipsis;
-}
-
-/* 聊天区域 */
-.chat-header {
-    -fx-background-color: white;
-    -fx-border-color: #f0f0f0;
-    -fx-border-width: 0 0 1 0;
-    -fx-padding: 12 20;
-}
-
-.chat-input-area {
-    -fx-background-color: white;
-    -fx-border-color: #f0f0f0;
-    -fx-border-width: 1 0 0 0;
-    -fx-padding: 10 16;
+/* Chat */
+.message-list {
+    -fx-background-color: #f0f2f5;
 }
 
 .chat-input {
@@ -87,82 +116,15 @@
     -fx-background-color: #40a9ff;
 }
 
-.send-btn:pressed {
-    -fx-background-color: #096dd9;
+/* Avatar */
+.avatar-default {
+    -fx-background-radius: 18;
+    -fx-background-color: #e6e6e6;
 }
 
-/* 消息列表 */
-.message-list {
-    -fx-background-color: #f5f5f5;
-    -fx-background-radius: 0;
-}
-
-/* 个人资料 */
+/* Profile */
 .profile-card {
     -fx-background-color: white;
     -fx-background-radius: 12;
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.08), 8, 0, 0, 2);
-}
-
-.avatar-circle {
-    -fx-background-radius: 40;
-    -fx-background-color: #e8e8e8;
-}
-
-.input-field {
-    -fx-background-radius: 6;
-    -fx-border-radius: 6;
-    -fx-border-color: #d9d9d9;
-    -fx-padding: 8 12;
-    -fx-font-size: 14px;
-}
-
-.input-field:focused {
-    -fx-border-color: #1890ff;
-    -fx-effect: dropshadow(three-pass-box, rgba(24,144,255,0.2), 4, 0, 0, 0);
-}
-
-.primary-btn {
-    -fx-background-color: #1890ff;
-    -fx-text-fill: white;
-    -fx-background-radius: 6;
-    -fx-cursor: hand;
-    -fx-font-size: 14px;
-}
-
-.primary-btn:hover {
-    -fx-background-color: #40a9ff;
-}
-
-.success-btn {
-    -fx-background-color: #52c41a;
-    -fx-text-fill: white;
-    -fx-background-radius: 6;
-    -fx-cursor: hand;
-    -fx-font-size: 14px;
-}
-
-.success-btn:hover {
-    -fx-background-color: #73d13d;
-}
-
-.danger-btn {
-    -fx-background-color: #ff4d4f;
-    -fx-text-fill: white;
-    -fx-background-radius: 6;
-}
-
-/* 好友界面 */
-.friend-tab {
-    -fx-background-color: white;
-    -fx-background-radius: 8;
-}
-
-.friend-item {
-    -fx-padding: 12 16;
-    -fx-cursor: hand;
-}
-
-.friend-item:hover {
-    -fx-background-color: #f5f5f5;
+    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 8, 0, 0, 2);
 }

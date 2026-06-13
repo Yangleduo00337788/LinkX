@@ -3,46 +3,58 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.image.*?>
 
-<VBox spacing="20" style="-fx-background-color: white; -fx-background-radius: 10;"
-      xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.ProfileController">
+<VBox spacing="0" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.ProfileController" style="-fx-background-color: #f0f2f5;">
     <padding>
-        <Insets top="30" right="30" bottom="30" left="30"/>
+        <Insets top="24" right="24" bottom="24" left="24"/>
     </padding>
 
-    <Label text="我的资料" style="-fx-font-size: 24px; -fx-font-weight: bold;"/>
+    <VBox spacing="0" style="-fx-background-color: white; -fx-background-radius: 12; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 8, 0, 0, 2);">
+        <padding>
+            <Insets top="32" right="32" bottom="32" left="32"/>
+        </padding>
 
-    <HBox spacing="20" alignment="CENTER_LEFT">
-        <VBox spacing="5" alignment="CENTER">
-            <ImageView fx:id="avatarView" fitWidth="80" fitHeight="80" preserveRatio="true" style="-fx-background-color: #eee; -fx-background-radius: 40;"/>
-            <Button fx:id="changeAvatarBtn" text="更换头像" prefHeight="25" style="-fx-background-color: #1890ff; -fx-text-fill: white; -fx-font-size: 11px; -fx-background-radius: 3;"/>
-        </VBox>
+        <Label text="个人资料" style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #262626;">
+            <VBox.margin><Insets bottom="24"/></VBox.margin>
+        </Label>
 
-        <VBox spacing="10" VBox.vgrow="ALWAYS">
-            <HBox spacing="10" alignment="CENTER_LEFT">
-                <Label text="用户名：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-                <Label fx:id="usernameText" style="-fx-font-size: 14px;"/>
-            </HBox>
+        <HBox spacing="24" alignment="CENTER_LEFT" VBox.vgrow="ALWAYS">
+            <VBox spacing="8" alignment="CENTER">
+                <ImageView fx:id="avatarView" fitWidth="88" fitHeight="88" preserveRatio="true" style="-fx-background-radius: 44; -fx-background-color: #f0f0f0;"/>
+                <Button fx:id="changeAvatarBtn" text="更换头像" styleClass="primary-btn" prefHeight="28">
+                    <VBox.margin><Insets top="4"/></VBox.margin>
+                </Button>
+            </VBox>
 
-            <HBox spacing="10" alignment="CENTER_LEFT">
-                <Label text="昵称：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-                <TextField fx:id="nicknameField" prefWidth="250" prefHeight="35"/>
-            </HBox>
+            <VBox spacing="16" VBox.vgrow="ALWAYS">
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Label text="用户名" styleClass="field-label"/>
+                    <Label fx:id="usernameText" style="-fx-font-size: 14px; -fx-text-fill: #333;"/>
+                </HBox>
 
-            <HBox spacing="10" alignment="CENTER_LEFT">
-                <Label text="性别：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-                <ComboBox fx:id="genderBox" prefWidth="150" prefHeight="35"/>
-            </HBox>
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Label text="昵称" styleClass="field-label"/>
+                    <TextField fx:id="nicknameField" prefWidth="260" prefHeight="36" styleClass="input-field"/>
+                </HBox>
 
-            <HBox spacing="10" alignment="CENTER_LEFT">
-                <Label text="注册时间：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-                <Label fx:id="createTimeText" style="-fx-font-size: 14px;"/>
-            </HBox>
-        </VBox>
-    </HBox>
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Label text="性别" styleClass="field-label"/>
+                    <ComboBox fx:id="genderBox" prefWidth="150" prefHeight="36" styleClass="input-field"/>
+                </HBox>
 
-    <Button fx:id="saveBtn" text="保存修改" prefHeight="40" style="-fx-background-color: #1890ff; -fx-text-fill: white; -fx-font-size: 14px; -fx-background-radius: 5;"/>
+                <HBox spacing="12" alignment="CENTER_LEFT">
+                    <Label text="注册时间" styleClass="field-label"/>
+                    <Label fx:id="createTimeText" style="-fx-font-size: 14px; -fx-text-fill: #666;"/>
+                </HBox>
+            </VBox>
+        </HBox>
 
-    <Label fx:id="messageText" style="-fx-font-size: 12px;"/>
+        <Separator style="-fx-padding: 16 0 16 0;"/>
+
+        <HBox spacing="12" alignment="CENTER_RIGHT">
+            <Button fx:id="saveBtn" text="保存修改" prefHeight="38" styleClass="primary-btn"/>
+        </HBox>
+
+        <Label fx:id="messageText" style="-fx-font-size: 12px; -fx-padding: 8 0 0 0;"/>
+    </VBox>
 </VBox>
