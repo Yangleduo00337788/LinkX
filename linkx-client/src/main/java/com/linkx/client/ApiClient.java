@@ -261,6 +261,106 @@ public class ApiClient {
         }
     }
 
+    public static MessageData sendMessage(Long toUserId, String content) throws IOException {
+        String json = gson.toJson(new SendMessageReq(toUserId, content, 0));
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/chat/send")
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .post(RequestBody.create(json, MediaType.parse("application/json")))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<MessageData> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<MessageData>>(){}.getType());
+            if (resp.code == 200) {
+                return resp.data;
+            }
+            throw new IOException(resp.message);
+        }
+    }
+
+    public static java.util.List<MessageData> getChatHistory(Long targetId) throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/chat/history?targetId=" + targetId)
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<java.util.List<MessageData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<MessageData>>>(){}.getType());
+            if (resp.code == 200) {
+                return resp.data;
+            }
+            throw new IOException(resp.message);
+        }
+    }
+
+    public static java.util.List<SessionData> getSessions() throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/chat/sessions")
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<java.util.List<SessionData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<SessionData>>>(){}.getType());
+            if (resp.code == 200) {
+                return resp.data;
+            }
+            throw new IOException(resp.message);
+        }
+    }
+
+    public static void markAsRead(Long targetId) throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/chat/read/" + targetId)
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .post(RequestBody.create("", MediaType.parse("application/json")))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<?> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<?>>(){}.getType());
+            if (resp.code != 200) {
+                throw new IOException(resp.message);
+            }
+        }
+    }
+
+    public static class MessageData {
+        public Long id;
+        public Long sessionId;
+        public Long fromUserId;
+        public String fromNickname;
+        public Long toUserId;
+        public String content;
+        public Integer msgType;
+        public Integer status;
+        public String createTime;
+    }
+
+    public static class SessionData {
+        public Long id;
+        public Long userId;
+        public Long targetId;
+        public String targetNickname;
+        public String targetUsername;
+        public String lastMessage;
+        public String lastMessageTime;
+        public Integer unreadCount;
+    }
+
+    private static class SendMessageReq {
+        Long toUserId;
+        String content;
+        Integer msgType;
+        SendMessageReq(Long to, String c, Integer t) {
+            toUserId = to; content = c; msgType = t;
+        }
+    }
+
     // Request classes
     private static class RegisterReq {
         String username, nickname, password;

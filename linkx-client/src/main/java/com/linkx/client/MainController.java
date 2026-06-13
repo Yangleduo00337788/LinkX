@@ -50,11 +50,13 @@ public class MainController {
     }
 
     private void showChat() {
-        // TODO: Sprint 4 单聊系统
-        contentArea.getChildren().clear();
-        javafx.scene.control.Label label = new javafx.scene.control.Label("消息功能开发中...");
-        label.setStyle("-fx-font-size: 18px; -fx-text-fill: #999;");
-        contentArea.getChildren().add(label);
+        try {
+            Parent chat = FXMLLoader.load(getClass().getResource("/fxml/chat.fxml"));
+            contentArea.getChildren().clear();
+            contentArea.getChildren().add(chat);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void handleLogout() {

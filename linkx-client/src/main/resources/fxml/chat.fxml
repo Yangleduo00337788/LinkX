@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.ChatController">
+    <left>
+        <VBox prefWidth="250" style="-fx-background-color: white;">
+            <padding>
+                <Insets top="10" right="5" bottom="10" left="5"/>
+            </padding>
+            <Label text="会话列表" style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+            <ListView fx:id="sessionList" prefHeight="500"/>
+        </VBox>
+    </left>
+
+    <center>
+        <VBox spacing="10">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label fx:id="chatTargetLabel" text="选择一个会话" style="-fx-font-size: 16px; -fx-font-weight: bold;"/>
+            </HBox>
+
+            <ListView fx:id="messageList" VBox.vgrow="ALWAYS" style="-fx-background-color: #f5f5f5;"/>
+
+            <HBox spacing="10" alignment="CENTER">
+                <TextField fx:id="messageInput" promptText="输入消息..." prefWidth="600" prefHeight="35" onAction="#handleSend"/>
+                <Button fx:id="sendBtn" text="发送" prefHeight="35" prefWidth="80" style="-fx-background-color: #1890ff; -fx-text-fill: white; -fx-background-radius: 5;"/>
+            </HBox>
+        </VBox>
+    </center>
+</BorderPane>
