@@ -4,33 +4,41 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox spacing="0" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.FriendController" style="-fx-background-color: #ededed;">
-    <!-- 顶部栏 -->
-    <HBox alignment="CENTER_LEFT" style="-fx-background-color: #2e2e2e; -fx-padding: 0 20;">
-        <padding><Insets top="12" bottom="12"/></padding>
-        <Label text="联系人" style="-fx-font-size: 16px; -fx-text-fill: white; -fx-font-weight: bold;"/>
-    </HBox>
+<VBox xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.FriendController" style="-fx-background-color: #f5f5f5;">
+    <top>
+        <HBox prefHeight="52" alignment="CENTER_LEFT" style="-fx-background-color: white; -fx-border-color: #e8e8e8; -fx-border-width: 0 0 1 0;">
+            <padding><Insets top="0" right="16" bottom="0" left="16"/></padding>
+            <Label text="联系人" style="-fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: #333;"/>
+        </HBox>
+    </top>
 
-    <!-- 搜索栏 -->
-    <HBox spacing="10" alignment="CENTER_LEFT" styleClass="search-box">
-        <TextField fx:id="searchField" promptText="搜索" prefHeight="32" VBox.vgrow="ALWAYS" styleClass="search-input"/>
-        <Button fx:id="searchBtn" text="搜索" styleClass="wechat-btn" prefHeight="32"/>
-        <Button fx:id="refreshBtn" text="刷新" styleClass="wechat-btn" prefHeight="32" style="-fx-background-color: #1890ff;"/>
-    </HBox>
+    <center>
+        <VBox spacing="0" VBox.vgrow="ALWAYS">
+            <!-- 搜索 -->
+            <HBox spacing="8" alignment="CENTER_LEFT" style="-fx-background-color: white; -fx-padding: 12 16; -fx-border-color: #e8e8e8; -fx-border-width: 0 0 1 0;">
+                <TextField fx:id="searchField" promptText="搜索" prefHeight="32" HBox.hgrow="ALWAYS" styleClass="wechat-search"/>
+                <Button fx:id="searchBtn" text="搜索" prefHeight="32" prefWidth="60" styleClass="wechat-green"/>
+                <Button fx:id="refreshBtn" text="刷新" prefHeight="32" prefWidth="60" styleClass="wechat-green"/>
+            </HBox>
 
-    <VBox spacing="0" VBox.vgrow="ALWAYS" style="-fx-background-color: white;">
-        <TabPane prefHeight="500" VBox.vgrow="ALWAYS">
-            <Tab text="好友列表">
-                <ListView fx:id="friendListView" prefHeight="470" style="-fx-background-color: white;"/>
-            </Tab>
-            <Tab text="好友申请">
-                <ListView fx:id="requestListView" prefHeight="470" style="-fx-background-color: white;"/>
-            </Tab>
-            <Tab text="搜索结果">
-                <ListView fx:id="searchResultView" prefHeight="470" style="-fx-background-color: white;"/>
-            </Tab>
-        </TabPane>
-    </VBox>
+            <!-- Tab -->
+            <TabPane prefHeight="500" VBox.vgrow="ALWAYS">
+                <Tab text="好友列表">
+                    <ListView fx:id="friendListView" style="-fx-background-color: white;"/>
+                </Tab>
+                <Tab text="好友申请">
+                    <ListView fx:id="requestListView" style="-fx-background-color: white;"/>
+                </Tab>
+                <Tab text="搜索结果">
+                    <ListView fx:id="searchResultView" style="-fx-background-color: white;"/>
+                </Tab>
+            </TabPane>
+        </VBox>
+    </center>
 
-    <Label fx:id="statusText" style="-fx-font-size: 12px; -fx-text-fill: #999; -fx-padding: 8 16;"/>
+    <bottom>
+        <HBox alignment="CENTER" style="-fx-padding: 8;">
+            <Label fx:id="statusText" style="-fx-font-size: 12px; -fx-text-fill: #999;"/>
+        </HBox>
+    </bottom>
 </VBox>
