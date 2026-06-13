@@ -361,6 +361,34 @@ public class ApiClient {
         }
     }
 
+    public static String uploadAvatar(String filePath) throws IOException {
+        java.io.File file = new java.io.File(filePath);
+        if (!file.exists()) {
+            throw new IOException("文件不存在");
+        }
+
+        RequestBody fileBody = RequestBody.create(file, MediaType.parse("image/*"));
+        MultipartBody body = new MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("file", file.getName(), fileBody)
+                .build();
+
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/file/upload/avatar")
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .post(body)
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String respBody = response.body().string();
+            ApiResponse<String> resp = gson.fromJson(respBody, new com.google.gson.reflect.TypeToken<ApiResponse<String>>(){}.getType());
+            if (resp.code == 200) {
+                return resp.data;
+            }
+            throw new IOException(resp.message);
+        }
+    }
+
     // Request classes
     private static class RegisterReq {
         String username, nickname, password;

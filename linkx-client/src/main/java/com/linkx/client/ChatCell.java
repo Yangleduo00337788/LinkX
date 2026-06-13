@@ -3,6 +3,8 @@ package com.linkx.client;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.ListCell;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -13,6 +15,7 @@ import javafx.scene.text.TextFlow;
 public class ChatCell extends ListCell<String> {
 
     private final VBox container = new VBox();
+    private static final Image DEFAULT_AVATAR = new Image(ChatCell.class.getResourceAsStream("/images/default-avatar.png"));
 
     public ChatCell() {
         container.setPadding(new Insets(2, 10, 2, 10));
@@ -26,20 +29,44 @@ public class ChatCell extends ListCell<String> {
         } else {
             container.getChildren().clear();
 
+            ImageView avatar = new ImageView();
+            avatar.setFitWidth(40);
+            avatar.setFitHeight(40);
+            avatar.setPreserveRatio(true);
+
             if (item.startsWith("我: ")) {
-                String msg = item.substring(3);
+                String[] parts = item.split(": ", 3);
+                String time = parts.length > 1 ? parts[1] : "";
+                String msg = parts.length > 2 ? parts[2] : "";
+
                 TextFlow textFlow = new TextFlow(new Text(msg));
                 textFlow.setStyle("-fx-padding: 8 12; -fx-background-color: #95ec69; -fx-background-radius: 10; -fx-wrap-text: true;");
-                textFlow.setMaxWidth(280);
+                textFlow.setMaxWidth(250);
 
-                VBox bubble = new VBox(textFlow);
+                Text timeText = new Text(time);
+                timeText.setStyle("-fx-font-size: 10px; -fx-fill: #ccc;");
+
+                VBox bubble = new VBox(textFlow, timeText);
+                bubble.setSpacing(2);
                 bubble.setAlignment(Pos.CENTER_RIGHT);
+
+                try {
+                    String avatarUrl = ApiClient.getMyProfile().avatar;
+                    if (avatarUrl != null && !avatarUrl.isEmpty()) {
+                        avatar.setImage(new Image(avatarUrl, 40, 40, true, true));
+                    } else {
+                        avatar.setImage(DEFAULT_AVATAR);
+                    }
+                } catch (Exception e) {
+                    avatar.setImage(DEFAULT_AVATAR);
+                }
 
                 HBox row = new HBox();
                 row.setAlignment(Pos.CENTER_RIGHT);
+                row.setSpacing(8);
                 Region spacer = new Region();
                 HBox.setHgrow(spacer, Priority.ALWAYS);
-                row.getChildren().addAll(spacer, bubble);
+                row.getChildren().addAll(spacer, bubble, avatar);
 
                 container.getChildren().add(row);
                 container.setAlignment(Pos.CENTER_RIGHT);
@@ -55,7 +82,7 @@ public class ChatCell extends ListCell<String> {
 
                 TextFlow textFlow = new TextFlow(new Text(msg));
                 textFlow.setStyle("-fx-padding: 8 12; -fx-background-color: white; -fx-background-radius: 10; -fx-wrap-text: true; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 2, 0, 0, 1);");
-                textFlow.setMaxWidth(280);
+                textFlow.setMaxWidth(250);
 
                 Text timeText = new Text(time);
                 timeText.setStyle("-fx-font-size: 10px; -fx-fill: #ccc;");
@@ -64,11 +91,14 @@ public class ChatCell extends ListCell<String> {
                 bubble.setSpacing(2);
                 bubble.setAlignment(Pos.CENTER_LEFT);
 
+                avatar.setImage(DEFAULT_AVATAR);
+
                 HBox row = new HBox();
                 row.setAlignment(Pos.CENTER_LEFT);
+                row.setSpacing(8);
                 Region spacer = new Region();
                 HBox.setHgrow(spacer, Priority.ALWAYS);
-                row.getChildren().addAll(bubble, spacer);
+                row.getChildren().addAll(avatar, bubble, spacer);
 
                 container.getChildren().add(row);
                 container.setAlignment(Pos.CENTER_LEFT);

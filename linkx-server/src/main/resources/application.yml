@@ -25,3 +25,6 @@ linkx:
     secret: LinkXIM2026SecretKeyForJwtTokenGenerationMustBeLongEnough
     expiration: 86400000  # 24小时
     refresh-expiration: 604800000  # 7天
+  upload:
+    path: D:/yangleduo/Code/Java/LinkX/linkx-server/uploads/
+    url: http://localhost:8080/uploads/

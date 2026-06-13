@@ -4,6 +4,11 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.stage.FileChooser;
+
+import java.io.File;
 
 public class ProfileController {
 
@@ -12,7 +17,11 @@ public class ProfileController {
     @FXML private ComboBox<String> genderBox;
     @FXML private Label createTimeText;
     @FXML private Button saveBtn;
+    @FXML private Button changeAvatarBtn;
+    @FXML private ImageView avatarView;
     @FXML private Label messageText;
+
+    private String currentAvatarUrl;
 
     @FXML
     public void initialize() {
@@ -20,6 +29,7 @@ public class ProfileController {
         genderBox.getSelectionModel().select(0);
 
         saveBtn.setOnAction(e -> handleSave());
+        changeAvatarBtn.setOnAction(e -> handleChangeAvatar());
 
         loadProfile();
     }
@@ -36,11 +46,53 @@ public class ProfileController {
                     if (user.gender != null) {
                         genderBox.getSelectionModel().select(user.gender);
                     }
+
+                    if (user.avatar != null && !user.avatar.isEmpty()) {
+                        currentAvatarUrl = user.avatar;
+                        loadAvatar(user.avatar);
+                    }
                 });
             } catch (Exception ex) {
                 Platform.runLater(() -> messageText.setText("加载资料失败: " + ex.getMessage()));
             }
         }).start();
+    }
+
+    private void loadAvatar(String url) {
+        try {
+            Image image = new Image(url, 80, 80, true, true);
+            avatarView.setImage(image);
+        } catch (Exception e) {
+            System.out.println("加载头像失败: " + e.getMessage());
+        }
+    }
+
+    private void handleChangeAvatar() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("选择头像");
+        fileChooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("图片文件", "*.png", "*.jpg", "*.jpeg", "*.gif")
+        );
+
+        File file = fileChooser.showOpenDialog(avatarView.getScene().getWindow());
+        if (file != null) {
+            new Thread(() -> {
+                try {
+                    String url = ApiClient.uploadAvatar(file.getAbsolutePath());
+                    currentAvatarUrl = url;
+                    Platform.runLater(() -> {
+                        loadAvatar(url);
+                        messageText.setText("头像上传成功");
+                        messageText.setStyle("-fx-text-fill: green;");
+                    });
+                } catch (Exception ex) {
+                    Platform.runLater(() -> {
+                        messageText.setText("上传失败: " + ex.getMessage());
+                        messageText.setStyle("-fx-text-fill: red;");
+                    });
+                }
+            }).start();
+        }
     }
 
     private void handleSave() {

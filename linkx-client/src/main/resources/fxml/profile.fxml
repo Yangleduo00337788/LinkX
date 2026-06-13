@@ -3,6 +3,7 @@
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
+<?import javafx.scene.image.*?>
 
 <VBox spacing="20" style="-fx-background-color: white; -fx-background-radius: 10;"
       xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.ProfileController">
@@ -12,27 +13,34 @@
 
     <Label text="我的资料" style="-fx-font-size: 24px; -fx-font-weight: bold;"/>
 
-    <VBox spacing="15">
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="用户名：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-            <Label fx:id="usernameText" style="-fx-font-size: 14px;"/>
-        </HBox>
+    <HBox spacing="20" alignment="CENTER_LEFT">
+        <VBox spacing="5" alignment="CENTER">
+            <ImageView fx:id="avatarView" fitWidth="80" fitHeight="80" preserveRatio="true" style="-fx-background-color: #eee; -fx-background-radius: 40;"/>
+            <Button fx:id="changeAvatarBtn" text="更换头像" prefHeight="25" style="-fx-background-color: #1890ff; -fx-text-fill: white; -fx-font-size: 11px; -fx-background-radius: 3;"/>
+        </VBox>
 
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="昵称：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-            <TextField fx:id="nicknameField" prefWidth="250" prefHeight="35"/>
-        </HBox>
+        <VBox spacing="10" VBox.vgrow="ALWAYS">
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="用户名：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
+                <Label fx:id="usernameText" style="-fx-font-size: 14px;"/>
+            </HBox>
 
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="性别：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-            <ComboBox fx:id="genderBox" prefWidth="150" prefHeight="35"/>
-        </HBox>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="昵称：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
+                <TextField fx:id="nicknameField" prefWidth="250" prefHeight="35"/>
+            </HBox>
 
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="注册时间：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-            <Label fx:id="createTimeText" style="-fx-font-size: 14px;"/>
-        </HBox>
-    </VBox>
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="性别：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
+                <ComboBox fx:id="genderBox" prefWidth="150" prefHeight="35"/>
+            </HBox>
+
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <Label text="注册时间：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
+                <Label fx:id="createTimeText" style="-fx-font-size: 14px;"/>
+            </HBox>
+        </VBox>
+    </HBox>
 
     <Button fx:id="saveBtn" text="保存修改" prefHeight="40" style="-fx-background-color: #1890ff; -fx-text-fill: white; -fx-font-size: 14px; -fx-background-radius: 5;"/>
 
