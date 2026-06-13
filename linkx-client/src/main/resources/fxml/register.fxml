@@ -4,27 +4,34 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox alignment="CENTER" spacing="15" prefWidth="400" prefHeight="550" style="-fx-background-color: #f5f5f5;"
-      xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.RegisterController">
+<VBox alignment="CENTER" spacing="18" prefWidth="400" prefHeight="550" style="-fx-background-color: linear-gradient(to bottom, #f0f5ff, #e6f7ff);">
     <padding>
-        <Insets top="40" right="40" bottom="40" left="40"/>
+        <Insets top="50" right="50" bottom="50" left="50"/>
     </padding>
 
-    <Label text="LinkX IM" style="-fx-font-size: 32px; -fx-font-weight: bold; -fx-text-fill: #1890ff;"/>
+    <Label text="LinkX IM" style="-fx-font-size: 36px; -fx-font-weight: bold; -fx-text-fill: #1890ff;">
+        <VBox.margin>
+            <Insets bottom="8"/>
+        </VBox.margin>
+    </Label>
 
-    <Label text="用户注册" style="-fx-font-size: 18px; -fx-text-fill: #666;"/>
+    <Label text="创建新账号" style="-fx-font-size: 14px; -fx-text-fill: #999;">
+        <VBox.margin>
+            <Insets bottom="12"/>
+        </VBox.margin>
+    </Label>
 
-    <VBox spacing="10">
-        <TextField fx:id="usernameField" promptText="用户名（3-50位）" prefHeight="40"/>
-        <TextField fx:id="nicknameField" promptText="昵称" prefHeight="40"/>
-        <PasswordField fx:id="passwordField" promptText="密码（6位以上）" prefHeight="40"/>
-        <PasswordField fx:id="confirmPasswordField" promptText="确认密码" prefHeight="40"/>
+    <VBox spacing="14">
+        <TextField fx:id="usernameField" promptText="用户名（3-50位）" prefHeight="40" styleClass="input-field"/>
+        <TextField fx:id="nicknameField" promptText="昵称" prefHeight="40" styleClass="input-field"/>
+        <PasswordField fx:id="passwordField" promptText="密码（6位以上）" prefHeight="40" styleClass="input-field"/>
+        <PasswordField fx:id="confirmPasswordField" promptText="确认密码" prefHeight="40" styleClass="input-field"/>
     </VBox>
 
-    <VBox spacing="10">
-        <Button fx:id="registerBtn" text="注册" prefHeight="40" style="-fx-background-color: #52c41a; -fx-text-fill: white; -fx-font-size: 14px; -fx-background-radius: 5;"/>
-        <Button fx:id="backBtn" text="返回登录" prefHeight="40" style="-fx-background-color: white; -fx-text-fill: #666; -fx-font-size: 14px; -fx-background-radius: 5; -fx-border-color: #ddd;"/>
+    <VBox spacing="12">
+        <Button fx:id="registerBtn" text="注  册" prefHeight="42" styleClass="success-btn"/>
+        <Button fx:id="backBtn" text="返回登录" prefHeight="42" styleClass="primary-btn"/>
     </VBox>
 
-    <Label fx:id="errorText" style="-fx-text-fill: red; -fx-font-size: 12px;"/>
+    <Label fx:id="errorText" style="-fx-text-fill: #ff4d4f; -fx-font-size: 13px;"/>
 </VBox>

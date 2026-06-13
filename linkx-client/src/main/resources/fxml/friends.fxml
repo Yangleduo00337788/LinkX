@@ -4,28 +4,34 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox spacing="10" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.FriendController">
+<VBox spacing="0" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.FriendController" style="-fx-background-color: white;">
     <padding>
-        <Insets top="10" right="10" bottom="10" left="10"/>
+        <Insets top="16" right="0" bottom="0" left="0"/>
     </padding>
 
-    <HBox spacing="10" alignment="CENTER_LEFT">
-        <TextField fx:id="searchField" promptText="搜索用户" prefWidth="200" prefHeight="35"/>
-        <Button fx:id="searchBtn" text="搜索" prefHeight="35" style="-fx-background-color: #1890ff; -fx-text-fill: white; -fx-background-radius: 5;"/>
-        <Button fx:id="refreshBtn" text="刷新" prefHeight="35" style="-fx-background-color: #52c41a; -fx-text-fill: white; -fx-background-radius: 5;"/>
-    </HBox>
+    <VBox spacing="12" styleClass="profile-card" VBox.vgrow="ALWAYS">
+        <padding>
+            <Insets top="20" right="20" bottom="20" left="20"/>
+        </padding>
 
-    <TabPane prefHeight="500">
-        <Tab text="好友列表">
-            <ListView fx:id="friendListView" prefHeight="450"/>
-        </Tab>
-        <Tab text="好友申请">
-            <ListView fx:id="requestListView" prefHeight="450"/>
-        </Tab>
-        <Tab text="搜索结果">
-            <ListView fx:id="searchResultView" prefHeight="450"/>
-        </Tab>
-    </TabPane>
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <TextField fx:id="searchField" promptText="搜索用户" prefHeight="36" styleClass="input-field" VBox.vgrow="ALWAYS"/>
+            <Button fx:id="searchBtn" text="搜索" prefHeight="36" styleClass="primary-btn"/>
+            <Button fx:id="refreshBtn" text="刷新" prefHeight="36" styleClass="success-btn"/>
+        </HBox>
 
-    <Label fx:id="statusText" style="-fx-font-size: 12px; -fx-text-fill: #666;"/>
+        <TabPane prefHeight="480" VBox.vgrow="ALWAYS">
+            <Tab text="好友列表">
+                <ListView fx:id="friendListView" prefHeight="450" styleClass="message-list"/>
+            </Tab>
+            <Tab text="好友申请">
+                <ListView fx:id="requestListView" prefHeight="450" styleClass="message-list"/>
+            </Tab>
+            <Tab text="搜索结果">
+                <ListView fx:id="searchResultView" prefHeight="450" styleClass="message-list"/>
+            </Tab>
+        </TabPane>
+
+        <Label fx:id="statusText" style="-fx-font-size: 12px; -fx-text-fill: #999;"/>
+    </VBox>
 </VBox>

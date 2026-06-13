@@ -67,9 +67,7 @@ public class ChatController {
                     if (sessionDisplay.equals(displayText)) {
                         currentTargetId = s.targetId;
                         currentTargetName = s.targetNickname;
-                        Platform.runLater(() -> {
-                            chatTargetLabel.setText("与 " + s.targetNickname + " 的对话");
-                        });
+                        Platform.runLater(() -> chatTargetLabel.setText("与 " + s.targetNickname + " 的对话"));
                         loadMessages(s.targetId);
                         return;
                     }
@@ -94,9 +92,7 @@ public class ChatController {
                     }
                     if (selectedBefore != null) {
                         int idx = sessionItems.indexOf(selectedBefore);
-                        if (idx >= 0) {
-                            sessionList.getSelectionModel().select(idx);
-                        }
+                        if (idx >= 0) sessionList.getSelectionModel().select(idx);
                     }
                 });
             } catch (Exception ex) {
@@ -110,8 +106,8 @@ public class ChatController {
             try {
                 List<ApiClient.MessageData> messages = ApiClient.getChatHistory(targetId);
                 ApiClient.UserData myProfile = ApiClient.getMyProfile();
-                String myAvatar = myProfile.avatar != null ? myProfile.avatar : "";
-                String myNickname = myProfile.nickname != null ? myProfile.nickname : "我";
+                String myAvatar = (myProfile != null && myProfile.avatar != null) ? myProfile.avatar : "";
+                String myNickname = (myProfile != null && myProfile.nickname != null) ? myProfile.nickname : "我";
 
                 Platform.runLater(() -> {
                     messageItems.clear();
@@ -122,11 +118,11 @@ public class ChatController {
                             time = m.createTime.substring(11, 16);
                         }
                         if (m.fromUserId != null && m.fromUserId.equals(myId)) {
-                            String avatarUrl = myAvatar;
-                            messageItems.add("ME|" + myNickname + "|" + avatarUrl + "|" + time + "|" + m.content);
+                            String read = (m.status != null && m.status == 1) ? "已读" : "已送达";
+                            messageItems.add("ME|" + myNickname + "|" + myAvatar + "|" + time + "|" + m.content + "|" + read);
                         } else {
                             String name = m.fromNickname != null ? m.fromNickname : "对方";
-                            messageItems.add("OTHER|" + name + "||" + time + "|" + m.content);
+                            messageItems.add("OTHER|" + name + "||" + time + "|" + m.content + "|");
                         }
                     }
                     if (!messageItems.isEmpty()) {
@@ -142,17 +138,12 @@ public class ChatController {
 
     @FXML
     private void handleSend() {
-        if (currentTargetId == null) {
-            return;
-        }
+        if (currentTargetId == null) return;
 
         String content = messageInput.getText().trim();
-        if (content.isEmpty()) {
-            return;
-        }
+        if (content.isEmpty()) return;
 
         sendBtn.setDisable(true);
-
         new Thread(() -> {
             try {
                 ApiClient.sendMessage(currentTargetId, content);
