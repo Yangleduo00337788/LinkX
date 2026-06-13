@@ -107,8 +107,8 @@ public class ApiClient {
         }
     }
 
-    public static UserData updateProfile(String nickname, String signature, Integer gender, String region) throws IOException {
-        String json = gson.toJson(new UpdateProfileReq(nickname, signature, gender, region));
+    public static UserData updateProfile(String nickname, Integer gender) throws IOException {
+        String json = gson.toJson(new UpdateProfileReq(nickname, gender));
         Request request = new Request.Builder()
                 .url(BASE_URL + "/api/user/me")
                 .addHeader("Authorization", "Bearer " + accessToken)
@@ -137,10 +137,10 @@ public class ApiClient {
     }
 
     private static class UpdateProfileReq {
-        String nickname, signature, region;
+        String nickname;
         Integer gender;
-        UpdateProfileReq(String n, String s, Integer g, String r) {
-            nickname = n; signature = s; gender = g; region = r;
+        UpdateProfileReq(String n, Integer g) {
+            nickname = n; gender = g;
         }
     }
 }

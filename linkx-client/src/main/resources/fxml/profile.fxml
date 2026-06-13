@@ -24,18 +24,8 @@
         </HBox>
 
         <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="签名：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-            <TextField fx:id="signatureField" prefWidth="250" prefHeight="35"/>
-        </HBox>
-
-        <HBox spacing="10" alignment="CENTER_LEFT">
             <Label text="性别：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
             <ComboBox fx:id="genderBox" prefWidth="150" prefHeight="35"/>
-        </HBox>
-
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <Label text="地区：" style="-fx-font-size: 14px; -fx-text-fill: #666;" prefWidth="80"/>
-            <TextField fx:id="regionField" prefWidth="250" prefHeight="35"/>
         </HBox>
 
         <HBox spacing="10" alignment="CENTER_LEFT">

@@ -4,15 +4,12 @@ import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.control.Label;
 
 public class ProfileController {
 
     @FXML private Label usernameText;
     @FXML private TextField nicknameField;
-    @FXML private TextField signatureField;
     @FXML private ComboBox<String> genderBox;
-    @FXML private TextField regionField;
     @FXML private Label createTimeText;
     @FXML private Button saveBtn;
     @FXML private Label messageText;
@@ -34,8 +31,6 @@ public class ProfileController {
                 Platform.runLater(() -> {
                     usernameText.setText(user.username);
                     nicknameField.setText(user.nickname);
-                    signatureField.setText(user.signature != null ? user.signature : "");
-                    regionField.setText(user.region != null ? user.region : "");
                     createTimeText.setText(user.createTime != null ? user.createTime.substring(0, 10) : "");
 
                     if (user.gender != null) {
@@ -50,8 +45,6 @@ public class ProfileController {
 
     private void handleSave() {
         String nickname = nicknameField.getText().trim();
-        String signature = signatureField.getText().trim();
-        String region = regionField.getText().trim();
         int genderIndex = genderBox.getSelectionModel().getSelectedIndex();
 
         if (nickname.isEmpty()) {
@@ -64,7 +57,7 @@ public class ProfileController {
 
         new Thread(() -> {
             try {
-                ApiClient.updateProfile(nickname, signature, genderIndex, region);
+                ApiClient.updateProfile(nickname, genderIndex);
                 Platform.runLater(() -> {
                     messageText.setText("保存成功");
                     messageText.setStyle("-fx-text-fill: green;");
