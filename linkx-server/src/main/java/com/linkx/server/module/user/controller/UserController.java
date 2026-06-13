@@ -26,7 +26,7 @@ public class UserController {
     }
 
     @GetMapping("/{userId}")
-    public Result<UserProfileDTO> getProfile(@PathVariable Long userId) {
+    public Result<UserProfileDTO> getProfile(@PathVariable(value = "userId") Long userId) {
         return Result.success(userService.getProfile(userId));
     }
 
