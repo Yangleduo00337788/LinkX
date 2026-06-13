@@ -12,7 +12,6 @@
 
     <modules>
         <module>linkx-server</module>
-        <module>linkx-client</module>
     </modules>
 
     <properties>
