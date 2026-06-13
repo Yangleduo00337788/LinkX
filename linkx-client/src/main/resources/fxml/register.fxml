@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox alignment="CENTER" spacing="15" prefWidth="400" prefHeight="550" style="-fx-background-color: #f5f5f5;">
+    <padding>
+        <Insets top="40" right="40" bottom="40" left="40"/>
+    </padding>
+
+    <Text text="LinkX IM" style="-fx-font-size: 32px; -fx-font-weight: bold; -fx-fill: #1890ff;"/>
+
+    <Text text="用户注册" style="-fx-font-size: 18px; -fx-fill: #666;"/>
+
+    <VBox spacing="10">
+        <TextField fx:id="usernameField" promptText="用户名（3-50位）" prefHeight="40"/>
+        <TextField fx:id="nicknameField" promptText="昵称" prefHeight="40"/>
+        <PasswordField fx:id="passwordField" promptText="密码（6位以上）" prefHeight="40"/>
+        <PasswordField fx:id="confirmPasswordField" promptText="确认密码" prefHeight="40"/>
+    </VBox>
+
+    <VBox spacing="10">
+        <Button fx:id="registerBtn" text="注册" prefHeight="40" style="-fx-background-color: #52c41a; -fx-text-fill: white; -fx-font-size: 14px; -fx-background-radius: 5;"/>
+        <Button fx:id="backBtn" text="返回登录" prefHeight="40" style="-fx-background-color: white; -fx-text-fill: #666; -fx-font-size: 14px; -fx-background-radius: 5; -fx-border-color: #ddd;"/>
+    </VBox>
+
+    <Text fx:id="errorText" style="-fx-fill: red; -fx-font-size: 12px;"/>
+</VBox>

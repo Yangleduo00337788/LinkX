@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<BorderPane prefWidth="900" prefHeight="600" style="-fx-background-color: #f0f2f5;">
+    <!-- 左侧菜单 -->
+    <left>
+        <VBox prefWidth="200" style="-fx-background-color: #001529;" spacing="0">
+            <padding>
+                <Insets top="20" right="0" bottom="20" left="0"/>
+            </padding>
+
+            <Text text="LinkX IM" style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-fill: white;" StackPane.alignment="CENTER">
+                <StackPane.margin>
+                    <Insets bottom="30"/>
+                </StackPane.margin>
+            </Text>
+
+            <Button fx:id="profileBtn" text="  我的资料" prefHeight="45" maxWidth="200" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 14px; -fx-alignment: CENTER_LEFT;">
+                <padding>
+                    <Insets left="20"/>
+                </padding>
+            </Button>
+            <Button fx:id="contactsBtn" text="  联系人" prefHeight="45" maxWidth="200" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 14px; -fx-alignment: CENTER_LEFT;">
+                <padding>
+                    <Insets left="20"/>
+                </padding>
+            </Button>
+            <Button fx:id="chatBtn" text="  消息" prefHeight="45" maxWidth="200" style="-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 14px; -fx-alignment: CENTER_LEFT;">
+                <padding>
+                    <Insets left="20"/>
+                </padding>
+            </Button>
+
+            <VBox VBox.vgrow="ALWAYS"/>
+
+            <Button fx:id="logoutBtn" text="  退出登录" prefHeight="45" maxWidth="200" style="-fx-background-color: transparent; -fx-text-fill: #ff4d4f; -fx-font-size: 14px; -fx-alignment: CENTER_LEFT;">
+                <padding>
+                    <Insets left="20"/>
+                </padding>
+            </Button>
+        </VBox>
+    </left>
+
+    <!-- 右侧内容区 -->
+    <center>
+        <StackPane fx:id="contentArea">
+            <padding>
+                <Insets top="20" right="20" bottom="20" left="20"/>
+            </padding>
+        </StackPane>
+    </center>
+</BorderPane>

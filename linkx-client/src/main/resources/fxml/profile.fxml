@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox spacing="20" style="-fx-background-color: white; -fx-background-radius: 10;">
+    <padding>
+        <Insets top="30" right="30" bottom="30" left="30"/>
+    </padding>
+
+    <Text text="我的资料" style="-fx-font-size: 24px; -fx-font-weight: bold;"/>
+
+    <VBox spacing="15">
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Text text="用户名：" style="-fx-font-size: 14px; -fx-fill: #666;" prefWidth="80"/>
+            <Text fx:id="usernameText" style="-fx-font-size: 14px;"/>
+        </HBox>
+
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Text text="昵称：" style="-fx-font-size: 14px; -fx-fill: #666;" prefWidth="80"/>
+            <TextField fx:id="nicknameField" prefWidth="250" prefHeight="35"/>
+        </HBox>
+
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Text text="签名：" style="-fx-font-size: 14px; -fx-fill: #666;" prefWidth="80"/>
+            <TextField fx:id="signatureField" prefWidth="250" prefHeight="35"/>
+        </HBox>
+
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Text text="性别：" style="-fx-font-size: 14px; -fx-fill: #666;" prefWidth="80"/>
+            <ComboBox fx:id="genderBox" prefWidth="150" prefHeight="35"/>
+        </HBox>
+
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Text text="地区：" style="-fx-font-size: 14px; -fx-fill: #666;" prefWidth="80"/>
+            <TextField fx:id="regionField" prefWidth="250" prefHeight="35"/>
+        </HBox>
+
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <Text text="注册时间：" style="-fx-font-size: 14px; -fx-fill: #666;" prefWidth="80"/>
+            <Text fx:id="createTimeText" style="-fx-font-size: 14px;"/>
+        </HBox>
+    </VBox>
+
+    <Button fx:id="saveBtn" text="保存修改" prefHeight="40" style="-fx-background-color: #1890ff; -fx-text-fill: white; -fx-font-size: 14px; -fx-background-radius: 5;">
+        <VBox.vgrow>ALWAYS</VBox.vgrow>
+    </Button>
+
+    <Text fx:id="messageText" style="-fx-font-size: 12px;"/>
+</VBox>
