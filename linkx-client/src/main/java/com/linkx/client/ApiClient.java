@@ -34,9 +34,29 @@ public class ApiClient {
         public String username;
         public String nickname;
         public String avatar;
-        public String signature;
         public Integer gender;
-        public String region;
+        public String createTime;
+    }
+
+    public static class FriendRequestData {
+        public Long id;
+        public Long fromUserId;
+        public String fromUsername;
+        public String fromNickname;
+        public String fromAvatar;
+        public String message;
+        public Integer status;
+        public String createTime;
+    }
+
+    public static class FriendData {
+        public Long id;
+        public Long userId;
+        public Long friendId;
+        public String friendUsername;
+        public String friendNickname;
+        public String friendAvatar;
+        public String remark;
         public String createTime;
     }
 
@@ -125,6 +145,122 @@ public class ApiClient {
         }
     }
 
+    public static java.util.List<UserData> searchUsers(String keyword) throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/user/search?keyword=" + keyword)
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<java.util.List<UserData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<UserData>>>(){}.getType());
+            if (resp.code == 200) {
+                return resp.data;
+            }
+            throw new IOException(resp.message);
+        }
+    }
+
+    public static void sendFriendRequest(Long toUserId, String message) throws IOException {
+        String json = gson.toJson(new SendFriendReq(toUserId, message));
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/friend/request")
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .post(RequestBody.create(json, MediaType.parse("application/json")))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<?> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<?>>(){}.getType());
+            if (resp.code != 200) {
+                throw new IOException(resp.message);
+            }
+        }
+    }
+
+    public static java.util.List<FriendRequestData> getFriendRequests() throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/friend/requests")
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<java.util.List<FriendRequestData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<FriendRequestData>>>(){}.getType());
+            if (resp.code == 200) {
+                return resp.data;
+            }
+            throw new IOException(resp.message);
+        }
+    }
+
+    public static void acceptRequest(Long requestId) throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/friend/accept/" + requestId)
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .post(RequestBody.create("", MediaType.parse("application/json")))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<?> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<?>>(){}.getType());
+            if (resp.code != 200) {
+                throw new IOException(resp.message);
+            }
+        }
+    }
+
+    public static void rejectRequest(Long requestId) throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/friend/reject/" + requestId)
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .post(RequestBody.create("", MediaType.parse("application/json")))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<?> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<?>>(){}.getType());
+            if (resp.code != 200) {
+                throw new IOException(resp.message);
+            }
+        }
+    }
+
+    public static java.util.List<FriendData> getFriendList() throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/friend/list")
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .get()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<java.util.List<FriendData>> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<java.util.List<FriendData>>>(){}.getType());
+            if (resp.code == 200) {
+                return resp.data;
+            }
+            throw new IOException(resp.message);
+        }
+    }
+
+    public static void deleteFriend(Long friendId) throws IOException {
+        Request request = new Request.Builder()
+                .url(BASE_URL + "/api/friend/" + friendId)
+                .addHeader("Authorization", "Bearer " + accessToken)
+                .delete()
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            String body = response.body().string();
+            ApiResponse<?> resp = gson.fromJson(body, new com.google.gson.reflect.TypeToken<ApiResponse<?>>(){}.getType());
+            if (resp.code != 200) {
+                throw new IOException(resp.message);
+            }
+        }
+    }
+
     // Request classes
     private static class RegisterReq {
         String username, nickname, password;
@@ -141,6 +277,14 @@ public class ApiClient {
         Integer gender;
         UpdateProfileReq(String n, Integer g) {
             nickname = n; gender = g;
+        }
+    }
+
+    private static class SendFriendReq {
+        Long toUserId;
+        String message;
+        SendFriendReq(Long id, String msg) {
+            toUserId = id; message = msg;
         }
     }
 }

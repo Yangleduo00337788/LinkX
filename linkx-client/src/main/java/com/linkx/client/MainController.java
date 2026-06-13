@@ -40,11 +40,13 @@ public class MainController {
     }
 
     private void showContacts() {
-        // TODO: Sprint 3 好友系统
-        contentArea.getChildren().clear();
-        javafx.scene.control.Label label = new javafx.scene.control.Label("联系人功能开发中...");
-        label.setStyle("-fx-font-size: 18px; -fx-text-fill: #999;");
-        contentArea.getChildren().add(label);
+        try {
+            Parent friends = FXMLLoader.load(getClass().getResource("/fxml/friends.fxml"));
+            contentArea.getChildren().clear();
+            contentArea.getChildren().add(friends);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void showChat() {

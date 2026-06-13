@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+<?import javafx.geometry.Insets?>
+
+<VBox spacing="10" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.FriendController">
+    <padding>
+        <Insets top="10" right="10" bottom="10" left="10"/>
+    </padding>
+
+    <HBox spacing="10" alignment="CENTER_LEFT">
+        <TextField fx:id="searchField" promptText="搜索用户" prefWidth="200" prefHeight="35"/>
+        <Button fx:id="searchBtn" text="搜索" prefHeight="35" style="-fx-background-color: #1890ff; -fx-text-fill: white; -fx-background-radius: 5;"/>
+        <Button fx:id="refreshBtn" text="刷新" prefHeight="35" style="-fx-background-color: #52c41a; -fx-text-fill: white; -fx-background-radius: 5;"/>
+    </HBox>
+
+    <TabPane prefHeight="500">
+        <Tab text="好友列表">
+            <ListView fx:id="friendListView" prefHeight="450"/>
+        </Tab>
+        <Tab text="好友申请">
+            <ListView fx:id="requestListView" prefHeight="450"/>
+        </Tab>
+        <Tab text="搜索结果">
+            <ListView fx:id="searchResultView" prefHeight="450"/>
+        </Tab>
+    </TabPane>
+
+    <Label fx:id="statusText" style="-fx-font-size: 12px; -fx-text-fill: #666;"/>
+</VBox>
