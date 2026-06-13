@@ -39,7 +39,7 @@ public class UserController {
     }
 
     @GetMapping("/search")
-    public Result<List<UserProfileDTO>> searchUsers(@RequestParam String keyword) {
+    public Result<List<UserProfileDTO>> searchUsers(@RequestParam(value = "keyword") String keyword) {
         return Result.success(userService.searchUsers(keyword));
     }
 }
