@@ -30,6 +30,7 @@ public class ChatController {
 
         sessionList.setItems(sessionItems);
         messageList.setItems(messageItems);
+        messageList.setCellFactory(list -> new ChatCell());
 
         sessionList.setOnMouseClicked(event -> {
             if (event.getClickCount() == 1) {
