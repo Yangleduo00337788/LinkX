@@ -16,19 +16,18 @@ public class SysUser {
 
     private String nickname;
 
+    @TableField("password_hash")
     private String password;
 
+    @TableField("mobile")
     private String phone;
 
     private String email;
 
+    @TableField("avatar_url")
     private String avatar;
 
-    private String signature;
-
     private Integer gender;
-
-    private String region;
 
     private Integer status;
 

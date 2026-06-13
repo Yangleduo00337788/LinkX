@@ -47,14 +47,8 @@ public class UserServiceImpl implements UserService {
         if (request.getAvatar() != null) {
             user.setAvatar(request.getAvatar());
         }
-        if (request.getSignature() != null) {
-            user.setSignature(request.getSignature());
-        }
         if (request.getGender() != null) {
             user.setGender(request.getGender());
-        }
-        if (request.getRegion() != null) {
-            user.setRegion(request.getRegion());
         }
 
         userMapper.updateById(user);
@@ -81,9 +75,7 @@ public class UserServiceImpl implements UserService {
         dto.setUsername(user.getUsername());
         dto.setNickname(user.getNickname());
         dto.setAvatar(user.getAvatar());
-        dto.setSignature(user.getSignature());
         dto.setGender(user.getGender());
-        dto.setRegion(user.getRegion());
         dto.setCreateTime(user.getCreateTime());
         return dto;
     }

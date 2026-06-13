@@ -10,10 +10,5 @@ public class UpdateProfileRequest {
 
     private String avatar;
 
-    @Size(max = 255, message = "签名最长255位")
-    private String signature;
-
     private Integer gender;
-
-    private String region;
 }

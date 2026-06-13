@@ -10,8 +10,6 @@ public class UserProfileDTO {
     private String username;
     private String nickname;
     private String avatar;
-    private String signature;
     private Integer gender;
-    private String region;
     private LocalDateTime createTime;
 }
