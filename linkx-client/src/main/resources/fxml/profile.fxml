@@ -2,59 +2,57 @@
 
 <?import javafx.scene.control.*?>
 <?import javafx.scene.layout.*?>
+<?import javafx.scene.image.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox spacing="0" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.ProfileController" style="-fx-background-color: #f0f2f5;">
+<VBox spacing="0" xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.ProfileController" style="-fx-background-color: #ededed;">
     <padding>
-        <Insets top="24" right="24" bottom="24" left="24"/>
+        <Insets top="0" right="0" bottom="0" left="0"/>
     </padding>
 
-    <VBox spacing="0" style="-fx-background-color: white; -fx-background-radius: 12; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 8, 0, 0, 2);">
-        <padding>
-            <Insets top="32" right="32" bottom="32" left="32"/>
-        </padding>
+    <!-- 顶部栏 -->
+    <HBox alignment="CENTER_LEFT" style="-fx-background-color: #2e2e2e; -fx-padding: 0 20;">
+        <padding><Insets top="12" bottom="12"/></padding>
+        <Label text="个人资料" style="-fx-font-size: 16px; -fx-text-fill: white; -fx-font-weight: bold;"/>
+    </HBox>
 
-        <Label text="个人资料" style="-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #262626;">
-            <VBox.margin><Insets bottom="24"/></VBox.margin>
-        </Label>
-
-        <HBox spacing="24" alignment="CENTER_LEFT" VBox.vgrow="ALWAYS">
-            <VBox spacing="8" alignment="CENTER">
-                <ImageView fx:id="avatarView" fitWidth="88" fitHeight="88" preserveRatio="true" style="-fx-background-radius: 44; -fx-background-color: #f0f0f0;"/>
-                <Button fx:id="changeAvatarBtn" text="更换头像" styleClass="primary-btn" prefHeight="28">
-                    <VBox.margin><Insets top="4"/></VBox.margin>
-                </Button>
-            </VBox>
-
-            <VBox spacing="16" VBox.vgrow="ALWAYS">
-                <HBox spacing="12" alignment="CENTER_LEFT">
-                    <Label text="用户名" styleClass="field-label"/>
-                    <Label fx:id="usernameText" style="-fx-font-size: 14px; -fx-text-fill: #333;"/>
-                </HBox>
-
-                <HBox spacing="12" alignment="CENTER_LEFT">
-                    <Label text="昵称" styleClass="field-label"/>
-                    <TextField fx:id="nicknameField" prefWidth="260" prefHeight="36" styleClass="input-field"/>
-                </HBox>
-
-                <HBox spacing="12" alignment="CENTER_LEFT">
-                    <Label text="性别" styleClass="field-label"/>
-                    <ComboBox fx:id="genderBox" prefWidth="150" prefHeight="36" styleClass="input-field"/>
-                </HBox>
-
-                <HBox spacing="12" alignment="CENTER_LEFT">
-                    <Label text="注册时间" styleClass="field-label"/>
-                    <Label fx:id="createTimeText" style="-fx-font-size: 14px; -fx-text-fill: #666;"/>
-                </HBox>
-            </VBox>
-        </HBox>
-
-        <Separator style="-fx-padding: 16 0 16 0;"/>
-
-        <HBox spacing="12" alignment="CENTER_RIGHT">
-            <Button fx:id="saveBtn" text="保存修改" prefHeight="38" styleClass="primary-btn"/>
-        </HBox>
-
-        <Label fx:id="messageText" style="-fx-font-size: 12px; -fx-padding: 8 0 0 0;"/>
+    <!-- 头像区域 -->
+    <VBox alignment="CENTER" spacing="8" style="-fx-background-color: white;">
+        <padding><Insets top="30" bottom="20"/></padding>
+        <ImageView fx:id="avatarView" fitWidth="72" fitHeight="72" preserveRatio="true" style="-fx-background-radius: 36; -fx-background-color: #e0e0e0;"/>
+        <Button fx:id="changeAvatarBtn" text="更换头像" styleClass="link-btn"/>
     </VBox>
+
+    <!-- 信息列表 -->
+    <VBox style="-fx-background-color: white;">
+        <padding><Insets top="8" bottom="8"/></padding>
+        <Separator/>
+        <HBox alignment="CENTER_LEFT" style="-fx-padding: 12 20;">
+            <Label text="用户名" styleClass="info-label" HBox.hgrow="ALWAYS"/>
+            <Label fx:id="usernameText" style="-fx-font-size: 14px; -fx-text-fill: #999;"/>
+        </HBox>
+        <Separator/>
+        <HBox alignment="CENTER_LEFT" style="-fx-padding: 12 20;">
+            <Label text="昵称" styleClass="info-label" HBox.hgrow="ALWAYS"/>
+            <TextField fx:id="nicknameField" prefWidth="180" prefHeight="32" styleClass="input-inline"/>
+        </HBox>
+        <Separator/>
+        <HBox alignment="CENTER_LEFT" style="-fx-padding: 12 20;">
+            <Label text="性别" styleClass="info-label" HBox.hgrow="ALWAYS"/>
+            <ComboBox fx:id="genderBox" prefWidth="100" prefHeight="32"/>
+        </HBox>
+        <Separator/>
+        <HBox alignment="CENTER_LEFT" style="-fx-padding: 12 20;">
+            <Label text="注册时间" styleClass="info-label" HBox.hgrow="ALWAYS"/>
+            <Label fx:id="createTimeText" style="-fx-font-size: 14px; -fx-text-fill: #999;"/>
+        </HBox>
+    </VBox>
+
+    <!-- 保存按钮 -->
+    <VBox alignment="CENTER" style="-fx-background-color: #ededed;">
+        <padding><Insets top="30"/></padding>
+        <Button fx:id="saveBtn" text="保存" prefWidth="200" prefHeight="40" styleClass="wechat-btn"/>
+    </VBox>
+
+    <Label fx:id="messageText" style="-fx-font-size: 12px; -fx-padding: 8 0 0 0;"/>
 </VBox>

@@ -1,130 +1,125 @@
 .root {
-    -fx-font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    -fx-font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
 }
 
-/* Field labels */
-.field-label {
-    -fx-font-size: 14px;
-    -fx-text-fill: #8c8c8c;
-    -fx-min-width: 60;
+/* 通用 */
+.info-label {
+    -fx-font-size: 15px;
+    -fx-text-fill: #333;
 }
 
-/* Login/Register */
-.login-bg {
-    -fx-background-color: linear-gradient(to bottom right, #e6f7ff, #f0f5ff, #fff);
-}
-
-/* Input fields */
-.input-field {
-    -fx-background-radius: 6;
-    -fx-border-radius: 6;
-    -fx-border-color: #d9d9d9;
-    -fx-border-width: 1;
-    -fx-padding: 6 12;
-    -fx-font-size: 14px;
-    -fx-background-color: white;
-}
-
-.input-field:focused {
-    -fx-border-color: #1890ff;
-    -fx-effect: dropshadow(three-pass-box, rgba(24,144,255,0.15), 6, 0, 0, 0);
-}
-
-/* Buttons */
-.primary-btn {
-    -fx-background-color: #1890ff;
+/* 微信风格按钮 */
+.wechat-btn {
+    -fx-background-color: #07c160;
     -fx-text-fill: white;
+    -fx-font-size: 15px;
     -fx-background-radius: 6;
     -fx-cursor: hand;
-    -fx-font-size: 14px;
-    -fx-padding: 0 16;
 }
 
-.primary-btn:hover {
-    -fx-background-color: #40a9ff;
+.wechat-btn:hover {
+    -fx-background-color: #06ad56;
 }
 
-.primary-btn:pressed {
-    -fx-background-color: #096dd9;
-}
-
-.success-btn {
-    -fx-background-color: #52c41a;
-    -fx-text-fill: white;
-    -fx-background-radius: 6;
+.link-btn {
+    -fx-background-color: transparent;
+    -fx-text-fill: #576b95;
+    -fx-font-size: 13px;
     -fx-cursor: hand;
+}
+
+/* 输入框 */
+.input-inline {
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-border-color: #e0e0e0;
+    -fx-padding: 4 8;
     -fx-font-size: 14px;
-    -fx-padding: 0 16;
 }
 
-.success-btn:hover {
-    -fx-background-color: #73d13d;
-}
-
-.danger-btn {
-    -fx-background-color: #ff4d4f;
-    -fx-text-fill: white;
-    -fx-background-radius: 6;
-}
-
-/* Side menu */
+/* 左侧菜单 */
 .side-menu {
-    -fx-background-color: linear-gradient(to bottom, #001529, #002140);
+    -fx-background-color: #2e2e2e;
+}
+
+.menu-title {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #07c160;
 }
 
 .menu-btn {
     -fx-background-color: transparent;
-    -fx-text-fill: rgba(255,255,255,0.65);
+    -fx-text-fill: rgba(255,255,255,0.7);
     -fx-font-size: 14px;
     -fx-alignment: CENTER_LEFT;
     -fx-cursor: hand;
-    -fx-background-radius: 0;
+    -fx-background-radius: 6;
+    -fx-padding: 0 16;
 }
 
 .menu-btn:hover {
-    -fx-background-color: rgba(255,255,255,0.08);
+    -fx-background-color: rgba(255,255,255,0.1);
     -fx-text-fill: white;
 }
 
-/* Chat */
-.message-list {
-    -fx-background-color: #f0f2f5;
+.menu-btn-active {
+    -fx-background-color: rgba(255,255,255,0.15);
+    -fx-text-fill: white;
 }
 
-.chat-input {
-    -fx-background-radius: 20;
-    -fx-border-radius: 20;
-    -fx-border-color: #d9d9d9;
+.menu-separator {
+    -fx-background-color: rgba(255,255,255,0.1);
+    -fx-pref-height: 1;
     -fx-padding: 8 16;
+}
+
+/* 聊天消息 */
+.message-list {
+    -fx-background-color: #ededed;
+}
+
+/* 聊天输入 */
+.chat-input {
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-border-color: #ddd;
+    -fx-padding: 6 12;
     -fx-font-size: 14px;
 }
 
 .chat-input:focused {
-    -fx-border-color: #1890ff;
+    -fx-border-color: #07c160;
 }
 
 .send-btn {
-    -fx-background-color: #1890ff;
+    -fx-background-color: #07c160;
     -fx-text-fill: white;
-    -fx-background-radius: 20;
+    -fx-background-radius: 4;
     -fx-cursor: hand;
     -fx-font-size: 14px;
-    -fx-padding: 8 20;
+    -fx-padding: 6 20;
 }
 
 .send-btn:hover {
-    -fx-background-color: #40a9ff;
+    -fx-background-color: #06ad56;
 }
 
-/* Avatar */
-.avatar-default {
-    -fx-background-radius: 18;
-    -fx-background-color: #e6e6e6;
-}
-
-/* Profile */
-.profile-card {
+/* 好友页面 */
+.search-box {
     -fx-background-color: white;
-    -fx-background-radius: 12;
-    -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.06), 8, 0, 0, 2);
+    -fx-padding: 12 16;
+}
+
+.search-input {
+    -fx-background-radius: 15;
+    -fx-border-radius: 15;
+    -fx-background-color: #f5f5f5;
+    -fx-border-color: transparent;
+    -fx-padding: 6 14;
+    -fx-font-size: 14px;
+}
+
+.search-input:focused {
+    -fx-border-color: #07c160;
 }
