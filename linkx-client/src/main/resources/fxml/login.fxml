@@ -4,7 +4,8 @@
 <?import javafx.scene.layout.*?>
 <?import javafx.geometry.Insets?>
 
-<VBox alignment="CENTER" spacing="24" prefWidth="400" prefHeight="500" style="-fx-background-color: linear-gradient(to bottom, #f0f5ff, #e6f7ff);">
+<VBox alignment="CENTER" spacing="24" prefWidth="400" prefHeight="500" style="-fx-background-color: linear-gradient(to bottom, #f0f5ff, #e6f7ff);"
+      xmlns:fx="http://javafx.com/fxml" fx:controller="com.linkx.client.LoginController">
     <padding>
         <Insets top="60" right="50" bottom="60" left="50"/>
     </padding>
