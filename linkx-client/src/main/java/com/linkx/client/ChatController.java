@@ -36,7 +36,8 @@ public class ChatController {
                 Platform.runLater(() -> {
                     sessionList.getItems().clear();
                     for (ApiClient.SessionData s : sessions) {
-                        String display = s.targetNickname + " - " + (s.lastMessage != null ? s.lastMessage : "");
+                        String unread = s.unreadCount > 0 ? " [" + s.unreadCount + "]" : "";
+                        String display = s.targetNickname + unread + " - " + (s.lastMessage != null ? s.lastMessage : "");
                         sessionList.getItems().add(display);
                     }
                 });
@@ -72,11 +73,18 @@ public class ChatController {
                 java.util.List<ApiClient.MessageData> messages = ApiClient.getChatHistory(targetId);
                 Platform.runLater(() -> {
                     messageList.getItems().clear();
+                    Long myId = ApiClient.getUserId();
                     for (ApiClient.MessageData m : messages) {
-                        String prefix = m.fromUserId.equals(ApiClient.getUserId()) ? "我" : m.fromNickname;
+                        String prefix;
+                        if (m.fromUserId != null && m.fromUserId.equals(myId)) {
+                            prefix = "我";
+                        } else {
+                            prefix = m.fromNickname != null ? m.fromNickname : "对方";
+                        }
                         String display = prefix + ": " + m.content;
                         messageList.getItems().add(display);
                     }
+                    messageList.scrollTo(messageList.getItems().size() - 1);
                 });
                 ApiClient.markAsRead(targetId);
             } catch (Exception ex) {
