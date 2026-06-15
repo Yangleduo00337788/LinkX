@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 const routes = [
   { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
@@ -11,13 +11,15 @@ const routes = [
       { path: 'chat', name: 'Chat', component: () => import('../views/Chat.vue') },
       { path: 'chat/:targetId', name: 'ChatRoom', component: () => import('../views/Chat.vue') },
       { path: 'friends', name: 'Friends', component: () => import('../views/Friends.vue') },
+      { path: 'files', name: 'Files', component: () => import('../views/Files.vue') },
+      { path: 'blacklist', name: 'Blacklist', component: () => import('../views/Blacklist.vue') },
       { path: 'profile', name: 'Profile', component: () => import('../views/Profile.vue') },
     ]
   }
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes
 })
 

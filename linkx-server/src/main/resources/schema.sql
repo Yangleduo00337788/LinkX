@@ -119,6 +119,25 @@ CREATE TABLE IF NOT EXISTS im_message (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='聊天消息表';
 
 -- ============================================
+-- 文件模块
+-- ============================================
+
+-- 文件记录表
+CREATE TABLE IF NOT EXISTS sys_file (
+    id BIGINT PRIMARY KEY COMMENT '文件ID',
+    user_id BIGINT NOT NULL COMMENT '上传用户ID',
+    original_name VARCHAR(255) NOT NULL COMMENT '原始文件名',
+    stored_name VARCHAR(255) NOT NULL COMMENT '存储文件名',
+    file_path VARCHAR(500) NOT NULL COMMENT '文件路径',
+    file_url VARCHAR(500) NOT NULL COMMENT '文件访问URL',
+    file_size BIGINT DEFAULT 0 COMMENT '文件大小(字节)',
+    file_type VARCHAR(64) COMMENT '文件类型',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_user_id (user_id),
+    INDEX idx_original_name (original_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='文件记录表';
+
+-- ============================================
 -- 群组模块（Sprint 5）
 -- ============================================
 
@@ -129,6 +148,8 @@ CREATE TABLE IF NOT EXISTS im_group_info (
     group_avatar VARCHAR(255) COMMENT '群头像',
     owner_id BIGINT NOT NULL COMMENT '群主ID',
     max_members INT DEFAULT 500 COMMENT '最大成员数',
+    notice VARCHAR(1000) COMMENT '群公告',
+    notice_update_time DATETIME COMMENT '群公告更新时间',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
@@ -147,3 +168,22 @@ CREATE TABLE IF NOT EXISTS im_group_member (
     INDEX idx_user_id (user_id),
     UNIQUE INDEX uk_group_user (group_id, user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群组成员表';
+
+CREATE TABLE IF NOT EXISTS im_group_request (
+    id BIGINT PRIMARY KEY COMMENT 'ID',
+    group_id BIGINT NOT NULL COMMENT '群组ID',
+    from_user_id BIGINT NOT NULL COMMENT '发起人ID',
+    to_user_id BIGINT NOT NULL COMMENT '审批人/被邀请人ID',
+    request_type TINYINT DEFAULT 0 COMMENT '请求类型 0申请入群 1邀请入群',
+    message VARCHAR(255) COMMENT '申请/邀请说明',
+    status TINYINT DEFAULT 0 COMMENT '状态 0待处理 1已同意 2已拒绝',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    handle_time DATETIME COMMENT '处理时间',
+    INDEX idx_group_id (group_id),
+    INDEX idx_to_user (to_user_id),
+    INDEX idx_from_user (from_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群组申请表';
+
+ALTER TABLE im_group_info
+    ADD COLUMN IF NOT EXISTS notice VARCHAR(1000) COMMENT '群公告',
+    ADD COLUMN IF NOT EXISTS notice_update_time DATETIME COMMENT '群公告更新时间';

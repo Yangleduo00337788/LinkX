@@ -4,7 +4,7 @@ import { ref } from 'vue'
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
   const refreshToken = ref(localStorage.getItem('refreshToken') || '')
-  const userId = ref(Number(localStorage.getItem('userId')) || 0)
+  const userId = ref(localStorage.getItem('userId') || '')
   const nickname = ref(localStorage.getItem('nickname') || '')
   const avatar = ref(localStorage.getItem('avatar') || '')
   const username = ref(localStorage.getItem('username') || '')
@@ -12,7 +12,7 @@ export const useUserStore = defineStore('user', () => {
   function setLoginData(data: any) {
     token.value = data.accessToken
     refreshToken.value = data.refreshToken
-    userId.value = data.userId
+    userId.value = String(data.userId)
     nickname.value = data.nickname
     avatar.value = data.avatar || ''
     username.value = data.username
@@ -28,7 +28,7 @@ export const useUserStore = defineStore('user', () => {
   function logout() {
     token.value = ''
     refreshToken.value = ''
-    userId.value = 0
+    userId.value = ''
     nickname.value = ''
     avatar.value = ''
     username.value = ''

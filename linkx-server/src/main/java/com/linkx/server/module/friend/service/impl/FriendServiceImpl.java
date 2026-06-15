@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -139,21 +140,22 @@ public class FriendServiceImpl implements FriendService {
         List<SysFriend> friends = friendMapper.selectList(wrapper);
 
         return friends.stream().map(f -> {
+            SysUser friendUser = userMapper.selectById(f.getFriendId());
+            if (friendUser == null) {
+                return null;
+            }
+
             FriendDTO dto = new FriendDTO();
             dto.setId(f.getId());
             dto.setUserId(f.getUserId());
             dto.setFriendId(f.getFriendId());
             dto.setRemark(f.getRemark());
             dto.setCreateTime(f.getCreateTime());
-
-            SysUser friendUser = userMapper.selectById(f.getFriendId());
-            if (friendUser != null) {
-                dto.setFriendUsername(friendUser.getUsername());
-                dto.setFriendNickname(friendUser.getNickname());
-                dto.setFriendAvatar(friendUser.getAvatar());
-            }
+            dto.setFriendUsername(friendUser.getUsername());
+            dto.setFriendNickname(friendUser.getNickname());
+            dto.setFriendAvatar(friendUser.getAvatar());
             return dto;
-        }).collect(Collectors.toList());
+        }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override

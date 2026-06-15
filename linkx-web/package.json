@@ -3,34 +3,87 @@
   "private": true,
   "version": "1.0.0",
   "main": "electron/main.js",
+  "author": "LinkX",
+  "description": "LinkX IM - Instant Messaging Desktop",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
-    "electron:run": "npm run build && electron ."
+    "electron:dev": "vite build && electron .",
+    "electron:run": "npm run build && electron .",
+    "electron:build": "npm run build && node scripts/electron-builder.cjs --win",
+    "electron:build:mac": "npm run build && node scripts/electron-builder.cjs --mac",
+    "electron:build:linux": "npm run build && node scripts/electron-builder.cjs --linux",
+    "electron:publish": "npm run build && node scripts/electron-builder.cjs --win --publish always"
   },
   "build": {
     "appId": "com.linkx.im",
     "productName": "LinkX IM",
+    "copyright": "Copyright © 2026 LinkX",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "electron/icons"
     },
     "files": [
       "dist/**/*",
       "electron/**/*"
     ],
+    "extraResources": [
+      {
+        "from": "electron/icons",
+        "to": "icons",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icons/app.ico"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    }
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "LinkX IM"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "icon": "electron/icons/tray.png",
+      "category": "public.app-category.social-networking"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "electron/icons/tray.png",
+      "category": "Network;InstantMessaging"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "linkx",
+        "repo": "linkx",
+        "releaseType": "release"
+      }
+    ]
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.2",
+    "@vicons/ionicons5": "^0.13.0",
     "axios": "^1.17.0",
-    "element-plus": "^2.14.2",
+    "electron-log": "^5.4.4",
+    "electron-updater": "^6.8.9",
+    "naive-ui": "^2.44.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.34",
     "vue-router": "^4.6.4"

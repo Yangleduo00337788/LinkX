@@ -19,7 +19,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public Result<?> handleBusinessException(BusinessException e) {
         log.warn("业务异常: {}", e.getMessage());
-        return Result.error(e.getErrorCode());
+        return Result.error(e.getErrorCode().getCode(), e.getMessage());
     }
 
     @ExceptionHandler(UsernameNotFoundException.class)

@@ -1,77 +1,53 @@
 package com.linkx.server.module.file.controller;
 
 import com.linkx.server.common.Result;
+import com.linkx.server.entity.SysFile;
+import com.linkx.server.module.file.service.FileService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/file")
 @RequiredArgsConstructor
 public class FileController {
 
-    @Value("${linkx.upload.path:uploads/}")
-    private String uploadPath;
-
-    @Value("${linkx.upload.url:http://localhost:8080/uploads/}")
-    private String uploadUrl;
+    private final FileService fileService;
 
     @PostMapping("/upload/avatar")
-    public Result<String> uploadAvatar(@RequestParam("file") MultipartFile file) throws IOException {
-        if (file.isEmpty()) {
-            return Result.error(400, "文件不能为空");
-        }
-
-        String originalFilename = file.getOriginalFilename();
-        String ext = "";
-        if (originalFilename != null && originalFilename.contains(".")) {
-            ext = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
-
-        String filename = UUID.randomUUID().toString() + ext;
-
-        String avatarDir = uploadPath + "avatar/";
-        File dir = new File(avatarDir);
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
-
-        File dest = new File(avatarDir + filename);
-        file.transferTo(dest);
-
-        String url = uploadUrl + "avatar/" + filename;
-        return Result.success(url);
+    public Result<SysFile> uploadAvatar(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam("file") MultipartFile file) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(fileService.uploadAvatar(userId, file));
     }
 
     @PostMapping("/upload/image")
-    public Result<String> uploadImage(@RequestParam("file") MultipartFile file) throws IOException {
-        if (file.isEmpty()) {
-            return Result.error(400, "文件不能为空");
-        }
+    public Result<SysFile> uploadImage(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam("file") MultipartFile file) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(fileService.uploadImage(userId, file));
+    }
 
-        String originalFilename = file.getOriginalFilename();
-        String ext = "";
-        if (originalFilename != null && originalFilename.contains(".")) {
-            ext = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
+    @GetMapping("/list")
+    public Result<List<SysFile>> listFiles(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(value = "keyword", required = false) String keyword) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(fileService.listFiles(userId, keyword));
+    }
 
-        String filename = UUID.randomUUID().toString() + ext;
-
-        String imageDir = uploadPath + "image/";
-        File dir = new File(imageDir);
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
-
-        File dest = new File(imageDir + filename);
-        file.transferTo(dest);
-
-        String url = uploadUrl + "image/" + filename;
-        return Result.success(url);
+    @DeleteMapping("/{id}")
+    public Result<Void> deleteFile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable("id") Long id) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        fileService.deleteFile(userId, id);
+        return Result.success();
     }
 }
