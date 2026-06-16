@@ -21,4 +21,5 @@ public class ChatSessionDTO {
     private String notice;
     private Boolean muted;
     private LocalDateTime muteTime;
+    private Boolean targetOnline;
 }

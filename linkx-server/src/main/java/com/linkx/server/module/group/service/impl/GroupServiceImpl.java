@@ -17,6 +17,7 @@ import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.ImSessionMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.chat.constant.ChatConstants;
+import com.linkx.server.module.chat.ws.ChatGroupRealtimeService;
 import com.linkx.server.module.group.constant.GroupConstants;
 import com.linkx.server.module.group.dto.GroupDTO;
 import com.linkx.server.module.group.dto.GroupDetailDTO;
@@ -26,6 +27,8 @@ import com.linkx.server.module.group.service.GroupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
@@ -52,6 +55,7 @@ public class GroupServiceImpl implements GroupService {
     private final ImMessageMapper messageMapper;
     private final ImSessionMapper sessionMapper;
     private final SysUserMapper userMapper;
+    private final ChatGroupRealtimeService chatGroupRealtimeService;
 
     @Override
     @Transactional
@@ -403,6 +407,7 @@ public class GroupServiceImpl implements GroupService {
                 operatorId,
                 getUserDisplayName(operatorId, userMap) + " 将 " + getUserDisplayName(memberUserId, userMap) + " 移出了群聊"
         );
+        executeAfterCommit(() -> chatGroupRealtimeService.pushGroupRemoved(groupId, List.of(memberUserId), "REMOVED"));
     }
 
     @Override
@@ -457,6 +462,10 @@ public class GroupServiceImpl implements GroupService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只有群主可以解散群聊");
         }
 
+        List<Long> memberUserIds = listMembersByGroupId(groupId).stream()
+                .map(ImGroupMember::getUserId)
+                .toList();
+
         groupInfo.setDeleted(1);
         groupInfoMapper.updateById(groupInfo);
 
@@ -464,6 +473,7 @@ public class GroupServiceImpl implements GroupService {
         deleteSessionWrapper.eq(ImSession::getTargetId, groupId)
                 .eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_GROUP);
         sessionMapper.delete(deleteSessionWrapper);
+        executeAfterCommit(() -> chatGroupRealtimeService.pushGroupRemoved(groupId, memberUserIds, "DISSOLVED"));
     }
 
     @Override
@@ -852,6 +862,7 @@ public class GroupServiceImpl implements GroupService {
                 userId,
                 getUserDisplayName(userId, userMap) + " 退出了群聊"
         );
+        executeAfterCommit(() -> chatGroupRealtimeService.pushGroupRemoved(groupId, List.of(userId), "LEFT"));
     }
 
     @Override
@@ -907,6 +918,9 @@ public class GroupServiceImpl implements GroupService {
         message.setMsgType(ChatConstants.MESSAGE_TYPE_SYSTEM);
         message.setStatus(ChatConstants.MESSAGE_STATUS_NORMAL);
         messageMapper.insert(message);
+        List<Long> memberUserIds = members.stream()
+                .map(ImGroupMember::getUserId)
+                .collect(Collectors.toList());
 
         for (ImGroupMember member : members) {
             ImSession session = getOrCreateGroupSession(member.getUserId(), groupId);
@@ -917,6 +931,7 @@ public class GroupServiceImpl implements GroupService {
             }
             sessionMapper.updateById(session);
         }
+        executeAfterCommit(() -> chatGroupRealtimeService.pushGroupMutation(groupId, message.getId(), memberUserIds));
     }
 
     private ImSession getOrCreateGroupSession(Long userId, Long groupId) {
@@ -978,6 +993,19 @@ public class GroupServiceImpl implements GroupService {
             return operatorName + " 将群名称修改为“" + newGroupName + "”";
         }
         return operatorName + " 更新了群头像";
+    }
+
+    private void executeAfterCommit(Runnable task) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            task.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                task.run();
+            }
+        });
     }
 
     @Override

@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS im_message (
     content TEXT COMMENT '消息内容',
     msg_type TINYINT DEFAULT 0 COMMENT '消息类型 0文本 1图片 2文件 3系统消息',
     status TINYINT DEFAULT 0 COMMENT '状态 0正常 1已撤回',
+    read_time DATETIME COMMENT '已读时间',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_session_id (session_id),
     INDEX idx_from_user (from_user_id),
@@ -187,3 +188,6 @@ CREATE TABLE IF NOT EXISTS im_group_request (
 ALTER TABLE im_group_info
     ADD COLUMN IF NOT EXISTS notice VARCHAR(1000) COMMENT '群公告',
     ADD COLUMN IF NOT EXISTS notice_update_time DATETIME COMMENT '群公告更新时间';
+
+ALTER TABLE im_message
+    ADD COLUMN IF NOT EXISTS read_time DATETIME COMMENT '已读时间';

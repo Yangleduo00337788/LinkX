@@ -1,8 +1,11 @@
 import axios from 'axios'
 import router from '../router'
 
+export const API_BASE_URL = 'http://localhost:8080'
+export const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws')
+
 const api = axios.create({
-  baseURL: 'http://localhost:8080',
+  baseURL: API_BASE_URL,
   timeout: 10000
 })
 
@@ -60,18 +63,6 @@ export const friendApi = {
   reject: (requestId: number) => api.post(`/api/friend/reject/${requestId}`),
   getList: () => api.get('/api/friend/list'),
   delete: (friendId: string | number) => api.delete(`/api/friend/${friendId}`)
-}
-
-export const chatApi = {
-  send: (toUserId: string | number, content: string, sessionType = 1) =>
-    api.post('/api/chat/send', { toUserId, content, msgType: 0, sessionType }),
-  sendFile: (toUserId: string | number, fileId: number, msgType: number, sessionType = 1) =>
-    api.post(`/api/chat/send-file?toUserId=${toUserId}&fileId=${fileId}&msgType=${msgType}&sessionType=${sessionType}`),
-  getHistory: (targetId: string | number, sessionType = 1) =>
-    api.get(`/api/chat/history?targetId=${targetId}&sessionType=${sessionType}`),
-  getSessions: () => api.get('/api/chat/sessions'),
-  markRead: (targetId: string | number, sessionType = 1) => api.post(`/api/chat/read/${targetId}?sessionType=${sessionType}`),
-  recall: (messageId: string | number) => api.post(`/api/chat/recall/${messageId}`)
 }
 
 export const groupApi = {

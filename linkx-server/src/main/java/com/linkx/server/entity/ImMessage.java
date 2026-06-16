@@ -24,6 +24,8 @@ public class ImMessage {
 
     private Integer status;
 
+    private LocalDateTime readTime;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

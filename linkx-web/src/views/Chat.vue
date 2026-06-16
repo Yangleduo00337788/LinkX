@@ -38,6 +38,7 @@
             <div class="session-type-badge" :class="{ group: session.sessionType === SESSION_TYPE_GROUP }">
               {{ session.sessionType === SESSION_TYPE_GROUP ? '群' : '单' }}
             </div>
+            <div v-if="session.sessionType === SESSION_TYPE_SINGLE" class="online-indicator" :class="{ active: session.targetOnline }"></div>
             <div v-if="session.unreadCount > 0" class="unread-badge">
               {{ session.unreadCount > 99 ? '99+' : session.unreadCount }}
             </div>
@@ -88,7 +89,8 @@
                   <template v-if="currentNotice"> · 公告：{{ currentNotice }}</template>
                 </template>
                 <template v-else>
-                  单聊会话
+                  {{ currentSession?.targetOnline ? '在线' : '离线' }}
+                  <template v-if="!wsConnected"> · 实时连接重连中</template>
                 </template>
               </span>
             </div>
@@ -662,8 +664,9 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRoute, useRouter } from 'vue-router'
 import { NIcon, useMessage } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
-import { chatApi, fileApi, friendApi, groupApi, userApi } from '../api/client'
+import { fileApi, friendApi, groupApi, userApi } from '../api/client'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import { useChatSocket } from '../hooks/useChatSocket'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
 import { useUserStore } from '../stores/user'
 import { showNotification } from '../utils/notify'
@@ -702,6 +705,7 @@ interface ChatSession {
   notice?: string
   muted?: boolean
   muteTime?: string
+  targetOnline?: boolean
   isDraft?: boolean
 }
 
@@ -739,6 +743,7 @@ interface DisplayMessage {
   content: string
   msgType: number
   status: number
+  readTime?: string
   createTime: string
   time: string
   readStatus: string
@@ -775,6 +780,7 @@ const creatingGroup = ref(false)
 const addingMembers = ref(false)
 const updatingNotice = ref(false)
 const initialized = ref(false)
+const syncingSocketState = ref(false)
 
 const messagesRef = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
@@ -820,10 +826,8 @@ const groupProfileDraft = reactive({
   avatarFile: null as File | null
 })
 
-let refreshTimer: ReturnType<typeof setInterval> | null = null
-let previousMessageCount = 0
 let wasAtBottom = true
-let switchingSession = false
+let allowInitialHomeSessionAutoSelect = true
 
 const currentSession = computed(() => {
   if (!currentTargetId.value) {
@@ -875,26 +879,152 @@ const availableFriendsForCurrentGroup = computed(() => {
   return friends.value.filter(friend => !memberIds.has(String(friend.friendId)))
 })
 
+function handleRealtimeEvent(payload: any) {
+  if (!payload?.type) {
+    return
+  }
+  if (payload.type === 'CONNECTED') {
+    return
+  }
+  if (payload.type === 'GROUP_DETAIL') {
+    handleRealtimeGroupDetail(payload.data?.detail)
+    return
+  }
+  if (payload.type === 'GROUP_REMOVED') {
+    handleRealtimeGroupRemoved(payload.data)
+    return
+  }
+  if (payload.type === 'MESSAGE') {
+    handleRealtimeMessage(payload.data?.message)
+    return
+  }
+  if (payload.type === 'SESSION') {
+    handleRealtimeSession(payload.data?.session)
+    return
+  }
+  if (payload.type === 'READ_RECEIPT') {
+    handleRealtimeReadReceipt(payload.data)
+    return
+  }
+  if (payload.type === 'ONLINE_STATUS') {
+    handleRealtimeOnlineStatus(payload.data)
+    return
+  }
+  if (payload.type === 'MESSAGE_RECALLED') {
+    handleRealtimeMessage(payload.data?.message)
+  }
+}
+
+async function syncSocketState() {
+  if (!initialized.value || syncingSocketState.value) {
+    return
+  }
+  syncingSocketState.value = true
+  try {
+    const syncTasks: Array<Promise<unknown>> = [loadSessions()]
+    if (currentTargetId.value) {
+      syncTasks.push(loadMessages(currentTargetId.value, currentSessionType.value))
+      if (currentSessionType.value === SESSION_TYPE_GROUP) {
+        syncTasks.push(loadGroupDetail(currentTargetId.value, false))
+      }
+    }
+    await Promise.all(syncTasks)
+  } finally {
+    syncingSocketState.value = false
+  }
+}
+
+const {
+  connected: wsConnected,
+  connect: connectChatSocket,
+  disconnect: disconnectChatSocket,
+  sendRequest: sendChatSocketRequest
+} = useChatSocket({
+  token: () => userStore.token,
+  onMessage: handleRealtimeEvent,
+  onOpen: () => {
+    void syncSocketState()
+  }
+})
+
+function sendChatCommand(action: string, data: Record<string, unknown> = {}) {
+  return sendChatSocketRequest(action, data)
+}
+
 const emojis = ['😀', '😂', '🤣', '😍', '🥰', '😘', '😎', '🤔', '😏', '😢', '😭', '😡', '🥳', '😱', '🥺', '😴', '🤗', '😈', '👻', '💀', '🤡', '👽', '🤖', '💩', '❤️', '🔥', '👍', '👎', '👏', '🙏', '💪', '🎉', '🎊', '☕', '🌹', '🍀', '🌈', '☀️', '🌙', '⭐']
 
 function buildSessionKey(targetId: string | number, sessionType: number) {
   return `${sessionType}-${String(targetId)}`
 }
 
+function normalizeSession(session: any): ChatSession {
+  return {
+    ...session,
+    sessionType: Number(session.sessionType || SESSION_TYPE_SINGLE),
+    unreadCount: Number(session.unreadCount || 0),
+    memberCount: session.memberCount != null ? Number(session.memberCount) : undefined,
+    myRole: session.myRole != null ? Number(session.myRole) : undefined,
+    muted: Boolean(session.muted),
+    targetOnline: Boolean(session.targetOnline)
+  }
+}
+
+function sortSessions() {
+  sessions.value = [...sessions.value].sort((left, right) => {
+    const leftTime = left.lastMessageTime ? new Date(left.lastMessageTime).getTime() : 0
+    const rightTime = right.lastMessageTime ? new Date(right.lastMessageTime).getTime() : 0
+    if (leftTime !== rightTime) {
+      return rightTime - leftTime
+    }
+    return String(right.id || '').localeCompare(String(left.id || ''))
+  })
+}
+
 function upsertSession(nextSession: ChatSession) {
-  const sessionKey = buildSessionKey(nextSession.targetId, nextSession.sessionType)
+  const normalizedSession = normalizeSession(nextSession)
+  const sessionKey = buildSessionKey(normalizedSession.targetId, normalizedSession.sessionType)
   const sessionIndex = sessions.value.findIndex(session => buildSessionKey(session.targetId, session.sessionType) === sessionKey)
   if (sessionIndex === -1) {
-    sessions.value = [nextSession, ...sessions.value]
-    return nextSession
+    sessions.value = [normalizedSession, ...sessions.value]
+    sortSessions()
+    return normalizedSession
   }
 
   const mergedSession = {
     ...sessions.value[sessionIndex],
-    ...nextSession
+    ...normalizedSession
   }
   sessions.value.splice(sessionIndex, 1, mergedSession)
+  sortSessions()
   return mergedSession
+}
+
+function updateCurrentSessionFromStore(nextSession: ChatSession) {
+  if (!currentTargetId.value || !isCurrentSession(nextSession)) {
+    return
+  }
+  if (isGroupSession.value && groupDetail.value) {
+    groupDetail.value = {
+      ...groupDetail.value,
+      groupName: nextSession.targetNickname || groupDetail.value.groupName,
+      groupAvatar: nextSession.targetAvatar || groupDetail.value.groupAvatar,
+      notice: nextSession.notice ?? groupDetail.value.notice,
+      memberCount: nextSession.memberCount ?? groupDetail.value.memberCount,
+      myRole: nextSession.myRole ?? groupDetail.value.myRole,
+      muted: nextSession.muted ?? groupDetail.value.muted,
+      muteTime: nextSession.muteTime ?? groupDetail.value.muteTime
+    }
+  }
+}
+
+function flashSession(targetId: string | number, sessionType: number) {
+  const sessionKey = buildSessionKey(targetId, sessionType)
+  flashSessionKey.value = sessionKey
+  setTimeout(() => {
+    if (flashSessionKey.value === sessionKey) {
+      flashSessionKey.value = null
+    }
+  }, 2000)
 }
 
 function isCurrentSession(session: ChatSession) {
@@ -902,6 +1032,213 @@ function isCurrentSession(session: ChatSession) {
     return false
   }
   return buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(currentTargetId.value, currentSessionType.value)
+}
+
+function toDisplayMessage(item: any): DisplayMessage {
+  const readTime = item.readTime || ''
+  const isRecalled = Number(item.status ?? 0) === MESSAGE_STATUS_RECALLED
+  return {
+    id: item.id,
+    isMe: Number(item.msgType ?? MESSAGE_TYPE_TEXT) !== MESSAGE_TYPE_SYSTEM && String(item.fromUserId) === String(userStore.userId),
+    isSystem: Number(item.msgType ?? MESSAGE_TYPE_TEXT) === MESSAGE_TYPE_SYSTEM,
+    name: item.fromNickname,
+    fromAvatar: item.fromAvatar || '',
+    content: item.content,
+    msgType: Number(item.msgType ?? MESSAGE_TYPE_TEXT),
+    status: Number(item.status ?? 0),
+    readTime,
+    createTime: item.createTime,
+    time: item.createTime?.substring(11, 16) || '',
+    readStatus: isRecalled ? '已撤回' : (readTime ? '已读' : '未读'),
+    fileName: item.fileName || '',
+    fileSize: item.fileSize ? Number(item.fileSize) : undefined
+  }
+}
+
+function upsertMessage(nextMessage: DisplayMessage) {
+  const messageIndex = messages.value.findIndex(item => String(item.id) === String(nextMessage.id))
+  if (messageIndex === -1) {
+    messages.value = [...messages.value, nextMessage]
+  } else {
+    messages.value.splice(messageIndex, 1, {
+      ...messages.value[messageIndex],
+      ...nextMessage
+    })
+  }
+  messages.value.sort((left, right) => {
+    const leftTime = left.createTime ? new Date(left.createTime).getTime() : 0
+    const rightTime = right.createTime ? new Date(right.createTime).getTime() : 0
+    if (leftTime !== rightTime) {
+      return leftTime - rightTime
+    }
+    return String(left.id).localeCompare(String(right.id))
+  })
+}
+
+function handleRealtimeMessage(rawMessage: any) {
+  if (!rawMessage) {
+    return
+  }
+  const messageItem = toDisplayMessage(rawMessage)
+  const messageSessionType = Number(rawMessage.sessionType || SESSION_TYPE_SINGLE)
+  const messageTargetId = messageSessionType === SESSION_TYPE_GROUP
+    ? String(rawMessage.toUserId)
+    : String(messageItem.isMe ? rawMessage.toUserId : rawMessage.fromUserId)
+  const sameCurrentSession = currentTargetId.value
+    && buildSessionKey(messageTargetId, messageSessionType) === buildSessionKey(currentTargetId.value, currentSessionType.value)
+
+  if (sameCurrentSession) {
+    const shouldStickBottom = wasAtBottom
+    upsertMessage(messageItem)
+    nextTick(() => {
+      if (messagesRef.value && shouldStickBottom) {
+        messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+      }
+    })
+    if (!messageItem.isMe) {
+      showNotification(messageItem.isSystem ? '群系统通知' : messageItem.name || '新消息', getMessagePreview(messageItem))
+      markCurrentSessionRead(messageTargetId, messageSessionType)
+    }
+    return
+  }
+
+  if (!messageItem.isMe) {
+    showNotification(messageItem.isSystem ? '群系统通知' : messageItem.name || '新消息', getMessagePreview(messageItem))
+    flashSession(messageTargetId, messageSessionType)
+  }
+}
+
+function handleRealtimeSession(rawSession: any) {
+  if (!rawSession) {
+    return
+  }
+  const previousSession = sessions.value.find(session => buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(rawSession.targetId, Number(rawSession.sessionType || SESSION_TYPE_SINGLE)))
+  const session = upsertSession(rawSession)
+  updateCurrentSessionFromStore(session)
+  if (previousSession && previousSession.lastMessage !== session.lastMessage && !isCurrentSession(session)) {
+    flashSession(session.targetId, session.sessionType)
+  }
+}
+
+function handleRealtimeReadReceipt(payload: any) {
+  if (!payload || Number(payload.sessionType) !== SESSION_TYPE_SINGLE) {
+    return
+  }
+  const messageIds = new Set((payload.messageIds || []).map((id: string | number) => String(id)))
+  if (messageIds.size === 0) {
+    return
+  }
+  messages.value = messages.value.map(item => {
+    if (!messageIds.has(String(item.id))) {
+      return item
+    }
+    return {
+      ...item,
+      readTime: payload.readTime || item.readTime,
+      readStatus: item.status === MESSAGE_STATUS_RECALLED ? '已撤回' : '已读'
+    }
+  })
+}
+
+function handleRealtimeOnlineStatus(payload: any) {
+  if (!payload?.userId) {
+    return
+  }
+  const targetUserId = String(payload.userId)
+  sessions.value = sessions.value.map(session => {
+    if (session.sessionType !== SESSION_TYPE_SINGLE || String(session.targetId) !== targetUserId) {
+      return session
+    }
+    return {
+      ...session,
+      targetOnline: Boolean(payload.online)
+    }
+  })
+}
+
+function applyGroupDetail(detail: GroupDetail | null, syncDraft = true) {
+  groupDetail.value = detail
+  if (syncDraft || !isGroupNoticeChanged.value) {
+    noticeDraft.value = detail?.notice || ''
+  }
+  if (syncDraft || !isGroupProfileChanged.value) {
+    syncGroupProfileDraft(detail)
+  }
+
+  if (!detail) {
+    return
+  }
+
+  const sessionKey = buildSessionKey(detail.id, SESSION_TYPE_GROUP)
+  const session = sessions.value.find(item => buildSessionKey(item.targetId, item.sessionType) === sessionKey)
+  if (session) {
+    session.targetNickname = detail.groupName
+    session.targetAvatar = detail.groupAvatar || ''
+    session.memberCount = detail.memberCount
+    session.notice = detail.notice || ''
+    session.myRole = detail.myRole
+    session.muted = detail.muted
+    session.muteTime = detail.muteTime
+  }
+}
+
+function removeSessionByTarget(targetId: string | number, sessionType: number) {
+  const sessionKey = buildSessionKey(targetId, sessionType)
+  sessions.value = sessions.value.filter(session => buildSessionKey(session.targetId, session.sessionType) !== sessionKey)
+}
+
+async function handleRealtimeGroupRemoved(payload: any) {
+  const groupId = payload?.groupId ? String(payload.groupId) : ''
+  if (!groupId) {
+    return
+  }
+
+  removeSessionByTarget(groupId, SESSION_TYPE_GROUP)
+
+  const isCurrentRemovedGroup = currentTargetId.value
+    && currentSessionType.value === SESSION_TYPE_GROUP
+    && String(currentTargetId.value) === groupId
+
+  if (!isCurrentRemovedGroup) {
+    return
+  }
+
+  await closeGroupDrawer({ force: true })
+  currentTargetId.value = null
+  currentSessionType.value = SESSION_TYPE_SINGLE
+  applyGroupDetail(null)
+  messages.value = []
+  if (route.path.startsWith('/chat')) {
+    await router.replace('/chat')
+  }
+}
+
+function handleRealtimeGroupDetail(detail: GroupDetail | null) {
+  if (!detail?.id) {
+    return
+  }
+  const existingSession = sessions.value.find(session =>
+    buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(detail.id, SESSION_TYPE_GROUP)
+  )
+
+  upsertSession({
+    targetId: detail.id,
+    sessionType: SESSION_TYPE_GROUP,
+    targetNickname: detail.groupName,
+    targetAvatar: detail.groupAvatar || '',
+    lastMessage: existingSession?.lastMessage || '',
+    lastMessageTime: existingSession?.lastMessageTime || '',
+    unreadCount: existingSession?.unreadCount || 0,
+    memberCount: detail.memberCount,
+    myRole: detail.myRole,
+    notice: detail.notice || '',
+    muted: detail.muted,
+    muteTime: detail.muteTime
+  })
+
+  if (currentTargetId.value && currentSessionType.value === SESSION_TYPE_GROUP && String(currentTargetId.value) === String(detail.id)) {
+    applyGroupDetail(detail, false)
+  }
 }
 
 function formatTime(time?: string) {
@@ -1122,34 +1459,23 @@ async function loadFriends() {
 
 async function loadSessions() {
   try {
-    const response: any = await chatApi.getSessions()
-    const nextSessions = (response.data || []).map((item: any) => ({
-      ...item,
-      sessionType: Number(item.sessionType || SESSION_TYPE_SINGLE),
-      unreadCount: Number(item.unreadCount || 0)
-    }))
+    const response: any = await sendChatCommand('GET_SESSIONS')
+    const nextSessions = (response.data || []).map((item: any) => normalizeSession(item))
 
     if (sessions.value.length > 0) {
       const sessionMap = new Map(sessions.value.map(session => [buildSessionKey(session.targetId, session.sessionType), session]))
       for (const session of nextSessions) {
         const oldSession = sessionMap.get(buildSessionKey(session.targetId, session.sessionType))
         if (oldSession && oldSession.lastMessage !== session.lastMessage && !isCurrentSession(session)) {
-          flashSessionKey.value = buildSessionKey(session.targetId, session.sessionType)
-          setTimeout(() => {
-            if (flashSessionKey.value === buildSessionKey(session.targetId, session.sessionType)) {
-              flashSessionKey.value = null
-            }
-          }, 2000)
+          flashSession(session.targetId, session.sessionType)
         }
       }
     }
 
     const draftSessions = sessions.value.filter(existing => existing.isDraft && !nextSessions.some((item: ChatSession) => buildSessionKey(item.targetId, item.sessionType) === buildSessionKey(existing.targetId, existing.sessionType)))
     sessions.value = [...draftSessions, ...nextSessions]
+    sortSessions()
 
-    if (!currentTargetId.value && sessions.value.length > 0 && !route.params.targetId) {
-      await selectSession(sessions.value[0], false)
-    }
   } catch (error) {
     console.error('loadSessions error:', error)
   }
@@ -1159,25 +1485,7 @@ async function loadGroupDetail(groupId: string | number, syncDraft = true) {
   try {
     const response: any = await groupApi.detail(groupId)
     const detail = response.data || null
-    groupDetail.value = detail
-    if (syncDraft || !isGroupNoticeChanged.value) {
-      noticeDraft.value = detail?.notice || ''
-    }
-    if (syncDraft || !isGroupProfileChanged.value) {
-      syncGroupProfileDraft(detail)
-    }
-
-    const sessionKey = buildSessionKey(groupId, SESSION_TYPE_GROUP)
-    const session = sessions.value.find(item => buildSessionKey(item.targetId, item.sessionType) === sessionKey)
-    if (session && detail) {
-      session.targetNickname = detail.groupName
-      session.targetAvatar = detail.groupAvatar || ''
-      session.memberCount = detail.memberCount
-      session.notice = detail.notice || ''
-      session.myRole = detail.myRole
-      session.muted = detail.muted
-      session.muteTime = detail.muteTime
-    }
+    applyGroupDetail(detail, syncDraft)
   } catch (error) {
     console.error('loadGroupDetail error:', error)
     message.error('获取群详情失败')
@@ -1185,6 +1493,7 @@ async function loadGroupDetail(groupId: string | number, syncDraft = true) {
 }
 
 async function selectSession(session: ChatSession, syncRoute = true) {
+  allowInitialHomeSessionAutoSelect = false
   const nextSessionKey = buildSessionKey(session.targetId, Number(session.sessionType || SESSION_TYPE_SINGLE))
   const currentSessionKey = currentTargetId.value
     ? buildSessionKey(currentTargetId.value, currentSessionType.value)
@@ -1199,9 +1508,7 @@ async function selectSession(session: ChatSession, syncRoute = true) {
   currentTargetId.value = String(session.targetId)
   currentSessionType.value = Number(session.sessionType || SESSION_TYPE_SINGLE)
   showMenu.value = false
-  previousMessageCount = 0
   wasAtBottom = true
-  switchingSession = true
 
   if (currentSessionType.value === SESSION_TYPE_GROUP) {
     await loadGroupDetail(session.targetId)
@@ -1231,7 +1538,7 @@ async function initializeRouteSession() {
   const routeSessionType = Number(route.query.sessionType || SESSION_TYPE_SINGLE)
 
   if (!routeTargetId) {
-    if (!currentTargetId.value && sessions.value.length > 0) {
+    if (allowInitialHomeSessionAutoSelect && !currentTargetId.value && sessions.value.length > 0) {
       await selectSession(sessions.value[0], false)
     }
     return
@@ -1299,76 +1606,36 @@ async function initializeRouteSession() {
   }
 }
 
-async function loadMessages(targetId: string, sessionType: number, isPoll = false) {
-  if (!isPoll) {
-    loadingMessages.value = true
+async function markCurrentSessionRead(targetId = currentTargetId.value, sessionType = currentSessionType.value) {
+  if (!targetId) {
+    return
   }
+  await sendChatCommand('MARK_READ', { targetId, sessionType }).catch(() => undefined)
+}
+
+async function loadMessages(targetId: string, sessionType: number) {
+  loadingMessages.value = true
   try {
-    const response: any = await chatApi.getHistory(targetId, sessionType)
-    const myId = String(userStore.userId)
+    const response: any = await sendChatCommand('GET_HISTORY', {
+      targetId,
+      sessionType
+    })
     const rawMessages = response.data || []
-    const nextMessages: DisplayMessage[] = rawMessages.map((item: any) => ({
-      id: item.id,
-      isMe: Number(item.msgType ?? MESSAGE_TYPE_TEXT) !== MESSAGE_TYPE_SYSTEM && String(item.fromUserId) === myId,
-      isSystem: Number(item.msgType ?? MESSAGE_TYPE_TEXT) === MESSAGE_TYPE_SYSTEM,
-      name: item.fromNickname,
-      fromAvatar: item.fromAvatar || '',
-      content: item.content,
-      msgType: Number(item.msgType ?? MESSAGE_TYPE_TEXT),
-      status: Number(item.status ?? 0),
-      createTime: item.createTime,
-      time: item.createTime?.substring(11, 16) || '',
-      readStatus: Number(item.status) === MESSAGE_STATUS_RECALLED ? '已撤回' : '已读',
-      fileName: item.fileName || '',
-      fileSize: item.fileSize ? Number(item.fileSize) : undefined
-    }))
-
-    const hasNewMessages = nextMessages.length > previousMessageCount && previousMessageCount > 0
-    const sameMessages = nextMessages.length === previousMessageCount
-      && nextMessages.length > 0
-      && nextMessages[nextMessages.length - 1].id === messages.value[messages.value.length - 1]?.id
-      && nextMessages[nextMessages.length - 1].status === messages.value[messages.value.length - 1]?.status
-
-    if (sameMessages) {
-      await chatApi.markRead(targetId, sessionType).catch(() => undefined)
-      return
-    }
+    const nextMessages: DisplayMessage[] = rawMessages.map((item: any) => toDisplayMessage(item))
 
     messages.value = nextMessages
-    previousMessageCount = nextMessages.length
-
-    if (hasNewMessages) {
-      const lastMessage = nextMessages[nextMessages.length - 1]
-      if (!lastMessage.isMe) {
-        showNotification(
-          lastMessage.isSystem ? '群系统通知' : lastMessage.name || '新消息',
-          getMessagePreview(lastMessage)
-        )
-      }
-      flashSessionKey.value = buildSessionKey(targetId, sessionType)
-      setTimeout(() => {
-        if (flashSessionKey.value === buildSessionKey(targetId, sessionType)) {
-          flashSessionKey.value = null
-        }
-      }, 2000)
-    }
 
     await nextTick()
-    if (messagesRef.value && (!isPoll || switchingSession || (hasNewMessages && wasAtBottom))) {
+    if (messagesRef.value) {
       messagesRef.value.scrollTop = messagesRef.value.scrollHeight
     }
 
-    switchingSession = false
-    await chatApi.markRead(targetId, sessionType).catch(() => undefined)
+    await markCurrentSessionRead(targetId, sessionType)
   } catch (error) {
     console.error('loadMessages error:', error)
-    if (!isPoll) {
-      messages.value = []
-    }
+    messages.value = []
   } finally {
-    if (!isPoll) {
-      loadingMessages.value = false
-    }
+    loadingMessages.value = false
   }
 }
 
@@ -1396,13 +1663,23 @@ async function handleSend() {
 
   sending.value = true
   try {
-    await chatApi.send(currentTargetId.value, inputMessage.value.trim(), currentSessionType.value)
+    const response: any = await sendChatCommand('SEND_MESSAGE', {
+      toUserId: currentTargetId.value,
+      content: inputMessage.value.trim(),
+      sessionType: currentSessionType.value
+    })
     inputMessage.value = ''
     if (textareaRef.value) {
       textareaRef.value.style.height = 'auto'
     }
-    await loadMessages(currentTargetId.value, currentSessionType.value)
-    await loadSessions()
+    if (response?.data) {
+      upsertMessage(toDisplayMessage(response.data))
+      nextTick(() => {
+        if (messagesRef.value) {
+          messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+        }
+      })
+    }
   } catch (error: any) {
     console.error('handleSend error:', error)
     message.error(error.response?.data?.message || '发送失败')
@@ -1426,9 +1703,20 @@ async function handleFileUpload(event: Event) {
   try {
     const uploadResponse: any = await fileApi.uploadFile(file)
     const fileId = uploadResponse.data?.id
-    await chatApi.sendFile(currentTargetId.value, fileId, MESSAGE_TYPE_FILE, currentSessionType.value)
-    await loadMessages(currentTargetId.value, currentSessionType.value)
-    await loadSessions()
+    const sendResponse: any = await sendChatCommand('SEND_FILE_MESSAGE', {
+      toUserId: currentTargetId.value,
+      fileId,
+      msgType: MESSAGE_TYPE_FILE,
+      sessionType: currentSessionType.value
+    })
+    if (sendResponse?.data) {
+      upsertMessage(toDisplayMessage(sendResponse.data))
+      nextTick(() => {
+        if (messagesRef.value) {
+          messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+        }
+      })
+    }
   } catch (error: any) {
     console.error('handleFileUpload error:', error)
     message.error(error.response?.data?.message || '发送文件失败')
@@ -1452,9 +1740,20 @@ async function handleImageUpload(event: Event) {
   try {
     const uploadResponse: any = await fileApi.uploadImage(file)
     const fileId = uploadResponse.data?.id
-    await chatApi.sendFile(currentTargetId.value, fileId, MESSAGE_TYPE_IMAGE, currentSessionType.value)
-    await loadMessages(currentTargetId.value, currentSessionType.value)
-    await loadSessions()
+    const sendResponse: any = await sendChatCommand('SEND_FILE_MESSAGE', {
+      toUserId: currentTargetId.value,
+      fileId,
+      msgType: MESSAGE_TYPE_IMAGE,
+      sessionType: currentSessionType.value
+    })
+    if (sendResponse?.data) {
+      upsertMessage(toDisplayMessage(sendResponse.data))
+      nextTick(() => {
+        if (messagesRef.value) {
+          messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+        }
+      })
+    }
   } catch (error: any) {
     console.error('handleImageUpload error:', error)
     message.error(error.response?.data?.message || '发送图片失败')
@@ -1487,9 +1786,16 @@ async function handleRecallMessage() {
     return
   }
   try {
-    await chatApi.recall(selectedMsg.value.id)
-    await loadMessages(currentTargetId.value, currentSessionType.value)
-    await loadSessions()
+    const recalledMessage = selectedMsg.value
+    await sendChatCommand('RECALL_MESSAGE', { messageId: recalledMessage.id })
+    showMsgContextMenu.value = false
+    selectedMsg.value = null
+    upsertMessage({
+      ...recalledMessage,
+      status: MESSAGE_STATUS_RECALLED,
+      readStatus: '已撤回'
+    })
+    message.success('消息已撤回')
   } catch (error: any) {
     console.error('handleRecallMessage error:', error)
     message.error(error.response?.data?.message || '撤回失败')
@@ -1718,8 +2024,12 @@ async function submitUpdateNotice() {
   updatingNotice.value = true
   try {
     await groupApi.updateNotice(currentTargetId.value, noticeDraft.value.trim())
-    await loadGroupDetail(currentTargetId.value)
-    await loadSessions()
+    if (groupDetail.value) {
+      groupDetail.value = {
+        ...groupDetail.value,
+        notice: noticeDraft.value.trim()
+      }
+    }
     message.success('群公告已更新')
   } catch (error: any) {
     console.error('submitUpdateNotice error:', error)
@@ -1750,8 +2060,13 @@ async function submitUpdateGroupProfile() {
       groupName: nextGroupName,
       groupAvatar
     })
-    await loadGroupDetail(currentTargetId.value)
-    await loadSessions()
+    if (groupDetail.value) {
+      applyGroupDetail({
+        ...groupDetail.value,
+        groupName: nextGroupName,
+        groupAvatar
+      }, true)
+    }
     message.success('群资料已更新')
   } catch (error: any) {
     console.error('submitUpdateGroupProfile error:', error)
@@ -1802,8 +2117,6 @@ async function toggleAdminRole(memberItem: GroupMember) {
       await groupApi.setAdmin(currentTargetId.value, memberItem.userId)
       message.success('已设为管理员')
     }
-    await loadGroupDetail(currentTargetId.value)
-    await loadSessions()
   } catch (error: any) {
     console.error('toggleAdminRole error:', error)
     message.error(error.response?.data?.message || '管理员操作失败')
@@ -1822,8 +2135,6 @@ async function toggleMuteMember(memberItem: GroupMember) {
       openMuteMemberModal(memberItem)
       return
     }
-    await loadGroupDetail(currentTargetId.value)
-    await loadSessions()
   } catch (error: any) {
     console.error('toggleMuteMember error:', error)
     message.error(error.response?.data?.message || '操作失败')
@@ -1863,8 +2174,6 @@ async function submitMuteMember() {
   try {
     await groupApi.muteMember(currentTargetId.value, muteTargetMember.value.userId, muteMinutes)
     resetMuteMemberModal()
-    await loadGroupDetail(currentTargetId.value)
-    await loadSessions()
     message.success('已设置禁言')
   } catch (error: any) {
     console.error('submitMuteMember error:', error)
@@ -1890,8 +2199,6 @@ async function handleRemoveMember(memberItem: GroupMember) {
   }
   try {
     await groupApi.removeMember(currentTargetId.value, memberItem.userId)
-    await loadGroupDetail(currentTargetId.value)
-    await loadSessions()
     message.success('成员已移出群聊')
   } catch (error: any) {
     console.error('handleRemoveMember error:', error)
@@ -1916,12 +2223,11 @@ async function handleDissolveGroup() {
   try {
     await groupApi.dissolve(currentTargetId.value)
     await closeGroupDrawer({ force: true })
+    removeSessionByTarget(currentTargetId.value, SESSION_TYPE_GROUP)
     currentTargetId.value = null
     currentSessionType.value = SESSION_TYPE_SINGLE
-    groupDetail.value = null
+    applyGroupDetail(null)
     messages.value = []
-    previousMessageCount = 0
-    await loadSessions()
     await router.replace('/chat')
     message.success('群聊已解散')
   } catch (error: any) {
@@ -1947,12 +2253,11 @@ async function handleLeaveGroup() {
   try {
     await groupApi.leaveGroup(currentTargetId.value)
     await closeGroupDrawer({ force: true })
+    removeSessionByTarget(currentTargetId.value, SESSION_TYPE_GROUP)
     currentTargetId.value = null
     currentSessionType.value = SESSION_TYPE_SINGLE
-    groupDetail.value = null
+    applyGroupDetail(null)
     messages.value = []
-    previousMessageCount = 0
-    await loadSessions()
     await router.replace('/chat')
     message.success('已退出群聊')
   } catch (error: any) {
@@ -1991,8 +2296,6 @@ async function submitTransferOwner() {
   try {
     await groupApi.transferOwner(currentTargetId.value, transferOwnerSelection.value)
     closeTransferOwnerModal()
-    await loadGroupDetail(currentTargetId.value)
-    await loadSessions()
     message.success('群主已转让')
   } catch (error: any) {
     console.error('submitTransferOwner error:', error)
@@ -2009,27 +2312,16 @@ watch(() => route.fullPath, () => {
 onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   window.addEventListener('keydown', handleWindowKeydown)
+  connectChatSocket()
   loadingSessions.value = true
   await Promise.all([loadFriends(), loadSessions()])
   initialized.value = true
   loadingSessions.value = false
   await initializeRouteSession()
-
-  refreshTimer = setInterval(async () => {
-    await loadSessions()
-    if (currentTargetId.value) {
-      await loadMessages(currentTargetId.value, currentSessionType.value, true)
-    }
-    if (currentTargetId.value && isGroupSession.value && showGroupDrawer.value) {
-      await loadGroupDetail(currentTargetId.value, false)
-    }
-  }, 3000)
 })
 
 onUnmounted(() => {
-  if (refreshTimer) {
-    clearInterval(refreshTimer)
-  }
+  disconnectChatSocket()
   resetCreateGroupForm()
   resetGroupProfileDraft()
   document.removeEventListener('click', handleClickOutside)
@@ -2291,6 +2583,21 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.online-indicator {
+  position: absolute;
+  right: -2px;
+  bottom: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--linkx-bg-card);
+  background: #64748b;
+}
+
+.online-indicator.active {
+  background: var(--linkx-primary);
 }
 
 .session-info {

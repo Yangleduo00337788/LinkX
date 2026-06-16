@@ -1,0 +1,259 @@
+package com.linkx.server.module.chat.ws;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.common.BusinessException;
+import com.linkx.server.common.ErrorCode;
+import com.linkx.server.module.chat.constant.ChatConstants;
+import com.linkx.server.module.chat.service.ChatService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PingMessage;
+import org.springframework.web.socket.PongMessage;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import java.io.IOException;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class ChatWebSocketHandler extends TextWebSocketHandler {
+
+    private final ChatPresenceService chatPresenceService;
+    private final ChatService chatService;
+    private final ObjectMapper objectMapper;
+
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        Long userId = getUserId(session);
+        if (userId == null) {
+            session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Missing user identity"));
+            return;
+        }
+        chatPresenceService.onConnected(userId, session);
+    }
+
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
+        String payload = message.getPayload();
+        if ("PING".equalsIgnoreCase(payload)) {
+            session.sendMessage(new TextMessage("PONG"));
+            return;
+        }
+
+        Long userId = getUserId(session);
+        if (userId == null) {
+            sendCommandError(session, "", "", ErrorCode.UNAUTHORIZED.getCode(), "用户未认证");
+            return;
+        }
+
+        JsonNode requestNode;
+        try {
+            requestNode = objectMapper.readTree(payload);
+        } catch (JsonProcessingException exception) {
+            sendCommandError(session, "", "", ErrorCode.BAD_REQUEST.getCode(), "WebSocket 消息格式错误");
+            return;
+        }
+
+        String requestId = readText(requestNode, "requestId");
+        String action = readText(requestNode, "action");
+        JsonNode dataNode = requestNode.path("data");
+        if (!StringUtils.hasText(requestId) || !StringUtils.hasText(action)) {
+            sendCommandError(session, requestId, action, ErrorCode.BAD_REQUEST.getCode(), "请求缺少 requestId 或 action");
+            return;
+        }
+
+        try {
+            Object result = handleAction(userId, action, dataNode);
+            sendCommandSuccess(session, requestId, action, result);
+        } catch (BusinessException exception) {
+            sendCommandError(
+                    session,
+                    requestId,
+                    action,
+                    exception.getErrorCode().getCode(),
+                    exception.getMessage()
+            );
+        } catch (Exception exception) {
+            log.error("Handle websocket command failed, action={}, sessionId={}", action, session.getId(), exception);
+            sendCommandError(session, requestId, action, ErrorCode.INTERNAL_ERROR.getCode(), "服务器内部错误");
+        }
+    }
+
+    @Override
+    protected void handlePongMessage(WebSocketSession session, PongMessage message) {
+        log.debug("Received pong, sessionId={}", session.getId());
+    }
+
+    @Override
+    public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
+        log.warn("WebSocket transport error, sessionId={}", session.getId(), exception);
+        session.close(CloseStatus.SERVER_ERROR);
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        Long userId = getUserId(session);
+        if (userId != null) {
+            chatPresenceService.onDisconnected(userId, session);
+        }
+    }
+
+    @Override
+    public boolean supportsPartialMessages() {
+        return false;
+    }
+
+    private Long getUserId(WebSocketSession session) {
+        Object rawUserId = session.getAttributes().get(ChatHandshakeInterceptor.ATTR_USER_ID);
+        if (rawUserId instanceof Long userId) {
+            return userId;
+        }
+        if (rawUserId instanceof Number number) {
+            return number.longValue();
+        }
+        return null;
+    }
+
+    private Object handleAction(Long userId, String action, JsonNode dataNode) {
+        return switch (action) {
+            case ChatSocketAction.GET_SESSIONS -> chatService.getSessions(userId);
+            case ChatSocketAction.GET_HISTORY -> chatService.getChatHistory(
+                    userId,
+                    readRequiredLong(dataNode, "targetId"),
+                    readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE),
+                    readInt(dataNode, "page", 1),
+                    readInt(dataNode, "size", 50)
+            );
+            case ChatSocketAction.SEND_MESSAGE -> chatService.sendMessage(
+                    userId,
+                    readRequiredLong(dataNode, "toUserId"),
+                    readRequiredText(dataNode, "content"),
+                    readInt(dataNode, "msgType", ChatConstants.MESSAGE_TYPE_TEXT),
+                    readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE)
+            );
+            case ChatSocketAction.SEND_FILE_MESSAGE -> chatService.sendFileMessage(
+                    userId,
+                    readRequiredLong(dataNode, "toUserId"),
+                    readRequiredLong(dataNode, "fileId"),
+                    readInt(dataNode, "msgType", ChatConstants.MESSAGE_TYPE_FILE),
+                    readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE)
+            );
+            case ChatSocketAction.MARK_READ -> {
+                chatService.markAsRead(
+                        userId,
+                        readRequiredLong(dataNode, "targetId"),
+                        readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE)
+                );
+                yield null;
+            }
+            case ChatSocketAction.RECALL_MESSAGE -> {
+                chatService.recallMessage(userId, readRequiredLong(dataNode, "messageId"));
+                yield null;
+            }
+            default -> throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的聊天指令: " + action);
+        };
+    }
+
+    private long readRequiredLong(JsonNode dataNode, String fieldName) {
+        JsonNode fieldNode = dataNode.get(fieldName);
+        if (fieldNode == null || fieldNode.isNull()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 不能为空");
+        }
+        if (fieldNode.isNumber()) {
+            return fieldNode.longValue();
+        }
+        if (fieldNode.isTextual()) {
+            String rawValue = fieldNode.textValue().trim();
+            if (!StringUtils.hasText(rawValue)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 不能为空");
+            }
+            try {
+                return Long.parseLong(rawValue);
+            } catch (NumberFormatException exception) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+            }
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+    }
+
+    private int readInt(JsonNode dataNode, String fieldName, int defaultValue) {
+        JsonNode fieldNode = dataNode.get(fieldName);
+        if (fieldNode == null || fieldNode.isNull()) {
+            return defaultValue;
+        }
+        if (fieldNode.isNumber()) {
+            return fieldNode.intValue();
+        }
+        if (fieldNode.isTextual()) {
+            String rawValue = fieldNode.textValue().trim();
+            if (!StringUtils.hasText(rawValue)) {
+                return defaultValue;
+            }
+            try {
+                return Integer.parseInt(rawValue);
+            } catch (NumberFormatException exception) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+            }
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+    }
+
+    private String readRequiredText(JsonNode dataNode, String fieldName) {
+        String value = readText(dataNode, fieldName);
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 不能为空");
+        }
+        return value;
+    }
+
+    private String readText(JsonNode dataNode, String fieldName) {
+        JsonNode fieldNode = dataNode.get(fieldName);
+        if (fieldNode == null || fieldNode.isNull()) {
+            return "";
+        }
+        return fieldNode.asText("");
+    }
+
+    private void sendCommandSuccess(WebSocketSession session, String requestId, String action, Object data) {
+        sendCommandResult(session, new ChatCommandResultPayload(
+                requestId,
+                action,
+                true,
+                ErrorCode.SUCCESS.getCode(),
+                ErrorCode.SUCCESS.getMessage(),
+                data
+        ));
+    }
+
+    private void sendCommandError(WebSocketSession session, String requestId, String action, int code, String message) {
+        sendCommandResult(session, new ChatCommandResultPayload(
+                requestId,
+                action,
+                false,
+                code,
+                message,
+                null
+        ));
+    }
+
+    private void sendCommandResult(WebSocketSession session, ChatCommandResultPayload payload) {
+        if (session == null || !session.isOpen()) {
+            return;
+        }
+        try {
+            String text = objectMapper.writeValueAsString(new ChatRealtimeEvent(ChatEventType.COMMAND_RESULT, payload));
+            synchronized (session) {
+                session.sendMessage(new TextMessage(text));
+            }
+        } catch (IOException exception) {
+            log.warn("Send websocket command result failed, sessionId={}", session.getId(), exception);
+        }
+    }
+}

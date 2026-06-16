@@ -20,17 +20,27 @@ import com.linkx.server.module.chat.constant.ChatConstants;
 import com.linkx.server.module.chat.dto.ChatSessionDTO;
 import com.linkx.server.module.chat.dto.MessageDTO;
 import com.linkx.server.module.chat.service.ChatService;
+import com.linkx.server.module.chat.ws.ChatEventPushService;
+import com.linkx.server.module.chat.ws.ChatEventType;
+import com.linkx.server.module.chat.ws.ChatMessagePayload;
+import com.linkx.server.module.chat.ws.ChatPresenceService;
+import com.linkx.server.module.chat.ws.ChatReadReceiptPayload;
+import com.linkx.server.module.chat.ws.ChatSessionPayload;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +57,8 @@ public class ChatServiceImpl implements ChatService {
     private final ImGroupInfoMapper groupInfoMapper;
     private final ImGroupMemberMapper groupMemberMapper;
     private final BlacklistService blacklistService;
+    private final ChatEventPushService chatEventPushService;
+    private final ChatPresenceService chatPresenceService;
 
     @Override
     @Transactional
@@ -125,15 +137,37 @@ public class ChatServiceImpl implements ChatService {
     @Override
     @Transactional
     public void markAsRead(Long userId, Long targetId, Integer sessionType) {
-        LambdaQueryWrapper<ImSession> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ImSession::getUserId, userId)
-                .eq(ImSession::getTargetId, targetId)
-                .eq(ImSession::getSessionType, resolveSessionType(sessionType));
-        ImSession session = sessionMapper.selectOne(wrapper);
+        int resolvedSessionType = resolveSessionType(sessionType);
+        ImSession session = getSession(userId, targetId, resolvedSessionType);
         if (session != null && session.getUnreadCount() != 0) {
             session.setUnreadCount(0);
             sessionMapper.updateById(session);
         }
+
+        if (resolvedSessionType == ChatConstants.SESSION_TYPE_SINGLE) {
+            LocalDateTime readTime = LocalDateTime.now();
+            List<ImMessage> unreadMessages = listUnreadSingleMessages(targetId, userId);
+            List<Long> messageIds = new ArrayList<>(unreadMessages.size());
+            for (ImMessage unreadMessage : unreadMessages) {
+                unreadMessage.setReadTime(readTime);
+                messageMapper.updateById(unreadMessage);
+                messageIds.add(unreadMessage.getId());
+            }
+
+            executeAfterCommit(() -> {
+                pushSessionUpdate(userId, targetId, ChatConstants.SESSION_TYPE_SINGLE);
+                if (!messageIds.isEmpty()) {
+                    chatEventPushService.sendToUser(
+                            targetId,
+                            ChatEventType.READ_RECEIPT,
+                            new ChatReadReceiptPayload(userId, ChatConstants.SESSION_TYPE_SINGLE, userId, readTime, messageIds)
+                    );
+                }
+            });
+            return;
+        }
+
+        executeAfterCommit(() -> pushSessionUpdate(userId, targetId, resolvedSessionType));
     }
 
     @Override
@@ -149,8 +183,24 @@ public class ChatServiceImpl implements ChatService {
         if (message.getStatus() == ChatConstants.MESSAGE_STATUS_RECALLED) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息已撤回");
         }
+
+        int sessionType = resolveMessageSessionType(message);
         message.setStatus(ChatConstants.MESSAGE_STATUS_RECALLED);
         messageMapper.updateById(message);
+
+        if (sessionType == ChatConstants.SESSION_TYPE_GROUP) {
+            Long groupId = message.getToUserId();
+            List<ImGroupMember> members = listGroupMembers(groupId);
+            Set<Long> memberUserIds = members.stream().map(ImGroupMember::getUserId).collect(Collectors.toCollection(LinkedHashSet::new));
+            refreshGroupSessionPreviews(groupId, memberUserIds);
+            MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(Set.of(message.getFromUserId())), Map.of());
+            executeAfterCommit(() -> notifyGroupRecall(messageDTO, groupId, memberUserIds));
+            return;
+        }
+
+        refreshSingleSessionPreviews(message.getFromUserId(), message.getToUserId());
+        MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_SINGLE, loadUserMap(Set.of(message.getFromUserId())), Map.of());
+        executeAfterCommit(() -> notifySingleRecall(messageDTO, message.getFromUserId(), message.getToUserId()));
     }
 
     private MessageDTO sendSingleMessage(Long fromUserId, Long toUserId, String content, Integer msgType) {
@@ -184,11 +234,14 @@ public class ChatServiceImpl implements ChatService {
         message.setMsgType(msgType);
         message.setStatus(ChatConstants.MESSAGE_STATUS_NORMAL);
         messageMapper.insert(message);
-        return toMessageDTO(message, ChatConstants.SESSION_TYPE_SINGLE, loadUserMap(Set.of(fromUserId)), Map.of());
+
+        MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_SINGLE, loadUserMap(Set.of(fromUserId)), Map.of());
+        executeAfterCommit(() -> notifySingleMessage(messageDTO, fromUserId, toUserId));
+        return messageDTO;
     }
 
     private MessageDTO sendGroupMessage(Long fromUserId, Long groupId, String content, Integer msgType) {
-        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        requireActiveGroup(groupId);
         ImGroupMember senderMember = requireGroupMember(groupId, fromUserId);
         if (isMuted(senderMember)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "你已被禁言");
@@ -201,8 +254,10 @@ public class ChatServiceImpl implements ChatService {
 
         LocalDateTime now = LocalDateTime.now();
         String preview = buildPreview(content, msgType);
+        Set<Long> memberUserIds = new LinkedHashSet<>();
 
         for (ImGroupMember member : members) {
+            memberUserIds.add(member.getUserId());
             ImSession session = getOrCreateSession(member.getUserId(), groupId, ChatConstants.SESSION_TYPE_GROUP);
             session.setLastMessage(preview);
             session.setLastMessageTime(now);
@@ -220,7 +275,10 @@ public class ChatServiceImpl implements ChatService {
         message.setMsgType(msgType);
         message.setStatus(ChatConstants.MESSAGE_STATUS_NORMAL);
         messageMapper.insert(message);
-        return toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(Set.of(fromUserId)), Map.of());
+
+        MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(Set.of(fromUserId)), Map.of());
+        executeAfterCommit(() -> notifyGroupMessage(messageDTO, groupId, memberUserIds));
+        return messageDTO;
     }
 
     private List<MessageDTO> getSingleHistory(Long userId, Long targetId, int page, int size) {
@@ -266,6 +324,83 @@ public class ChatServiceImpl implements ChatService {
                 .collect(Collectors.toList());
     }
 
+    private void notifySingleMessage(MessageDTO messageDTO, Long fromUserId, Long toUserId) {
+        chatEventPushService.sendToUsers(
+                List.of(fromUserId, toUserId),
+                ChatEventType.MESSAGE,
+                new ChatMessagePayload(messageDTO)
+        );
+        pushSessionUpdate(fromUserId, toUserId, ChatConstants.SESSION_TYPE_SINGLE);
+        pushSessionUpdate(toUserId, fromUserId, ChatConstants.SESSION_TYPE_SINGLE);
+    }
+
+    private void notifyGroupMessage(MessageDTO messageDTO, Long groupId, Collection<Long> memberUserIds) {
+        chatEventPushService.sendToUsers(
+                memberUserIds,
+                ChatEventType.MESSAGE,
+                new ChatMessagePayload(messageDTO)
+        );
+        for (Long memberUserId : memberUserIds) {
+            pushSessionUpdate(memberUserId, groupId, ChatConstants.SESSION_TYPE_GROUP);
+        }
+    }
+
+    private void notifySingleRecall(MessageDTO messageDTO, Long fromUserId, Long toUserId) {
+        chatEventPushService.sendToUsers(
+                List.of(fromUserId, toUserId),
+                ChatEventType.MESSAGE_RECALLED,
+                new ChatMessagePayload(messageDTO)
+        );
+        pushSessionUpdate(fromUserId, toUserId, ChatConstants.SESSION_TYPE_SINGLE);
+        pushSessionUpdate(toUserId, fromUserId, ChatConstants.SESSION_TYPE_SINGLE);
+    }
+
+    private void notifyGroupRecall(MessageDTO messageDTO, Long groupId, Collection<Long> memberUserIds) {
+        chatEventPushService.sendToUsers(
+                memberUserIds,
+                ChatEventType.MESSAGE_RECALLED,
+                new ChatMessagePayload(messageDTO)
+        );
+        for (Long memberUserId : memberUserIds) {
+            pushSessionUpdate(memberUserId, groupId, ChatConstants.SESSION_TYPE_GROUP);
+        }
+    }
+
+    private void pushSessionUpdate(Long userId, Long targetId, Integer sessionType) {
+        ChatSessionDTO sessionDTO = getSessionDTO(userId, targetId, sessionType);
+        if (sessionDTO == null) {
+            return;
+        }
+        chatEventPushService.sendToUser(userId, ChatEventType.SESSION, new ChatSessionPayload(sessionDTO));
+    }
+
+    private ChatSessionDTO getSessionDTO(Long userId, Long targetId, Integer sessionType) {
+        ImSession session = getSession(userId, targetId, sessionType);
+        if (session == null) {
+            return null;
+        }
+        if (sessionType == ChatConstants.SESSION_TYPE_SINGLE) {
+            return buildSessionDTO(
+                    userId,
+                    session,
+                    loadUserMap(Set.of(targetId)),
+                    new HashMap<>(),
+                    Map.of(),
+                    Map.of(),
+                    Map.of()
+            );
+        }
+        return buildSessionDTO(
+                userId,
+                session,
+                Map.of(),
+                new HashMap<>(),
+                loadActiveGroupMap(Set.of(targetId)),
+                loadGroupMembersByUser(userId, Set.of(targetId)),
+                loadGroupMemberCount(Set.of(targetId))
+        );
+    }
+
     private ChatSessionDTO buildSessionDTO(
             Long userId,
             ImSession session,
@@ -295,6 +430,7 @@ public class ChatServiceImpl implements ChatService {
             dto.setTargetNickname(targetUser.getNickname());
             dto.setTargetUsername(targetUser.getUsername());
             dto.setTargetAvatar(targetUser.getAvatar());
+            dto.setTargetOnline(chatPresenceService.isOnline(targetUser.getId()));
             return dto;
         }
 
@@ -313,6 +449,7 @@ public class ChatServiceImpl implements ChatService {
         dto.setNotice(groupInfo.getNotice());
         dto.setMuted(isMuted(member));
         dto.setMuteTime(member.getMuteTime());
+        dto.setTargetOnline(false);
         return dto;
     }
 
@@ -329,11 +466,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private ImSession getOrCreateSession(Long userId, Long targetId, Integer sessionType) {
-        LambdaQueryWrapper<ImSession> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ImSession::getUserId, userId)
-                .eq(ImSession::getTargetId, targetId)
-                .eq(ImSession::getSessionType, sessionType);
-        ImSession session = sessionMapper.selectOne(wrapper);
+        ImSession session = getSession(userId, targetId, sessionType);
         if (session == null) {
             session = new ImSession();
             session.setUserId(userId);
@@ -343,6 +476,90 @@ public class ChatServiceImpl implements ChatService {
             sessionMapper.insert(session);
         }
         return session;
+    }
+
+    private ImSession getSession(Long userId, Long targetId, Integer sessionType) {
+        LambdaQueryWrapper<ImSession> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImSession::getUserId, userId)
+                .eq(ImSession::getTargetId, targetId)
+                .eq(ImSession::getSessionType, sessionType);
+        return sessionMapper.selectOne(wrapper);
+    }
+
+    private List<ImMessage> listUnreadSingleMessages(Long fromUserId, Long toUserId) {
+        LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImMessage::getFromUserId, fromUserId)
+                .eq(ImMessage::getToUserId, toUserId)
+                .eq(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_NORMAL)
+                .isNull(ImMessage::getReadTime)
+                .orderByAsc(ImMessage::getCreateTime, ImMessage::getId);
+        return messageMapper.selectList(wrapper);
+    }
+
+    private void refreshSingleSessionPreviews(Long userA, Long userB) {
+        updateSingleSessionPreview(userA, userB);
+        updateSingleSessionPreview(userB, userA);
+    }
+
+    private void updateSingleSessionPreview(Long userId, Long targetId) {
+        ImSession session = getSession(userId, targetId, ChatConstants.SESSION_TYPE_SINGLE);
+        if (session == null) {
+            return;
+        }
+        ImMessage latestMessage = getLatestSingleMessage(userId, targetId);
+        applyLatestPreview(session, latestMessage);
+    }
+
+    private ImMessage getLatestSingleMessage(Long userId, Long targetId) {
+        LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
+        wrapper.and(w -> w.eq(ImMessage::getFromUserId, userId)
+                        .eq(ImMessage::getToUserId, targetId)
+                        .or()
+                        .eq(ImMessage::getFromUserId, targetId)
+                        .eq(ImMessage::getToUserId, userId))
+                .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                .last("LIMIT 1");
+        return messageMapper.selectOne(wrapper);
+    }
+
+    private void refreshGroupSessionPreviews(Long groupId, Collection<Long> memberUserIds) {
+        ImMessage latestMessage = getLatestGroupMessage(groupId);
+        for (Long memberUserId : memberUserIds) {
+            ImSession session = getSession(memberUserId, groupId, ChatConstants.SESSION_TYPE_GROUP);
+            if (session != null) {
+                applyLatestPreview(session, latestMessage);
+            }
+        }
+    }
+
+    private ImMessage getLatestGroupMessage(Long groupId) {
+        LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImMessage::getToUserId, groupId)
+                .eq(ImMessage::getSessionId, groupId)
+                .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                .last("LIMIT 1");
+        return messageMapper.selectOne(wrapper);
+    }
+
+    private void applyLatestPreview(ImSession session, ImMessage latestMessage) {
+        if (latestMessage == null) {
+            session.setLastMessage("");
+            session.setLastMessageTime(null);
+        } else {
+            session.setLastMessage(buildPreview(latestMessage.getContent(), latestMessage.getMsgType(), latestMessage.getStatus()));
+            session.setLastMessageTime(latestMessage.getCreateTime());
+        }
+        sessionMapper.updateById(session);
+    }
+
+    private int resolveMessageSessionType(ImMessage message) {
+        if (message.getSessionId() != null && message.getSessionId().equals(message.getToUserId())) {
+            ImGroupInfo groupInfo = groupInfoMapper.selectById(message.getToUserId());
+            if (groupInfo != null && !Integer.valueOf(1).equals(groupInfo.getDeleted())) {
+                return ChatConstants.SESSION_TYPE_GROUP;
+            }
+        }
+        return ChatConstants.SESSION_TYPE_SINGLE;
     }
 
     private MessageDTO toMessageDTO(ImMessage message, Integer sessionType, Map<Long, SysUser> userMap, Map<String, SysFile> fileMap) {
@@ -355,6 +572,7 @@ public class ChatServiceImpl implements ChatService {
         dto.setContent(message.getContent());
         dto.setMsgType(message.getMsgType());
         dto.setStatus(message.getStatus());
+        dto.setReadTime(message.getReadTime());
         dto.setCreateTime(message.getCreateTime());
 
         SysUser fromUser = userMap.get(message.getFromUserId());
@@ -461,6 +679,19 @@ public class ChatServiceImpl implements ChatService {
         return member.getMuteTime() != null && member.getMuteTime().isAfter(LocalDateTime.now());
     }
 
+    private void executeAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
+    }
+
     private int resolveSessionType(Integer sessionType) {
         if (sessionType == null) {
             return ChatConstants.SESSION_TYPE_SINGLE;
@@ -492,7 +723,14 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private String buildPreview(String content, Integer msgType) {
-        if (msgType == null || msgType == ChatConstants.MESSAGE_TYPE_TEXT) {
+        return buildPreview(content, msgType, ChatConstants.MESSAGE_STATUS_NORMAL);
+    }
+
+    private String buildPreview(String content, Integer msgType, Integer status) {
+        if (status != null && status == ChatConstants.MESSAGE_STATUS_RECALLED) {
+            return "[消息已撤回]";
+        }
+        if (msgType == null || msgType == ChatConstants.MESSAGE_TYPE_TEXT || msgType == ChatConstants.MESSAGE_TYPE_SYSTEM) {
             return content;
         }
         if (msgType == ChatConstants.MESSAGE_TYPE_IMAGE) {

@@ -18,5 +18,6 @@ public class MessageDTO {
     private String fileName;
     private Long fileSize;
     private Integer status;
+    private LocalDateTime readTime;
     private LocalDateTime createTime;
 }

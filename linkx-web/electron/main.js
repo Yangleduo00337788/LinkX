@@ -1,10 +1,107 @@
 const { app, BrowserWindow, ipcMain, Notification, nativeImage, clipboard, shell } = require('electron')
+const fs = require('fs')
+const http = require('http')
 const path = require('path')
 
 let mainWindow = null
 let isDev = !!process.env.ELECTRON_DEV_URL
+let localRendererServer = null
+const LOCAL_RENDERER_HOST = '127.0.0.1'
+const LOCAL_RENDERER_PORT = Number(process.env.LINKX_ELECTRON_PORT || 39689)
 
-function createWindow() {
+const STATIC_MIME_TYPES = {
+  '.css': 'text/css; charset=utf-8',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml; charset=utf-8',
+  '.txt': 'text/plain; charset=utf-8',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
+}
+
+function resolveContentType(filePath) {
+  return STATIC_MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream'
+}
+
+function createStaticRequestHandler(distDir) {
+  return (request, response) => {
+    const requestUrl = new URL(request.url || '/', `http://${LOCAL_RENDERER_HOST}:${LOCAL_RENDERER_PORT}`)
+    const rawPath = decodeURIComponent(requestUrl.pathname)
+    const normalizedPath = rawPath === '/' ? '/index.html' : rawPath
+    const requestedFilePath = path.normalize(path.join(distDir, normalizedPath))
+
+    if (!requestedFilePath.startsWith(distDir)) {
+      response.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' })
+      response.end('Forbidden')
+      return
+    }
+
+    const finalFilePath = fs.existsSync(requestedFilePath) && fs.statSync(requestedFilePath).isFile()
+      ? requestedFilePath
+      : path.join(distDir, 'index.html')
+
+    fs.readFile(finalFilePath, (error, content) => {
+      if (error) {
+        console.error('Static server read error:', error.message)
+        response.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' })
+        response.end('Internal Server Error')
+        return
+      }
+
+      response.writeHead(200, {
+        'Cache-Control': 'no-store',
+        'Content-Type': resolveContentType(finalFilePath)
+      })
+      response.end(content)
+    })
+  }
+}
+
+function startLocalRendererServer() {
+  if (localRendererServer?.url) {
+    return Promise.resolve(localRendererServer.url)
+  }
+
+  const distDir = path.join(__dirname, '..', 'dist')
+  const indexPath = path.join(distDir, 'index.html')
+  if (!fs.existsSync(indexPath)) {
+    throw new Error(`Renderer build output not found: ${indexPath}`)
+  }
+
+  return new Promise((resolve, reject) => {
+    const server = http.createServer(createStaticRequestHandler(distDir))
+    server.on('error', reject)
+    server.listen(LOCAL_RENDERER_PORT, LOCAL_RENDERER_HOST, () => {
+      const address = server.address()
+      if (!address || typeof address === 'string') {
+        reject(new Error('Failed to resolve local renderer server address'))
+        return
+      }
+
+      const url = `http://${LOCAL_RENDERER_HOST}:${address.port}`
+      localRendererServer = { server, url }
+      console.log('Local renderer server started:', url)
+      resolve(url)
+    })
+  })
+}
+
+function stopLocalRendererServer() {
+  if (!localRendererServer?.server) {
+    return Promise.resolve()
+  }
+
+  const { server } = localRendererServer
+  localRendererServer = null
+  return new Promise(resolve => {
+    server.close(() => resolve())
+  })
+}
+
+async function createWindow() {
   console.log('Creating window...')
   console.log('isDev:', isDev)
   console.log('ELECTRON_DEV_URL:', process.env.ELECTRON_DEV_URL)
@@ -47,12 +144,11 @@ function createWindow() {
   if (isDev) {
     const url = process.env.ELECTRON_DEV_URL
     console.log('Loading URL:', url)
-    mainWindow.loadURL(url)
+    await mainWindow.loadURL(url)
   } else {
-    const distPath = path.join(__dirname, '..', 'dist', 'index.html')
-    console.log('Loading file:', distPath)
-    console.log('File exists:', require('fs').existsSync(distPath))
-    mainWindow.loadFile(distPath)
+    const url = await startLocalRendererServer()
+    console.log('Loading local renderer URL:', url)
+    await mainWindow.loadURL(url)
   }
 
   if (isDev) {
@@ -161,7 +257,10 @@ function setupIPC() {
 
 app.whenReady().then(() => {
   console.log('App ready')
-  createWindow()
+  createWindow().catch(error => {
+    console.error('Create window error:', error)
+    app.quit()
+  })
 })
 
 app.on('window-all-closed', () => {
@@ -174,4 +273,7 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true
+  stopLocalRendererServer().catch(error => {
+    console.error('Stop local renderer server error:', error)
+  })
 })
