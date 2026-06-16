@@ -107,6 +107,9 @@ public class AuthServiceImpl implements AuthService {
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             throw new BusinessException(ErrorCode.TOKEN_INVALID);
         }
+        if (!jwtTokenProvider.isRefreshToken(refreshToken)) {
+            throw new BusinessException(ErrorCode.TOKEN_INVALID, "刷新令牌无效");
+        }
 
         Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
         SysUser user = userMapper.selectById(userId);

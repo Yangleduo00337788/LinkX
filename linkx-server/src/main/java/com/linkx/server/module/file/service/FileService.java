@@ -11,6 +11,8 @@ public interface FileService {
 
     SysFile uploadAvatar(Long userId, MultipartFile file);
 
+    SysFile uploadFile(Long userId, MultipartFile file);
+
     List<SysFile> listFiles(Long userId, String keyword);
 
     void deleteFile(Long userId, Long fileId);

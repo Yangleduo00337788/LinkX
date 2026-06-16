@@ -54,12 +54,13 @@ public class ChatServiceImpl implements ChatService {
         if (!StringUtils.hasText(content)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息内容不能为空");
         }
+        int resolvedMsgType = resolveTextMessageType(msgType);
         int resolvedSessionType = resolveSessionType(sessionType);
         String normalizedContent = content.trim();
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
-            return sendGroupMessage(fromUserId, toUserId, normalizedContent, msgType);
+            return sendGroupMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType);
         }
-        return sendSingleMessage(fromUserId, toUserId, normalizedContent, msgType);
+        return sendSingleMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType);
     }
 
     @Override
@@ -69,11 +70,15 @@ public class ChatServiceImpl implements ChatService {
         if (sysFile == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "文件不存在");
         }
+        if (!fromUserId.equals(sysFile.getUserId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权发送该文件");
+        }
+        int resolvedMsgType = resolveFileMessageType(msgType);
         int resolvedSessionType = resolveSessionType(sessionType);
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
-            return sendGroupMessage(fromUserId, toUserId, sysFile.getFileUrl(), msgType);
+            return sendGroupMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType);
         }
-        return sendSingleMessage(fromUserId, toUserId, sysFile.getFileUrl(), msgType);
+        return sendSingleMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType);
     }
 
     @Override
@@ -466,8 +471,28 @@ public class ChatServiceImpl implements ChatService {
         return sessionType;
     }
 
+    private int resolveTextMessageType(Integer msgType) {
+        if (msgType == null) {
+            return ChatConstants.MESSAGE_TYPE_TEXT;
+        }
+        if (msgType != ChatConstants.MESSAGE_TYPE_TEXT) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "普通消息仅支持文本类型");
+        }
+        return msgType;
+    }
+
+    private int resolveFileMessageType(Integer msgType) {
+        if (msgType == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "文件消息类型不能为空");
+        }
+        if (msgType != ChatConstants.MESSAGE_TYPE_IMAGE && msgType != ChatConstants.MESSAGE_TYPE_FILE) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "文件消息仅支持图片或文件类型");
+        }
+        return msgType;
+    }
+
     private String buildPreview(String content, Integer msgType) {
-        if (msgType == null || msgType == ChatConstants.MESSAGE_TYPE_TEXT || msgType == ChatConstants.MESSAGE_TYPE_SYSTEM) {
+        if (msgType == null || msgType == ChatConstants.MESSAGE_TYPE_TEXT) {
             return content;
         }
         if (msgType == ChatConstants.MESSAGE_TYPE_IMAGE) {

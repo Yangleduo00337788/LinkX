@@ -34,6 +34,14 @@ public class FileController {
         return Result.success(fileService.uploadImage(userId, file));
     }
 
+    @PostMapping("/upload/file")
+    public Result<SysFile> uploadFile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam("file") MultipartFile file) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(fileService.uploadFile(userId, file));
+    }
+
     @GetMapping("/list")
     public Result<List<SysFile>> listFiles(
             @AuthenticationPrincipal UserDetails userDetails,

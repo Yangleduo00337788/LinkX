@@ -227,7 +227,10 @@ function handleChangeAvatar() {
 
     try {
       const res: any = await fileApi.uploadAvatar(file)
-      const avatarUrl = res.data
+      const avatarUrl = res.data?.fileUrl || ''
+      if (!avatarUrl) {
+        throw new Error('头像地址缺失')
+      }
       profile.avatar = avatarUrl
       await userApi.updateProfile({
         nickname: profile.nickname,

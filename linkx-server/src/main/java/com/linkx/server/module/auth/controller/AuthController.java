@@ -3,6 +3,7 @@ package com.linkx.server.module.auth.controller;
 import com.linkx.server.common.Result;
 import com.linkx.server.module.auth.dto.AuthResponse;
 import com.linkx.server.module.auth.dto.LoginRequest;
+import com.linkx.server.module.auth.dto.RefreshTokenRequest;
 import com.linkx.server.module.auth.dto.RegisterRequest;
 import com.linkx.server.module.auth.service.AuthService;
 import jakarta.validation.Valid;
@@ -27,7 +28,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public Result<AuthResponse> refreshToken(@RequestParam(value = "refreshToken") String refreshToken) {
-        return Result.success(authService.refreshToken(refreshToken));
+    public Result<AuthResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request) {
+        return Result.success(authService.refreshToken(request.getRefreshToken()));
     }
 }

@@ -175,7 +175,6 @@
     <input
       ref="fileInputRef"
       type="file"
-      accept="image/*"
       style="display: none"
       @change="handleFileChange"
     />
@@ -235,7 +234,8 @@ async function handleFileChange(e: Event) {
 
   uploading.value = true
   try {
-    const res: any = await fileApi.uploadImage(file)
+    const uploadApi = file.type.startsWith('image/') ? fileApi.uploadImage : fileApi.uploadFile
+    const res: any = await uploadApi(file)
     message.success('上传成功')
     await loadFiles(searchKeyword.value || undefined)
     selectedFile.value = res.data

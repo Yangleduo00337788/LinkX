@@ -42,7 +42,7 @@ export const authApi = {
   login: (data: { username: string; password: string }) =>
     api.post('/api/auth/login', data),
   refresh: (refreshToken: string) =>
-    api.post(`/api/auth/refresh?refreshToken=${refreshToken}`)
+    api.post('/api/auth/refresh', { refreshToken })
 }
 
 export const userApi = {
@@ -105,7 +105,8 @@ export const groupApi = {
   acceptRequest: (requestId: number | string) => api.post(`/api/group/requests/${requestId}/accept`),
   rejectRequest: (requestId: number | string) => api.post(`/api/group/requests/${requestId}/reject`),
   transferOwner: (groupId: number | string, newOwnerId: number | string) =>
-    api.post(`/api/group/${groupId}/transfer/${newOwnerId}`)
+    api.post(`/api/group/${groupId}/transfer/${newOwnerId}`),
+  search: (keyword: string) => api.get(`/api/group/search?keyword=${encodeURIComponent(keyword)}`)
 }
 
 export const fileApi = {
@@ -126,7 +127,7 @@ export const fileApi = {
   uploadFile: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
-    return api.post('/api/file/upload/image', formData, {
+    return api.post('/api/file/upload/file', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
   },

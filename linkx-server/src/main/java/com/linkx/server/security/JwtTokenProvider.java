@@ -5,6 +5,7 @@ import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
@@ -13,6 +14,9 @@ import java.util.Date;
 @Slf4j
 @Component
 public class JwtTokenProvider {
+
+    public static final String TOKEN_TYPE_ACCESS = "access";
+    public static final String TOKEN_TYPE_REFRESH = "refresh";
 
     @Value("${linkx.jwt.secret}")
     private String jwtSecret;
@@ -33,6 +37,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
+                .claim("type", TOKEN_TYPE_ACCESS)
                 .claim("username", username)
                 .issuedAt(now)
                 .expiration(expiryDate)
@@ -46,7 +51,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
-                .claim("type", "refresh")
+                .claim("type", TOKEN_TYPE_REFRESH)
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getSigningKey())
@@ -69,6 +74,25 @@ public class JwtTokenProvider {
                 .parseSignedClaims(token)
                 .getPayload();
         return claims.get("username", String.class);
+    }
+
+    public String getTokenType(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.get("type", String.class);
+    }
+
+    public boolean isAccessToken(String token) {
+        String tokenType = getTokenType(token);
+        // Allow legacy access tokens issued before the token type claim was introduced.
+        return !StringUtils.hasText(tokenType) || TOKEN_TYPE_ACCESS.equals(tokenType);
+    }
+
+    public boolean isRefreshToken(String token) {
+        return TOKEN_TYPE_REFRESH.equals(getTokenType(token));
     }
 
     public boolean validateToken(String token) {
