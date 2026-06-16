@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS im_session (
     unread_count INT DEFAULT 0 COMMENT '未读消息数',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_user_id (user_id),
-    UNIQUE INDEX uk_user_target (user_id, target_id)
+    UNIQUE INDEX uk_user_target (user_id, target_id, session_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='聊天会话表';
 
 -- 聊天消息表
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS im_message (
     from_user_id BIGINT NOT NULL COMMENT '发送者ID',
     to_user_id BIGINT NOT NULL COMMENT '接收者ID',
     content TEXT COMMENT '消息内容',
-    msg_type TINYINT DEFAULT 0 COMMENT '消息类型 0文本 1图片 2文件',
+    msg_type TINYINT DEFAULT 0 COMMENT '消息类型 0文本 1图片 2文件 3系统消息',
     status TINYINT DEFAULT 0 COMMENT '状态 0正常 1已撤回',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_session_id (session_id),

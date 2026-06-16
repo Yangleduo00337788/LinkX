@@ -559,6 +559,10 @@
                 <div class="group-summary-pill">{{ groupDetail.memberCount }} / {{ groupDetail.maxMembers }} 人</div>
                 <div class="group-summary-pill role">我的角色：{{ roleText(groupDetail.myRole) }}</div>
               </div>
+              <div class="group-summary-id-row">
+                <span class="group-summary-id">群号：{{ groupDetail.id }}</span>
+                <button class="text-btn group-id-copy-btn" @click="copyGroupId(groupDetail.id)">复制群号</button>
+              </div>
             </div>
           </div>
 
@@ -1500,6 +1504,15 @@ async function handleCopyMessage() {
   message.success('已复制')
 }
 
+async function copyGroupId(groupId: string | number) {
+  try {
+    await navigator.clipboard.writeText(String(groupId))
+    message.success(`群号 ${groupId} 已复制`)
+  } catch (error) {
+    message.error('复制群号失败')
+  }
+}
+
 function openCreateGroupModal() {
   resetCreateGroupForm()
   showCreateGroupModal.value = true
@@ -1633,7 +1646,7 @@ async function submitCreateGroup() {
     if (groupSession) {
       await selectSession(groupSession)
     }
-    message.success('群聊创建成功')
+    message.success(`群聊创建成功，群号：${groupId}`)
   } catch (error: any) {
     console.error('submitCreateGroup error:', error)
     message.error(error.response?.data?.message || '创建群聊失败')
@@ -3352,6 +3365,19 @@ onUnmounted(() => {
   margin-top: 2px;
 }
 
+.group-summary-id-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.group-summary-id {
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+}
+
 .group-summary-pill {
   display: inline-flex;
   align-items: center;
@@ -3389,6 +3415,12 @@ onUnmounted(() => {
 .text-btn:disabled:hover {
   background: transparent;
   color: var(--linkx-text-muted);
+}
+
+.group-id-copy-btn {
+  padding: 4px 10px;
+  border: 1px solid rgba(77, 107, 255, 0.14);
+  background: rgba(77, 107, 255, 0.08);
 }
 
 .member-actions {

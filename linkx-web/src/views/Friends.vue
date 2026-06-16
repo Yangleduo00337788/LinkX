@@ -207,7 +207,90 @@
         </div>
 
         <div v-if="activeTab === 'join-group'" class="tab-pane">
-          <div class="join-group-shell">
+          <div class="join-group-search-section">
+            <div class="join-group-search-wrapper">
+              <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+              <input
+                v-model="groupSearchKeyword"
+                type="text"
+                class="join-group-search-input"
+                placeholder="输入群名称或群 ID 搜索..."
+                maxlength="100"
+                @keyup.enter="handleGroupSearch"
+              />
+              <button v-if="groupSearchKeyword" class="join-group-search-clear" @click="clearGroupSearch">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+              <button class="join-group-search-btn" :disabled="searchingGroup" @click="handleGroupSearch">
+                {{ searchingGroup ? '搜索中...' : '搜索' }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="groupSearchResults.length > 0" class="group-search-results">
+            <div class="group-search-results-header">
+              <span>搜索结果</span>
+              <span class="group-search-results-count">{{ groupSearchResults.length }} 个群</span>
+            </div>
+            <div
+              v-for="g in groupSearchResults"
+              :key="g.id"
+              class="group-search-result-card"
+            >
+              <div class="group-search-result-avatar">
+                <img v-if="g.groupAvatar" :src="g.groupAvatar" class="avatar-img" />
+                <span v-else>{{ g.groupName?.charAt(0) || '群' }}</span>
+              </div>
+              <div class="group-search-result-info">
+                <div class="group-search-result-name">{{ g.groupName }}</div>
+                <div class="group-search-result-meta">
+                  <span class="group-search-result-id">群号：{{ g.id }}</span>
+                  <span class="group-search-result-sep">·</span>
+                  <span>{{ g.memberCount || 0 }} 人</span>
+                  <template v-if="g.myRole !== null && g.myRole !== undefined">
+                    <span class="group-search-result-sep">·</span>
+                    <span class="group-search-result-self">已加入</span>
+                  </template>
+                </div>
+                <div v-if="g.notice" class="group-search-result-notice">{{ g.notice }}</div>
+              </div>
+              <div class="group-search-result-actions">
+                <button
+                  v-if="g.myRole === null || g.myRole === undefined"
+                  class="group-search-join-btn"
+                  @click="openJoinGroupModal(g)"
+                >
+                  申请加入
+                </button>
+                <button
+                  v-else
+                  class="group-search-enter-btn"
+                  @click="startGroupChat(g.id)"
+                >
+                  进入群聊
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="groupSearchKeyword && !searchingGroup" class="empty-state">
+            <div class="empty-icon">
+              <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="11" cy="11" r="8"/>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </div>
+            <div class="empty-title">未找到相关群聊</div>
+            <div class="empty-subtitle">请尝试其他关键词</div>
+          </div>
+
+          <div v-else-if="!groupSearchKeyword" class="join-group-shell">
             <div class="join-group-card">
               <div class="join-group-head">
                 <div>
@@ -272,6 +355,10 @@
                 </div>
                 <div class="group-card-meta">
                   <div class="group-card-name">{{ group.groupName }}</div>
+                  <div class="group-card-id-row">
+                    <span class="group-card-id">群号：{{ group.id }}</span>
+                    <button class="group-copy-btn" @click.stop="copyGroupId(group.id)">复制群号</button>
+                  </div>
                   <div class="group-card-subtitle">
                     {{ group.memberCount || 0 }} 人
                     <template v-if="group.notice"> · {{ group.notice }}</template>
@@ -376,6 +463,10 @@
                 <template v-if="previewGroupDetail.createTime">
                   · 创建于 {{ previewGroupDetail.createTime.substring(0, 10) }}
                 </template>
+              </div>
+              <div class="group-preview-id-row">
+                <span class="group-preview-id">群号：{{ previewGroupDetail.id }}</span>
+                <button class="group-copy-btn" @click="copyGroupId(previewGroupDetail.id)">复制群号</button>
               </div>
             </div>
           </div>
@@ -516,6 +607,9 @@ const searchKeyword = ref('')
 const joinGroupId = ref('')
 const joinGroupMessage = ref('')
 const joiningGroup = ref(false)
+const groupSearchKeyword = ref('')
+const searchingGroup = ref(false)
+const groupSearchResults = ref<any[]>([])
 const friends = ref<any[]>([])
 const requests = ref<FriendRequestItem[]>([])
 const groupRequests = ref<GroupRequestItem[]>([])
@@ -661,6 +755,35 @@ async function handleJoinGroup() {
   }
 }
 
+async function handleGroupSearch() {
+  const keyword = groupSearchKeyword.value.trim()
+  if (!keyword) {
+    groupSearchResults.value = []
+    return
+  }
+  searchingGroup.value = true
+  try {
+    const res: any = await groupApi.search(keyword)
+    groupSearchResults.value = res.data || []
+  } catch (e: any) {
+    message.error(e.response?.data?.message || '搜索群聊失败')
+    groupSearchResults.value = []
+  } finally {
+    searchingGroup.value = false
+  }
+}
+
+function clearGroupSearch() {
+  groupSearchKeyword.value = ''
+  groupSearchResults.value = []
+}
+
+function openJoinGroupModal(group: any) {
+  joinGroupId.value = String(group.id)
+  joinGroupMessage.value = ''
+  message.info(`申请加入「${group.groupName}」，请填写申请说明后发送`)
+}
+
 function groupRoleText(role?: number) {
   if (role === 2) {
     return '群主'
@@ -690,6 +813,15 @@ function startGroupChat(groupId: string | number) {
     path: `/chat/${groupId}`,
     query: { sessionType: '2' }
   })
+}
+
+async function copyGroupId(groupId: string | number) {
+  try {
+    await navigator.clipboard.writeText(String(groupId))
+    message.success(`群号 ${groupId} 已复制`)
+  } catch (e) {
+    message.error('复制群号失败')
+  }
 }
 
 async function openGroupPreview(group: GroupListItem) {
@@ -1221,6 +1353,234 @@ onUnmounted(() => {
   transform: translateY(-1px);
 }
 
+/* Group Search */
+.join-group-search-section {
+  margin-bottom: 16px;
+}
+
+.join-group-search-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.join-group-search-wrapper .search-icon {
+  position: absolute;
+  left: 14px;
+  color: var(--linkx-text-muted);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.join-group-search-input {
+  flex: 1;
+  height: 42px;
+  padding: 0 100px 0 38px;
+  background: var(--linkx-bg-card);
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius);
+  color: var(--linkx-text);
+  font-size: 14px;
+  outline: none;
+  transition: var(--linkx-transition);
+}
+
+.join-group-search-input::placeholder {
+  color: var(--linkx-text-muted);
+}
+
+.join-group-search-input:focus {
+  border-color: var(--linkx-primary);
+  box-shadow: 0 0 0 3px var(--linkx-primary-glow);
+}
+
+.join-group-search-clear {
+  position: absolute;
+  right: 96px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: var(--linkx-text-muted);
+  cursor: pointer;
+  transition: var(--linkx-transition-fast);
+}
+
+.join-group-search-clear:hover {
+  background: var(--linkx-bg-hover);
+  color: var(--linkx-text);
+}
+
+.join-group-search-btn {
+  min-width: 80px;
+  height: 42px;
+  padding: 0 16px;
+  background: var(--linkx-primary);
+  border: none;
+  border-radius: var(--linkx-radius);
+  color: white;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--linkx-transition);
+  flex-shrink: 0;
+}
+
+.join-group-search-btn:hover:not(:disabled) {
+  background: var(--linkx-primary-hover);
+  box-shadow: 0 4px 12px var(--linkx-primary-glow);
+}
+
+.join-group-search-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.group-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-search-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--linkx-text-secondary);
+  margin-bottom: 4px;
+}
+
+.group-search-results-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--linkx-text-muted);
+}
+
+.group-search-result-card {
+  display: flex;
+  align-items: center;
+  padding: 14px 16px;
+  gap: 14px;
+  background: var(--linkx-bg-card);
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius);
+  transition: var(--linkx-transition);
+}
+
+.group-search-result-card:hover {
+  border-color: var(--linkx-primary);
+  box-shadow: 0 4px 12px var(--linkx-primary-glow);
+}
+
+.group-search-result-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--linkx-radius);
+  background: linear-gradient(135deg, #00a6ff 0%, #0066ff 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 102, 255, 0.22);
+  overflow: hidden;
+}
+
+.group-search-result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.group-search-result-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--linkx-text);
+  margin-bottom: 4px;
+}
+
+.group-search-result-meta {
+  font-size: 12px;
+  color: var(--linkx-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.group-search-result-id {
+  color: var(--linkx-text-muted);
+}
+
+.group-search-result-sep {
+  color: var(--linkx-text-muted);
+}
+
+.group-search-result-self {
+  color: var(--linkx-primary);
+  font-weight: 600;
+}
+
+.group-search-result-notice {
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group-search-result-actions {
+  flex-shrink: 0;
+}
+
+.group-search-join-btn {
+  min-width: 88px;
+  height: 34px;
+  padding: 0 14px;
+  background: var(--linkx-primary);
+  border: none;
+  border-radius: var(--linkx-radius-sm);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--linkx-transition-fast);
+}
+
+.group-search-join-btn:hover {
+  background: var(--linkx-primary-hover);
+  box-shadow: 0 4px 12px var(--linkx-primary-glow);
+  transform: translateY(-1px);
+}
+
+.group-search-enter-btn {
+  min-width: 88px;
+  height: 34px;
+  padding: 0 14px;
+  background: rgba(0, 166, 255, 0.1);
+  border: none;
+  border-radius: var(--linkx-radius-sm);
+  color: #007aff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--linkx-transition-fast);
+}
+
+.group-search-enter-btn:hover {
+  background: rgba(0, 166, 255, 0.16);
+  color: #005fe0;
+}
+
 .join-group-shell {
   min-height: 100%;
   display: flex;
@@ -1423,6 +1783,20 @@ onUnmounted(() => {
   margin-bottom: 6px;
 }
 
+.group-card-id-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.group-card-id,
+.group-preview-id {
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+}
+
 .group-card-subtitle {
   font-size: 12px;
   line-height: 1.6;
@@ -1500,6 +1874,24 @@ onUnmounted(() => {
 .group-preview-btn {
   background: rgba(0, 166, 255, 0.1);
   color: #007aff;
+}
+
+.group-copy-btn {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid rgba(0, 166, 255, 0.16);
+  border-radius: var(--linkx-radius-full);
+  background: rgba(0, 166, 255, 0.08);
+  color: #007aff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--linkx-transition-fast);
+}
+
+.group-copy-btn:hover {
+  background: rgba(0, 166, 255, 0.14);
+  color: #005fe0;
 }
 
 .group-preview-btn:hover {
@@ -1622,6 +2014,14 @@ onUnmounted(() => {
   font-size: 13px;
   line-height: 1.6;
   color: var(--linkx-text-secondary);
+}
+
+.group-preview-id-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
 
 .group-preview-section {

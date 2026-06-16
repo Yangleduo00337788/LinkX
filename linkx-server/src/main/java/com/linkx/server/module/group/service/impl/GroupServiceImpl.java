@@ -181,25 +181,30 @@ public class GroupServiceImpl implements GroupService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "你已加入该群聊");
         }
 
-        Long approverId = groupInfo.getOwnerId();
-        LambdaQueryWrapper<ImGroupRequest> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ImGroupRequest::getGroupId, groupId)
+        LambdaQueryWrapper<ImGroupRequest> dupWrapper = new LambdaQueryWrapper<>();
+        dupWrapper.eq(ImGroupRequest::getGroupId, groupId)
                 .eq(ImGroupRequest::getFromUserId, userId)
-                .eq(ImGroupRequest::getToUserId, approverId)
                 .eq(ImGroupRequest::getRequestType, GroupConstants.REQUEST_TYPE_JOIN)
                 .eq(ImGroupRequest::getStatus, GroupConstants.REQUEST_STATUS_PENDING);
-        if (groupRequestMapper.selectCount(wrapper) > 0) {
+        if (groupRequestMapper.selectCount(dupWrapper) > 0) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "你已提交过入群申请，请勿重复提交");
         }
 
-        ImGroupRequest request = new ImGroupRequest();
-        request.setGroupId(groupId);
-        request.setFromUserId(userId);
-        request.setToUserId(approverId);
-        request.setRequestType(GroupConstants.REQUEST_TYPE_JOIN);
-        request.setMessage(normalizeRequestMessage(message));
-        request.setStatus(GroupConstants.REQUEST_STATUS_PENDING);
-        groupRequestMapper.insert(request);
+        List<ImGroupMember> admins = listMembersByGroupId(groupId).stream()
+                .filter(m -> m.getRole() >= GroupConstants.ROLE_ADMIN)
+                .toList();
+
+        String normalizedMessage = normalizeRequestMessage(message);
+        for (ImGroupMember admin : admins) {
+            ImGroupRequest request = new ImGroupRequest();
+            request.setGroupId(groupId);
+            request.setFromUserId(userId);
+            request.setToUserId(admin.getUserId());
+            request.setRequestType(GroupConstants.REQUEST_TYPE_JOIN);
+            request.setMessage(normalizedMessage);
+            request.setStatus(GroupConstants.REQUEST_STATUS_PENDING);
+            groupRequestMapper.insert(request);
+        }
     }
 
     @Override
@@ -264,6 +269,8 @@ public class GroupServiceImpl implements GroupService {
                     userId,
                     getUserDisplayName(userId, userMap) + " 同意 " + getUserDisplayName(request.getFromUserId(), userMap) + " 加入了群聊"
             );
+
+            completePendingJoinRequests(groupInfo.getId(), request.getFromUserId(), GroupConstants.REQUEST_STATUS_REJECTED);
         } else if (request.getRequestType() == GroupConstants.REQUEST_TYPE_INVITE) {
             ensureJoinableMember(groupInfo, userId);
             insertMember(groupInfo.getId(), userId, GroupConstants.ROLE_MEMBER);
@@ -669,6 +676,25 @@ public class GroupServiceImpl implements GroupService {
         }
     }
 
+    private void completePendingJoinRequests(Long groupId, Long fromUserId, int status) {
+        LambdaQueryWrapper<ImGroupRequest> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImGroupRequest::getGroupId, groupId)
+                .eq(ImGroupRequest::getFromUserId, fromUserId)
+                .eq(ImGroupRequest::getRequestType, GroupConstants.REQUEST_TYPE_JOIN)
+                .eq(ImGroupRequest::getStatus, GroupConstants.REQUEST_STATUS_PENDING);
+
+        List<ImGroupRequest> pendingJoins = groupRequestMapper.selectList(wrapper);
+        if (pendingJoins.isEmpty()) {
+            return;
+        }
+        LocalDateTime handleTime = LocalDateTime.now();
+        for (ImGroupRequest pendingJoin : pendingJoins) {
+            pendingJoin.setStatus(status);
+            pendingJoin.setHandleTime(handleTime);
+            groupRequestMapper.updateById(pendingJoin);
+        }
+    }
+
     private void ensureJoinableMember(ImGroupInfo groupInfo, Long userId) {
         if (isGroupMember(groupInfo.getId(), userId)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "该用户已在群聊中");
@@ -952,5 +978,48 @@ public class GroupServiceImpl implements GroupService {
             return operatorName + " 将群名称修改为“" + newGroupName + "”";
         }
         return operatorName + " 更新了群头像";
+    }
+
+    @Override
+    public List<GroupDTO> searchGroups(Long userId, String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return List.of();
+        }
+        String trimmedKeyword = keyword.trim();
+
+        LambdaQueryWrapper<ImGroupInfo> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImGroupInfo::getDeleted, 0);
+
+        Long parsedId;
+        try {
+            parsedId = Long.parseLong(trimmedKeyword);
+        } catch (NumberFormatException ignored) {
+            parsedId = null;
+        }
+
+        final Long searchId = parsedId;
+        if (searchId != null) {
+            wrapper.and(w -> w.eq(ImGroupInfo::getId, searchId)
+                    .or().like(ImGroupInfo::getGroupName, trimmedKeyword));
+        } else {
+            wrapper.like(ImGroupInfo::getGroupName, trimmedKeyword);
+        }
+        wrapper.last("LIMIT 20");
+
+        List<ImGroupInfo> groups = groupInfoMapper.selectList(wrapper);
+        if (groups.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> groupIds = groups.stream().map(ImGroupInfo::getId).toList();
+        Map<Long, Long> memberCountMap = countMembers(groupIds);
+        List<ImGroupMember> myMemberships = listMembersByUserId(userId);
+        Map<Long, ImGroupMember> myMemberMap = myMemberships.stream()
+                .filter(item -> groupIds.contains(item.getGroupId()))
+                .collect(Collectors.toMap(ImGroupMember::getGroupId, item -> item, (left, right) -> left));
+
+        return groups.stream()
+                .map(group -> buildGroupDTO(group, myMemberMap.get(group.getId()), memberCountMap.getOrDefault(group.getId(), 0L).intValue()))
+                .collect(Collectors.toList());
     }
 }

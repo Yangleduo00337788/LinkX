@@ -206,4 +206,12 @@ public class GroupController {
         groupService.rejectRequest(userId, requestId);
         return Result.success();
     }
+
+    @GetMapping("/search")
+    public Result<List<GroupDTO>> searchGroups(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam String keyword) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(groupService.searchGroups(userId, keyword));
+    }
 }
