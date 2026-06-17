@@ -262,6 +262,12 @@
               </div>
               <div class="group-search-result-actions">
                 <button
+                  class="group-preview-btn"
+                  @click="openGroupPreview(g)"
+                >
+                  查看资料
+                </button>
+                <button
                   v-if="g.myRole === null || g.myRole === undefined"
                   class="group-search-join-btn"
                   @click="openJoinGroupModal(g)"
@@ -497,7 +503,20 @@
 
           <div class="group-preview-actions">
             <button class="group-preview-secondary" @click="closeGroupPreview">关闭</button>
-            <button class="group-enter-btn solid" @click="startGroupChat(previewGroupDetail.id)">进入群聊</button>
+            <button
+              v-if="previewGroupDetail.myRole !== null && previewGroupDetail.myRole !== undefined"
+              class="group-enter-btn solid"
+              @click="startGroupChat(previewGroupDetail.id)"
+            >
+              进入群聊
+            </button>
+            <button
+              v-else
+              class="group-enter-btn solid"
+              @click="applyJoinFromPreview(previewGroupDetail)"
+            >
+              申请加入
+            </button>
           </div>
         </div>
 
@@ -619,6 +638,10 @@ const showUserInfo = ref(false)
 const selectedFriend = ref<any>(null)
 const showGroupPreview = ref(false)
 const previewGroupDetail = ref<GroupPreviewDetail | null>(null)
+const refreshingPanels = ref(false)
+
+const PANEL_REFRESH_INTERVAL = 10000
+let lastPanelRefreshAt = 0
 
 async function loadFriends() {
   try { const res: any = await friendApi.getList(); friends.value = res.data || [] } catch (e) {}
@@ -642,12 +665,30 @@ async function loadMyGroups() {
   } catch (e) {}
 }
 
-function loadAll() {
-  loadFriends()
-  loadRequests()
-  loadGroupRequests()
-  loadMyGroups()
-  message.success('已刷新')
+async function refreshPanels(force = false) {
+  const now = Date.now()
+  if (refreshingPanels.value) {
+    return
+  }
+  if (!force && now - lastPanelRefreshAt < PANEL_REFRESH_INTERVAL) {
+    return
+  }
+  refreshingPanels.value = true
+  try {
+    await Promise.all([loadRequests(), loadGroupRequests(), loadMyGroups()])
+    lastPanelRefreshAt = Date.now()
+  } finally {
+    refreshingPanels.value = false
+  }
+}
+
+async function loadAll() {
+  try {
+    await Promise.all([loadFriends(), refreshPanels(true)])
+    message.success('已刷新')
+  } catch (e) {
+    message.error('刷新失败')
+  }
 }
 
 async function handleSearch() {
@@ -714,8 +755,7 @@ async function handleAcceptGroupRequest(requestId: number) {
   try {
     await groupApi.acceptRequest(requestId)
     message.success('已处理群通知')
-    await loadGroupRequests()
-    await loadFriends()
+    await refreshPanels(true)
   } catch (e: any) {
     message.error(e.response?.data?.message || '操作失败')
   }
@@ -725,7 +765,7 @@ async function handleRejectGroupRequest(requestId: number) {
   try {
     await groupApi.rejectRequest(requestId)
     message.info('已拒绝')
-    await loadGroupRequests()
+    await refreshPanels(true)
   } catch (e: any) {
     message.error(e.response?.data?.message || '操作失败')
   }
@@ -779,9 +819,16 @@ function clearGroupSearch() {
 }
 
 function openJoinGroupModal(group: any) {
+  activeTab.value = 'join-group'
   joinGroupId.value = String(group.id)
   joinGroupMessage.value = ''
+  showGroupPreview.value = false
   message.info(`申请加入「${group.groupName}」，请填写申请说明后发送`)
+}
+
+function applyJoinFromPreview(group: GroupPreviewDetail) {
+  openJoinGroupModal(group)
+  previewGroupDetail.value = null
 }
 
 function groupRoleText(role?: number) {
@@ -873,16 +920,28 @@ function handleEscape(e: KeyboardEvent) {
   closeUserInfo()
 }
 
+function handleWindowFocus() {
+  void refreshPanels(false)
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    void refreshPanels(false)
+  }
+}
+
 onMounted(async () => {
   await loadFriends()
-  await loadRequests()
-  await loadGroupRequests()
-  await loadMyGroups()
+  await refreshPanels(true)
   document.addEventListener('keydown', handleEscape)
+  window.addEventListener('focus', handleWindowFocus)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleEscape)
+  window.removeEventListener('focus', handleWindowFocus)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 </script>
 

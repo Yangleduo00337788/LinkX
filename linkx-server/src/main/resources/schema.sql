@@ -184,10 +184,3 @@ CREATE TABLE IF NOT EXISTS im_group_request (
     INDEX idx_to_user (to_user_id),
     INDEX idx_from_user (from_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='群组申请表';
-
-ALTER TABLE im_group_info
-    ADD COLUMN IF NOT EXISTS notice VARCHAR(1000) COMMENT '群公告',
-    ADD COLUMN IF NOT EXISTS notice_update_time DATETIME COMMENT '群公告更新时间';
-
-ALTER TABLE im_message
-    ADD COLUMN IF NOT EXISTS read_time DATETIME COMMENT '已读时间';

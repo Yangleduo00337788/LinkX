@@ -9,6 +9,7 @@ import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.SysFriendMapper;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.module.blacklist.service.BlacklistService;
 import com.linkx.server.module.friend.dto.FriendDTO;
 import com.linkx.server.module.friend.dto.FriendRequestDTO;
 import com.linkx.server.module.friend.service.FriendService;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,6 +29,7 @@ public class FriendServiceImpl implements FriendService {
     private final SysFriendMapper friendMapper;
     private final SysFriendRequestMapper requestMapper;
     private final SysUserMapper userMapper;
+    private final BlacklistService blacklistService;
 
     @Override
     @Transactional
@@ -40,13 +43,20 @@ public class FriendServiceImpl implements FriendService {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
+        if (blacklistService.isBlacklisted(toUserId, fromUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "你已被对方拉黑");
+        }
+        if (blacklistService.isBlacklisted(fromUserId, toUserId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "你已将对方拉黑");
+        }
+
         LambdaQueryWrapper<SysFriend> existWrapper = new LambdaQueryWrapper<>();
         existWrapper.and(w -> w
                 .eq(SysFriend::getUserId, fromUserId)
                 .eq(SysFriend::getFriendId, toUserId)
         );
         if (friendMapper.selectCount(existWrapper) > 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "你们已经是好友了");
         }
 
         LambdaQueryWrapper<SysFriendRequest> pendingWrapper = new LambdaQueryWrapper<>();
@@ -54,7 +64,15 @@ public class FriendServiceImpl implements FriendService {
                 .eq(SysFriendRequest::getToUserId, toUserId)
                 .eq(SysFriendRequest::getStatus, 0);
         if (requestMapper.selectCount(pendingWrapper) > 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "你已发送过好友申请，请等待对方处理");
+        }
+
+        LambdaQueryWrapper<SysFriendRequest> reversePendingWrapper = new LambdaQueryWrapper<>();
+        reversePendingWrapper.eq(SysFriendRequest::getFromUserId, toUserId)
+                .eq(SysFriendRequest::getToUserId, fromUserId)
+                .eq(SysFriendRequest::getStatus, 0);
+        if (requestMapper.selectCount(reversePendingWrapper) > 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "对方已向你发送好友申请，请先处理");
         }
 
         SysFriendRequest request = new SysFriendRequest();
@@ -73,6 +91,16 @@ public class FriendServiceImpl implements FriendService {
                 .orderByDesc(SysFriendRequest::getCreateTime);
 
         List<SysFriendRequest> requests = requestMapper.selectList(wrapper);
+        if (requests.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> fromUserIds = requests.stream()
+                .map(SysFriendRequest::getFromUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        java.util.Map<Long, SysUser> userMap = userMapper.selectBatchIds(fromUserIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, user -> user, (left, right) -> left));
 
         return requests.stream().map(r -> {
             FriendRequestDTO dto = new FriendRequestDTO();
@@ -82,7 +110,7 @@ public class FriendServiceImpl implements FriendService {
             dto.setStatus(r.getStatus());
             dto.setCreateTime(r.getCreateTime());
 
-            SysUser fromUser = userMapper.selectById(r.getFromUserId());
+            SysUser fromUser = userMap.get(r.getFromUserId());
             if (fromUser != null) {
                 dto.setFromUsername(fromUser.getUsername());
                 dto.setFromNickname(fromUser.getNickname());
@@ -138,9 +166,18 @@ public class FriendServiceImpl implements FriendService {
         wrapper.eq(SysFriend::getUserId, userId);
 
         List<SysFriend> friends = friendMapper.selectList(wrapper);
+        if (friends.isEmpty()) {
+            return List.of();
+        }
+
+        Set<Long> friendUserIds = friends.stream()
+                .map(SysFriend::getFriendId)
+                .collect(Collectors.toSet());
+        java.util.Map<Long, SysUser> userMap = userMapper.selectBatchIds(friendUserIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, user -> user, (left, right) -> left));
 
         return friends.stream().map(f -> {
-            SysUser friendUser = userMapper.selectById(f.getFriendId());
+            SysUser friendUser = userMap.get(f.getFriendId());
             if (friendUser == null) {
                 return null;
             }

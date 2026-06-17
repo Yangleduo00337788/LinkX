@@ -104,7 +104,7 @@ public class GroupServiceImpl implements GroupService {
 
         List<Long> groupIds = myMemberships.stream().map(ImGroupMember::getGroupId).distinct().toList();
         List<ImGroupInfo> groups = listActiveGroups(groupIds);
-        Map<Long, ImGroupInfo> groupMap = groups.stream().collect(Collectors.toMap(ImGroupInfo::getId, item -> item));
+        Map<Long, ImGroupInfo> groupMap = groups.stream().collect(Collectors.toMap(ImGroupInfo::getId, item -> item, (left, right) -> left));
         Map<Long, Long> memberCountMap = countMembers(groupIds);
         Map<Long, ImGroupMember> myMemberMap = myMemberships.stream()
                 .filter(item -> groupMap.containsKey(item.getGroupId()))
@@ -134,7 +134,7 @@ public class GroupServiceImpl implements GroupService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
         Map<Long, ImGroupInfo> groupMap = listActiveGroups(new ArrayList<>(groupIds)).stream()
-                .collect(Collectors.toMap(ImGroupInfo::getId, item -> item));
+                .collect(Collectors.toMap(ImGroupInfo::getId, item -> item, (left, right) -> left));
 
         Set<Long> userIds = new LinkedHashSet<>();
         for (ImGroupRequest request : requests) {
@@ -833,7 +833,7 @@ public class GroupServiceImpl implements GroupService {
             return Map.of();
         }
         return userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, item -> item));
+                .collect(Collectors.toMap(SysUser::getId, item -> item, (left, right) -> left));
     }
 
     @Override
