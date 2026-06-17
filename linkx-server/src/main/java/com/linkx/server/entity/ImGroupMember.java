@@ -24,6 +24,8 @@ public class ImGroupMember {
 
     private LocalDateTime muteTime;
 
+    private LocalDateTime noticeReadTime;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

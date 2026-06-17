@@ -166,6 +166,7 @@ CREATE TABLE IF NOT EXISTS im_group_member (
     user_id BIGINT NOT NULL COMMENT '用户ID',
     role TINYINT DEFAULT 0 COMMENT '角色 0普通成员 1管理员 2群主',
     mute_time DATETIME COMMENT '禁言截止时间',
+    notice_read_time DATETIME COMMENT '群公告已读时间',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_group_id (group_id),
     INDEX idx_user_id (user_id),

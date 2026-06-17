@@ -480,6 +480,14 @@
       @cancel="cancelConfirmDialog"
       @confirm="confirmConfirmDialog"
     />
+    <GroupNoticeDialog
+      v-model:visible="showNoticeReminder"
+      :group-name="groupDetail?.groupName"
+      :notice="groupDetail?.notice"
+      :update-time-text="formatDateTime(groupDetail?.noticeUpdateTime)"
+      :loading="acknowledgingNoticeReminder"
+      @acknowledge="acknowledgeNoticeReminder"
+    />
   </div>
 </template>
 
@@ -491,6 +499,7 @@ import { fileApi, friendApi, groupApi } from '../api/client'
 import { useUserStore } from '../stores/user'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
+import GroupNoticeDialog from '../components/GroupNoticeDialog.vue'
 import { parseDateTime } from '../utils/datetime'
 
 const GROUP_ROLE_MEMBER = 0
@@ -519,6 +528,9 @@ interface GroupDetail {
   groupName: string
   groupAvatar?: string
   notice?: string
+  noticeUpdateTime?: string
+  noticeReadTime?: string
+  noticeUnread?: boolean
   ownerId: string | number
   maxMembers: number
   memberCount: number
@@ -558,6 +570,8 @@ const searchText = ref('')
 const roleFilter = ref<RoleFilter>('all')
 const updatingGroupProfile = ref(false)
 const updatingNotice = ref(false)
+const showNoticeReminder = ref(false)
+const acknowledgingNoticeReminder = ref(false)
 const noticeDraft = ref('')
 const showAddMembersModal = ref(false)
 const addMembersSelection = ref<Array<string | number>>([])
@@ -757,6 +771,14 @@ function discardGroupProfileDrafts() {
   syncGroupProfileDraft(groupDetail.value)
 }
 
+function syncNoticeReminder(detail: GroupDetail | null) {
+  if (!detail?.noticeUnread || !detail.notice?.trim()) {
+    showNoticeReminder.value = false
+    return
+  }
+  showNoticeReminder.value = true
+}
+
 function applyGroupDetail(detail: GroupDetail | null, syncDraft = true) {
   groupDetail.value = detail
   if (syncDraft || !isGroupNoticeChanged.value) {
@@ -765,6 +787,7 @@ function applyGroupDetail(detail: GroupDetail | null, syncDraft = true) {
   if (syncDraft || !isGroupProfileChanged.value) {
     syncGroupProfileDraft(detail)
   }
+  syncNoticeReminder(detail)
 }
 
 async function loadFriends() {
@@ -895,18 +918,35 @@ async function submitUpdateNotice() {
   updatingNotice.value = true
   try {
     await groupApi.updateNotice(groupId.value, noticeDraft.value.trim())
-    if (groupDetail.value) {
-      applyGroupDetail({
-        ...groupDetail.value,
-        notice: noticeDraft.value.trim()
-      }, false)
-    }
+    await loadGroupDetail()
     message.success('群公告已更新')
   } catch (error: any) {
     console.error('submitUpdateNotice error:', error)
     message.error(error.response?.data?.message || '更新群公告失败')
   } finally {
     updatingNotice.value = false
+  }
+}
+
+async function acknowledgeNoticeReminder() {
+  if (!groupId.value || !groupDetail.value) {
+    showNoticeReminder.value = false
+    return
+  }
+  acknowledgingNoticeReminder.value = true
+  try {
+    await groupApi.markNoticeRead(groupId.value)
+    applyGroupDetail({
+      ...groupDetail.value,
+      noticeUnread: false,
+      noticeReadTime: groupDetail.value.noticeUpdateTime || groupDetail.value.noticeReadTime
+    }, false)
+    showNoticeReminder.value = false
+  } catch (error: any) {
+    console.error('acknowledgeNoticeReminder error:', error)
+    message.error(error.response?.data?.message || '确认群公告失败')
+  } finally {
+    acknowledgingNoticeReminder.value = false
   }
 }
 

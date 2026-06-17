@@ -160,6 +160,8 @@ export const groupApi = {
     api.put(`/api/group/${groupId}/profile`, data),
   updateNotice: (groupId: number | string, notice: string) =>
     api.put(`/api/group/${groupId}/notice`, { notice }),
+  markNoticeRead: (groupId: number | string) =>
+    api.post(`/api/group/${groupId}/notice/read`),
   muteMember: (groupId: number | string, memberUserId: number | string, muteMinutes: number) =>
     api.post(`/api/group/${groupId}/mute/${memberUserId}`, { muteMinutes }),
   unmuteMember: (groupId: number | string, memberUserId: number | string) =>

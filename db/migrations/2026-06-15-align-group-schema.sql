@@ -36,6 +36,7 @@ CREATE TABLE `im_group_member` (
     `user_id` BIGINT NOT NULL COMMENT 'user id',
     `role` TINYINT DEFAULT 0 COMMENT '0 member 1 admin 2 owner',
     `mute_time` DATETIME NULL COMMENT 'mute until',
+    `notice_read_time` DATETIME NULL COMMENT 'group notice read time',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT 'create time',
     INDEX `idx_group_id` (`group_id`),
     INDEX `idx_user_id` (`user_id`),

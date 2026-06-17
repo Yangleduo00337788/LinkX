@@ -19,6 +19,7 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         ensureImMessageReadTimeColumn();
         ensureImMessageMentionAllColumn();
         ensureImMessageMentionUserIdsColumn();
+        ensureImGroupMemberNoticeReadTimeColumn();
     }
 
     private void ensureImMessageReadTimeColumn() {
@@ -54,6 +55,14 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
         jdbcTemplate.execute("ALTER TABLE im_message ADD COLUMN mention_user_ids VARCHAR(1024) NULL COMMENT '@成员ID列表，逗号分隔'");
         log.info("Schema compatibility repaired: added im_message.mention_user_ids column");
+    }
+
+    private void ensureImGroupMemberNoticeReadTimeColumn() {
+        if (hasColumn("im_group_member", "notice_read_time")) {
+            return;
+        }
+        jdbcTemplate.execute("ALTER TABLE im_group_member ADD COLUMN notice_read_time DATETIME NULL COMMENT '群公告已读时间'");
+        log.info("Schema compatibility repaired: added im_group_member.notice_read_time column");
     }
 
     private boolean hasColumn(String tableName, String columnName) {

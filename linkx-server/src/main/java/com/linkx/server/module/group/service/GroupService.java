@@ -24,6 +24,7 @@ public interface GroupService {
     void unmuteMember(Long operatorId, Long groupId, Long memberUserId);
     void updateProfile(Long operatorId, Long groupId, String groupName, String groupAvatar);
     void updateNotice(Long operatorId, Long groupId, String notice);
+    void markNoticeRead(Long userId, Long groupId);
     void leaveGroup(Long userId, Long groupId);
     void transferOwner(Long operatorId, Long groupId, Long newOwnerId);
     List<GroupDTO> searchGroups(Long userId, String keyword);

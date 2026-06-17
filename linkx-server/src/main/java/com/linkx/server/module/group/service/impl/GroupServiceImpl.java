@@ -76,7 +76,7 @@ public class GroupServiceImpl implements GroupService {
         groupInfo.setDeleted(0);
         groupInfoMapper.insert(groupInfo);
 
-        insertMember(groupInfo.getId(), operatorId, GroupConstants.ROLE_OWNER);
+        insertMember(groupInfo.getId(), operatorId, GroupConstants.ROLE_OWNER, groupInfo.getNoticeUpdateTime());
         for (Long memberId : normalizedMemberIds) {
             insertMember(groupInfo.getId(), memberId, GroupConstants.ROLE_MEMBER);
         }
@@ -314,6 +314,8 @@ public class GroupServiceImpl implements GroupService {
         detailDTO.setGroupAvatar(groupInfo.getGroupAvatar());
         detailDTO.setNotice(groupInfo.getNotice());
         detailDTO.setNoticeUpdateTime(groupInfo.getNoticeUpdateTime());
+        detailDTO.setNoticeReadTime(currentMember.getNoticeReadTime());
+        detailDTO.setNoticeUnread(hasUnreadNotice(groupInfo, currentMember));
         detailDTO.setOwnerId(groupInfo.getOwnerId());
         detailDTO.setMaxMembers(groupInfo.getMaxMembers());
         detailDTO.setMemberCount(members.size());
@@ -558,15 +560,33 @@ public class GroupServiceImpl implements GroupService {
             return;
         }
 
+        LocalDateTime noticeUpdateTime = LocalDateTime.now();
         groupInfo.setNotice(normalizedNotice);
-        groupInfo.setNoticeUpdateTime(LocalDateTime.now());
+        groupInfo.setNoticeUpdateTime(noticeUpdateTime);
         groupInfoMapper.updateById(groupInfo);
+        operatorMember.setNoticeReadTime(noticeUpdateTime);
+        groupMemberMapper.updateById(operatorMember);
         Map<Long, SysUser> userMap = loadUserMap(Set.of(operatorId));
         appendGroupSystemMessage(
                 groupId,
                 operatorId,
                 getUserDisplayName(operatorId, userMap) + (StringUtils.hasText(nextNotice) ? " 更新了群公告" : " 清空了群公告")
         );
+    }
+
+    @Override
+    @Transactional
+    public void markNoticeRead(Long userId, Long groupId) {
+        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        ImGroupMember member = requireMember(groupId, userId);
+        if (!StringUtils.hasText(groupInfo.getNotice()) || groupInfo.getNoticeUpdateTime() == null) {
+            return;
+        }
+        if (!hasUnreadNotice(groupInfo, member)) {
+            return;
+        }
+        member.setNoticeReadTime(LocalDateTime.now());
+        groupMemberMapper.updateById(member);
     }
 
     private GroupDTO buildGroupDTO(ImGroupInfo groupInfo, ImGroupMember currentMember, int memberCount) {
@@ -643,10 +663,15 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private void insertMember(Long groupId, Long userId, Integer role) {
+        insertMember(groupId, userId, role, null);
+    }
+
+    private void insertMember(Long groupId, Long userId, Integer role, LocalDateTime noticeReadTime) {
         ImGroupMember member = new ImGroupMember();
         member.setGroupId(groupId);
         member.setUserId(userId);
         member.setRole(role);
+        member.setNoticeReadTime(noticeReadTime);
         groupMemberMapper.insert(member);
     }
 
@@ -975,6 +1000,17 @@ public class GroupServiceImpl implements GroupService {
 
     private boolean equalsNullableText(String left, String right) {
         return Objects.equals(normalizeNullableText(left), normalizeNullableText(right));
+    }
+
+    private boolean hasUnreadNotice(ImGroupInfo groupInfo, ImGroupMember member) {
+        if (groupInfo == null || member == null) {
+            return false;
+        }
+        if (!StringUtils.hasText(groupInfo.getNotice()) || groupInfo.getNoticeUpdateTime() == null) {
+            return false;
+        }
+        LocalDateTime noticeReadTime = member.getNoticeReadTime();
+        return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());
     }
 
     private String buildProfileUpdatedSystemMessage(

@@ -140,6 +140,15 @@ public class GroupController {
         return Result.success();
     }
 
+    @PostMapping("/{groupId}/notice/read")
+    public Result<Void> markNoticeRead(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        groupService.markNoticeRead(userId, groupId);
+        return Result.success();
+    }
+
     @PostMapping("/{groupId}/mute/{memberUserId}")
     public Result<Void> muteMember(
             @AuthenticationPrincipal UserDetails userDetails,

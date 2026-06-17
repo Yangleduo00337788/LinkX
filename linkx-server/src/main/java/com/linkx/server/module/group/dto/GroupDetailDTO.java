@@ -12,6 +12,8 @@ public class GroupDetailDTO {
     private String groupAvatar;
     private String notice;
     private LocalDateTime noticeUpdateTime;
+    private LocalDateTime noticeReadTime;
+    private Boolean noticeUnread;
     private Long ownerId;
     private Integer maxMembers;
     private Integer memberCount;
