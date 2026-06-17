@@ -476,15 +476,17 @@ public class ChatServiceImpl implements ChatService {
         }
 
         ChatSessionDTO dto = baseSessionDTO(session);
-        dto.setTargetNickname(groupInfo.getGroupName());
+        dto.setTargetNickname(resolveGroupDisplayName(groupInfo, member));
         dto.setTargetUsername("group-" + groupInfo.getId());
         dto.setTargetAvatar(groupInfo.getGroupAvatar());
         dto.setMemberCount(groupMemberCountMap.getOrDefault(groupInfo.getId(), 0));
         dto.setMyRole(member.getRole());
+        dto.setGroupRemark(member.getGroupRemark());
         dto.setNotice(groupInfo.getNotice());
         dto.setNoticeUnread(hasUnreadNotice(groupInfo, member));
         dto.setMuted(isMuted(member));
         dto.setMuteTime(member.getMuteTime());
+        dto.setNotificationMuted(Boolean.TRUE.equals(member.getNotificationMuted()));
         dto.setTargetOnline(false);
         return dto;
     }
@@ -628,6 +630,7 @@ public class ChatServiceImpl implements ChatService {
             if (file != null) {
                 dto.setFileName(file.getOriginalName());
                 dto.setFileSize(file.getFileSize());
+                dto.setFileType(file.getFileType());
             }
         }
         return dto;
@@ -730,6 +733,13 @@ public class ChatServiceImpl implements ChatService {
         }
         LocalDateTime noticeReadTime = member.getNoticeReadTime();
         return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());
+    }
+
+    private String resolveGroupDisplayName(ImGroupInfo groupInfo, ImGroupMember member) {
+        if (member != null && StringUtils.hasText(member.getGroupRemark())) {
+            return member.getGroupRemark().trim();
+        }
+        return groupInfo.getGroupName();
     }
 
     private void executeAfterCommit(Runnable action) {

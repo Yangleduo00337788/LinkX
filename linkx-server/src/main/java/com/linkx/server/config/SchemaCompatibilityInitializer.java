@@ -20,6 +20,8 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         ensureImMessageMentionAllColumn();
         ensureImMessageMentionUserIdsColumn();
         ensureImGroupMemberNoticeReadTimeColumn();
+        ensureImGroupMemberGroupRemarkColumn();
+        ensureImGroupMemberNotificationMutedColumn();
     }
 
     private void ensureImMessageReadTimeColumn() {
@@ -63,6 +65,22 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
         jdbcTemplate.execute("ALTER TABLE im_group_member ADD COLUMN notice_read_time DATETIME NULL COMMENT '群公告已读时间'");
         log.info("Schema compatibility repaired: added im_group_member.notice_read_time column");
+    }
+
+    private void ensureImGroupMemberGroupRemarkColumn() {
+        if (hasColumn("im_group_member", "group_remark")) {
+            return;
+        }
+        jdbcTemplate.execute("ALTER TABLE im_group_member ADD COLUMN group_remark VARCHAR(100) NULL COMMENT '群备注/别名'");
+        log.info("Schema compatibility repaired: added im_group_member.group_remark column");
+    }
+
+    private void ensureImGroupMemberNotificationMutedColumn() {
+        if (hasColumn("im_group_member", "notification_muted")) {
+            return;
+        }
+        jdbcTemplate.execute("ALTER TABLE im_group_member ADD COLUMN notification_muted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '消息免打扰 0否 1是'");
+        log.info("Schema compatibility repaired: added im_group_member.notification_muted column");
     }
 
     private boolean hasColumn(String tableName, String columnName) {

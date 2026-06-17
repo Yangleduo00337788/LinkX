@@ -160,8 +160,32 @@ export const groupApi = {
     api.put(`/api/group/${groupId}/profile`, data),
   updateNotice: (groupId: number | string, notice: string) =>
     api.put(`/api/group/${groupId}/notice`, { notice }),
+  updatePreferences: (groupId: number | string, data: { groupRemark?: string; notificationMuted?: boolean }) =>
+    api.put(`/api/group/${groupId}/preferences`, data),
   markNoticeRead: (groupId: number | string) =>
     api.post(`/api/group/${groupId}/notice/read`),
+  getMedia: (groupId: number | string, params?: { mediaType?: string; keyword?: string; size?: number }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.mediaType) {
+      searchParams.set('mediaType', params.mediaType)
+    }
+    if (params?.keyword) {
+      searchParams.set('keyword', params.keyword)
+    }
+    if (params?.size != null) {
+      searchParams.set('size', String(params.size))
+    }
+    const suffix = searchParams.toString()
+    return api.get(`/api/group/${groupId}/media${suffix ? `?${suffix}` : ''}`)
+  },
+  searchMessages: (groupId: number | string, keyword: string, size?: number) => {
+    const searchParams = new URLSearchParams()
+    searchParams.set('keyword', keyword)
+    if (size != null) {
+      searchParams.set('size', String(size))
+    }
+    return api.get(`/api/group/${groupId}/messages/search?${searchParams.toString()}`)
+  },
   muteMember: (groupId: number | string, memberUserId: number | string, muteMinutes: number) =>
     api.post(`/api/group/${groupId}/mute/${memberUserId}`, { muteMinutes }),
   unmuteMember: (groupId: number | string, memberUserId: number | string) =>

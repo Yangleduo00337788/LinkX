@@ -1,6 +1,7 @@
 package com.linkx.server.module.group.controller;
 
 import com.linkx.server.common.Result;
+import com.linkx.server.module.chat.dto.MessageDTO;
 import com.linkx.server.module.group.dto.GroupDTO;
 import com.linkx.server.module.group.dto.GroupDetailDTO;
 import com.linkx.server.module.group.dto.GroupRequestDTO;
@@ -10,6 +11,7 @@ import com.linkx.server.module.group.request.GroupJoinRequest;
 import com.linkx.server.module.group.request.InviteGroupMembersRequest;
 import com.linkx.server.module.group.request.MuteGroupMemberRequest;
 import com.linkx.server.module.group.request.UpdateGroupProfileRequest;
+import com.linkx.server.module.group.request.UpdateGroupPreferencesRequest;
 import com.linkx.server.module.group.request.UpdateGroupNoticeRequest;
 import com.linkx.server.module.group.service.GroupService;
 import jakarta.validation.Valid;
@@ -140,6 +142,16 @@ public class GroupController {
         return Result.success();
     }
 
+    @PutMapping("/{groupId}/preferences")
+    public Result<Void> updatePreferences(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId,
+            @Valid @RequestBody UpdateGroupPreferencesRequest request) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        groupService.updatePreferences(userId, groupId, request.getGroupRemark(), request.getNotificationMuted());
+        return Result.success();
+    }
+
     @PostMapping("/{groupId}/notice/read")
     public Result<Void> markNoticeRead(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -158,6 +170,29 @@ public class GroupController {
         Long userId = Long.parseLong(userDetails.getUsername());
         groupService.muteMember(userId, groupId, memberUserId, request.getMuteMinutes());
         return Result.success();
+    }
+
+    @GetMapping("/{groupId}/media")
+    public Result<List<MessageDTO>> getGroupMedia(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId,
+            @RequestParam(value = "mediaType", defaultValue = "all") String mediaType,
+            @RequestParam(value = "keyword", required = false) String keyword,
+            @RequestParam(value = "size", defaultValue = "200") int size) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        int safeSize = Math.min(Math.max(size, 1), 300);
+        return Result.success(groupService.getGroupMedia(userId, groupId, mediaType, keyword, safeSize));
+    }
+
+    @GetMapping("/{groupId}/messages/search")
+    public Result<List<MessageDTO>> searchGroupMessages(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId,
+            @RequestParam("keyword") String keyword,
+            @RequestParam(value = "size", defaultValue = "100") int size) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        return Result.success(groupService.searchGroupMessages(userId, groupId, keyword, safeSize));
     }
 
     @DeleteMapping("/{groupId}/mute/{memberUserId}")

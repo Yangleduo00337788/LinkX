@@ -10,6 +10,7 @@ public class GroupDetailDTO {
     private Long id;
     private String groupName;
     private String groupAvatar;
+    private String groupRemark;
     private String notice;
     private LocalDateTime noticeUpdateTime;
     private LocalDateTime noticeReadTime;
@@ -20,6 +21,7 @@ public class GroupDetailDTO {
     private Integer myRole;
     private Boolean muted;
     private LocalDateTime muteTime;
+    private Boolean notificationMuted;
     private LocalDateTime createTime;
     private List<GroupMemberDTO> members;
 }

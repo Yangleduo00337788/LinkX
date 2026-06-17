@@ -34,9 +34,10 @@
               </div>
               <div class="group-hero-main">
                 <div class="group-name-row">
-                  <h1>{{ groupDetail.groupName }}</h1>
+                  <h1>{{ groupDisplayName }}</h1>
                   <span class="role-chip self-role" :class="roleClass(groupDetail.myRole)">我是{{ roleText(groupDetail.myRole) }}</span>
                 </div>
+                <div v-if="groupDetail.groupRemark" class="group-alias-hint">原群名：{{ groupDetail.groupName }}</div>
                 <div class="group-meta-row">
                   <span>群号 {{ groupDetail.id }}</span>
                   <span>{{ groupDetail.memberCount }} / {{ groupDetail.maxMembers }} 人</span>
@@ -142,6 +143,50 @@
             </div>
           </section>
 
+          <section class="panel-card preference-card">
+            <div class="panel-title-row">
+              <div>
+                <div class="panel-title">我的群偏好</div>
+                <div class="panel-note">只对当前账号生效，支持群备注和消息免打扰。</div>
+              </div>
+            </div>
+
+            <div class="preference-form">
+              <label class="field-label" for="groupRemarkInput">群备注</label>
+              <input
+                id="groupRemarkInput"
+                v-model="groupPreferenceDraft.groupRemark"
+                type="text"
+                class="text-input filled-input"
+                maxlength="100"
+                placeholder="给这个群设置一个你自己的备注名"
+              />
+
+              <label class="preference-switch">
+                <input v-model="groupPreferenceDraft.notificationMuted" type="checkbox" />
+                <span>群免打扰</span>
+                <small>开启后该群新消息不再弹出桌面通知</small>
+              </label>
+            </div>
+
+            <div class="profile-action-row">
+              <button
+                class="secondary-btn"
+                :disabled="!isGroupPreferenceChanged || savingGroupPreferences"
+                @click="syncGroupPreferenceDraft(groupDetail)"
+              >
+                还原偏好
+              </button>
+              <button
+                class="primary-btn"
+                :disabled="!isGroupPreferenceChanged || savingGroupPreferences"
+                @click="submitGroupPreferences"
+              >
+                {{ savingGroupPreferences ? '保存中...' : '保存偏好' }}
+              </button>
+            </div>
+          </section>
+
           <section class="panel-card filter-card">
             <div class="panel-title">筛选成员</div>
             <div class="search-shell">
@@ -209,146 +254,258 @@
           </section>
         </aside>
 
-        <section class="panel-card member-panel">
-          <div class="member-panel-head">
-            <div class="member-panel-title-wrap">
-              <div class="member-panel-kicker">成员工作区</div>
-              <div class="panel-title">成员列表</div>
-              <div class="panel-subtitle">支持查看角色、禁言状态与快捷成员管理</div>
-            </div>
-            <div class="member-panel-overview">
-              <div class="overview-badge">
-                <span class="overview-label">当前筛选</span>
-                <strong>{{ activeRoleFilterLabel }}</strong>
+        <div class="main-column">
+          <section class="panel-card member-panel">
+            <div class="member-panel-head">
+              <div class="member-panel-title-wrap">
+                <div class="member-panel-kicker">成员工作区</div>
+                <div class="panel-title">成员列表</div>
+                <div class="panel-subtitle">支持查看角色、禁言状态与快捷成员管理</div>
               </div>
-              <div class="overview-badge">
-                <span class="overview-label">可管理成员</span>
-                <strong>{{ manageableMemberCount }}</strong>
-              </div>
-              <div class="overview-badge">
-                <span class="overview-label">搜索命中</span>
-                <strong>{{ filteredMembers.length }}</strong>
-              </div>
-            </div>
-          </div>
-
-          <div class="member-panel-toolbar">
-            <div class="toolbar-hint">
-              当前展示 {{ filteredMembers.length }} 名成员
-              <span v-if="searchText.trim()">，关键词 “{{ searchText.trim() }}”</span>
-            </div>
-            <div class="toolbar-hint">
-              <span v-if="canManageMembers">你可以直接在右侧完成管理员、禁言和移出操作</span>
-              <span v-else>当前仅支持浏览成员与状态信息</span>
-            </div>
-          </div>
-
-          <section v-if="canManageMembers" class="request-panel">
-            <div class="request-panel-head">
-              <div>
-                <div class="panel-title">入群审批</div>
-                <div class="panel-subtitle">集中处理当前群的入群申请与邀请通知</div>
-              </div>
-              <div class="request-panel-count">{{ currentGroupRequests.length }} 条待处理</div>
-            </div>
-
-            <div v-if="currentGroupRequests.length > 0" class="request-list">
-              <article v-for="request in currentGroupRequests" :key="request.id" class="request-card">
-                <div class="request-avatar" :class="{ invite: request.requestType === 1 }">
-                  <img v-if="request.groupAvatar" :src="request.groupAvatar" class="avatar-img" />
-                  <span v-else>{{ request.groupName?.charAt(0) || '群' }}</span>
+              <div class="member-panel-overview">
+                <div class="overview-badge">
+                  <span class="overview-label">当前筛选</span>
+                  <strong>{{ activeRoleFilterLabel }}</strong>
                 </div>
-                <div class="request-info">
-                  <div class="request-title-row">
-                    <span class="request-name">{{ request.groupName }}</span>
-                    <span class="request-type-tag" :class="groupRequestTagClass(request.requestType)">
-                      {{ groupRequestTypeText(request.requestType) }}
-                    </span>
+                <div class="overview-badge">
+                  <span class="overview-label">可管理成员</span>
+                  <strong>{{ manageableMemberCount }}</strong>
+                </div>
+                <div class="overview-badge">
+                  <span class="overview-label">搜索命中</span>
+                  <strong>{{ filteredMembers.length }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="member-panel-toolbar">
+              <div class="toolbar-hint">
+                当前展示 {{ filteredMembers.length }} 名成员
+                <span v-if="searchText.trim()">，关键词 “{{ searchText.trim() }}”</span>
+              </div>
+              <div class="toolbar-hint">
+                <span v-if="canManageMembers">你可以直接在右侧完成管理员、禁言和移出操作</span>
+                <span v-else>当前仅支持浏览成员与状态信息</span>
+              </div>
+            </div>
+
+            <section v-if="canManageMembers" class="request-panel">
+              <div class="request-panel-head">
+                <div>
+                  <div class="panel-title">入群审批</div>
+                  <div class="panel-subtitle">集中处理当前群的入群申请与邀请通知</div>
+                </div>
+                <div class="request-panel-count">{{ currentGroupRequests.length }} 条待处理</div>
+              </div>
+
+              <div v-if="currentGroupRequests.length > 0" class="request-list">
+                <article v-for="request in currentGroupRequests" :key="request.id" class="request-card">
+                  <div class="request-avatar" :class="{ invite: request.requestType === 1 }">
+                    <img v-if="request.groupAvatar" :src="request.groupAvatar" class="avatar-img" />
+                    <span v-else>{{ request.groupName?.charAt(0) || '群' }}</span>
                   </div>
-                  <div class="request-message">{{ buildGroupRequestMessage(request) }}</div>
-                  <div class="request-time">{{ formatRequestTime(request.createTime) }}</div>
+                  <div class="request-info">
+                    <div class="request-title-row">
+                      <span class="request-name">{{ request.groupName }}</span>
+                      <span class="request-type-tag" :class="groupRequestTagClass(request.requestType)">
+                        {{ groupRequestTypeText(request.requestType) }}
+                      </span>
+                    </div>
+                    <div class="request-message">{{ buildGroupRequestMessage(request) }}</div>
+                    <div class="request-time">{{ formatRequestTime(request.createTime) }}</div>
+                  </div>
+                  <div class="request-actions">
+                    <button
+                      class="request-action-btn accept"
+                      :disabled="requestActionLoadingId === request.id"
+                      @click="handleAcceptGroupRequest(request.id)"
+                    >
+                      通过
+                    </button>
+                    <button
+                      class="request-action-btn reject"
+                      :disabled="requestActionLoadingId === request.id"
+                      @click="handleRejectGroupRequest(request.id)"
+                    >
+                      拒绝
+                    </button>
+                  </div>
+                </article>
+              </div>
+              <div v-else class="request-empty-state">
+                当前群暂无待处理入群申请
+              </div>
+            </section>
+
+            <div v-if="filteredMembers.length > 0" class="member-list">
+              <article v-for="member in filteredMembers" :key="member.userId" class="member-card">
+                <div class="member-card-main">
+                  <div class="member-avatar">
+                    <img v-if="member.avatar" :src="member.avatar" class="avatar-img" />
+                    <span v-else>{{ member.nickname?.charAt(0) || member.username?.charAt(0) || '群' }}</span>
+                  </div>
+                  <div class="member-info">
+                    <div class="member-name-row">
+                      <span class="member-name">{{ member.nickname || member.username }}</span>
+                      <span class="role-chip" :class="roleClass(member.role)">{{ roleText(member.role) }}</span>
+                      <span v-if="String(member.userId) === String(userStore.userId)" class="self-tag">我</span>
+                      <span v-if="member.muted" class="mute-tag">已禁言</span>
+                    </div>
+                    <div class="member-username">@{{ member.username }}</div>
+                    <div class="member-status">
+                      <span v-if="member.muted && member.muteTime">禁言至 {{ formatDateTime(member.muteTime) }}</span>
+                      <span v-else>当前可正常发言</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="request-actions">
-                  <button
-                    class="request-action-btn accept"
-                    :disabled="requestActionLoadingId === request.id"
-                    @click="handleAcceptGroupRequest(request.id)"
-                  >
-                    通过
-                  </button>
-                  <button
-                    class="request-action-btn reject"
-                    :disabled="requestActionLoadingId === request.id"
-                    @click="handleRejectGroupRequest(request.id)"
-                  >
-                    拒绝
-                  </button>
+                <div class="member-card-side">
+                  <div class="member-side-caption">
+                    <span>{{ canOperateMember(member) ? '可快捷管理' : '仅浏览' }}</span>
+                  </div>
+                  <div v-if="canOperateMember(member)" class="member-actions">
+                    <button
+                      v-if="canToggleAdmin(member)"
+                      class="mini-btn"
+                      :disabled="actionLoading"
+                      @click="toggleAdminRole(member)"
+                    >
+                      {{ member.role === GROUP_ROLE_ADMIN ? '取消管理员' : '设为管理员' }}
+                    </button>
+                    <button
+                      class="mini-btn"
+                      :disabled="actionLoading"
+                      @click="toggleMuteMember(member)"
+                    >
+                      {{ member.muted ? '解除禁言' : '禁言成员' }}
+                    </button>
+                    <button
+                      class="mini-btn danger"
+                      :disabled="actionLoading"
+                      @click="handleRemoveMember(member)"
+                    >
+                      移出群聊
+                    </button>
+                  </div>
                 </div>
               </article>
             </div>
-            <div v-else class="request-empty-state">
-              当前群暂无待处理入群申请
+
+            <div v-else class="empty-state">
+              <div class="empty-title">没有找到匹配的成员</div>
+              <div class="empty-subtitle">换个关键词或筛选条件试试</div>
             </div>
           </section>
 
-          <div v-if="filteredMembers.length > 0" class="member-list">
-            <article v-for="member in filteredMembers" :key="member.userId" class="member-card">
-              <div class="member-card-main">
-                <div class="member-avatar">
-                  <img v-if="member.avatar" :src="member.avatar" class="avatar-img" />
-                  <span v-else>{{ member.nickname?.charAt(0) || member.username?.charAt(0) || '群' }}</span>
-                </div>
-                <div class="member-info">
-                  <div class="member-name-row">
-                    <span class="member-name">{{ member.nickname || member.username }}</span>
-                    <span class="role-chip" :class="roleClass(member.role)">{{ roleText(member.role) }}</span>
-                    <span v-if="String(member.userId) === String(userStore.userId)" class="self-tag">我</span>
-                    <span v-if="member.muted" class="mute-tag">已禁言</span>
-                  </div>
-                  <div class="member-username">@{{ member.username }}</div>
-                  <div class="member-status">
-                    <span v-if="member.muted && member.muteTime">禁言至 {{ formatDateTime(member.muteTime) }}</span>
-                    <span v-else>当前可正常发言</span>
-                  </div>
-                </div>
+          <section class="panel-card search-panel">
+            <div class="workspace-head">
+              <div>
+                <div class="panel-title">群聊消息搜索</div>
+                <div class="panel-subtitle">按关键词检索当前群的历史消息、文件消息和系统记录。</div>
               </div>
-              <div class="member-card-side">
-                <div class="member-side-caption">
-                  <span>{{ canOperateMember(member) ? '可快捷管理' : '仅浏览' }}</span>
-                </div>
-                <div v-if="canOperateMember(member)" class="member-actions">
-                  <button
-                    v-if="canToggleAdmin(member)"
-                    class="mini-btn"
-                    :disabled="actionLoading"
-                    @click="toggleAdminRole(member)"
-                  >
-                    {{ member.role === GROUP_ROLE_ADMIN ? '取消管理员' : '设为管理员' }}
-                  </button>
-                  <button
-                    class="mini-btn"
-                    :disabled="actionLoading"
-                    @click="toggleMuteMember(member)"
-                  >
-                    {{ member.muted ? '解除禁言' : '禁言成员' }}
-                  </button>
-                  <button
-                    class="mini-btn danger"
-                    :disabled="actionLoading"
-                    @click="handleRemoveMember(member)"
-                  >
-                    移出群聊
-                  </button>
-                </div>
-              </div>
-            </article>
-          </div>
+              <button class="secondary-btn compact-btn" :disabled="groupMessageSearchLoading" @click="searchGroupMessages">
+                {{ groupMessageSearchLoading ? '搜索中...' : '开始搜索' }}
+              </button>
+            </div>
 
-          <div v-else class="empty-state">
-            <div class="empty-title">没有找到匹配的成员</div>
-            <div class="empty-subtitle">换个关键词或筛选条件试试</div>
-          </div>
-        </section>
+            <div class="workspace-toolbar">
+              <div class="search-shell workspace-search">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  v-model="messageSearchKeyword"
+                  type="text"
+                  class="search-input"
+                  placeholder="搜索群内历史消息"
+                  @keyup.enter="searchGroupMessages"
+                />
+              </div>
+            </div>
+
+            <div v-if="groupMessageSearchResults.length > 0" class="search-result-list">
+              <article v-for="item in groupMessageSearchResults" :key="item.id" class="search-result-card">
+                <div class="result-main">
+                  <div class="result-title-row">
+                    <strong>{{ item.fromNickname || '成员' }}</strong>
+                    <span class="result-type-tag">{{ getMediaTypeText(item) }}</span>
+                    <span class="result-time">{{ formatDateTime(item.createTime) }}</span>
+                  </div>
+                  <div class="result-content">{{ getMessageSearchPreview(item) }}</div>
+                </div>
+                <div class="result-actions">
+                  <button v-if="item.content" class="mini-btn" @click="openGroupChat">去群聊查看</button>
+                  <button v-if="item.fileName && item.content" class="mini-btn" @click="openMediaResource(item.content)">打开附件</button>
+                </div>
+              </article>
+            </div>
+            <div v-else class="empty-state compact">
+              <div class="empty-title">{{ messageSearchKeyword.trim() ? '没有找到匹配消息' : '输入关键词后开始搜索' }}</div>
+              <div class="empty-subtitle">{{ messageSearchKeyword.trim() ? '试试成员名、消息文本或文件名' : '支持搜索文本消息、系统消息和文件名' }}</div>
+            </div>
+          </section>
+
+          <section class="panel-card media-panel">
+            <div class="workspace-head">
+              <div>
+                <div class="panel-title">群相册 / 文件库</div>
+                <div class="panel-subtitle">汇总查看当前群里发送过的图片和文件。</div>
+              </div>
+              <button class="secondary-btn compact-btn" :disabled="groupMediaLoading" @click="loadGroupMedia">
+                {{ groupMediaLoading ? '刷新中...' : '刷新列表' }}
+              </button>
+            </div>
+
+            <div class="workspace-toolbar media-toolbar">
+              <div class="tab-group">
+                <button class="tab-btn" :class="{ active: mediaType === 'all' }" @click="mediaType = 'all'; void loadGroupMedia()">全部</button>
+                <button class="tab-btn" :class="{ active: mediaType === 'image' }" @click="mediaType = 'image'; void loadGroupMedia()">图片</button>
+                <button class="tab-btn" :class="{ active: mediaType === 'file' }" @click="mediaType = 'file'; void loadGroupMedia()">文件</button>
+              </div>
+              <div class="search-shell workspace-search">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  v-model="mediaKeyword"
+                  type="text"
+                  class="search-input"
+                  placeholder="搜索文件名或类型"
+                  @keyup.enter="loadGroupMedia"
+                />
+              </div>
+            </div>
+
+            <div v-if="groupMediaItems.length > 0" class="media-list">
+              <article v-for="item in groupMediaItems" :key="item.id" class="media-card">
+                <div class="media-cover" :class="{ image: isImageMedia(item) }">
+                  <img v-if="isImageMedia(item) && item.content" :src="item.content" :alt="item.fileName || '群图片'" />
+                  <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
+                </div>
+                <div class="media-info">
+                  <div class="media-name">{{ item.fileName || (isImageMedia(item) ? '群图片' : '群文件') }}</div>
+                  <div class="media-meta">
+                    <span>{{ item.fromNickname || '成员' }}</span>
+                    <span>{{ formatDateTime(item.createTime) }}</span>
+                    <span>{{ formatFileSize(item.fileSize) }}</span>
+                  </div>
+                  <div class="media-actions">
+                    <button class="mini-btn" @click="openMediaResource(item.content)">打开</button>
+                    <button class="mini-btn" @click="copyMediaLink(item.content)">复制链接</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+            <div v-else class="empty-state compact">
+              <div class="empty-title">{{ mediaKeyword.trim() ? '没有找到匹配文件' : '当前群还没有图片或文件' }}</div>
+              <div class="empty-subtitle">{{ mediaKeyword.trim() ? '尝试其他关键词或切换分类' : '后续在群里发送的图片和文件会自动汇总到这里' }}</div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <div v-else class="loading-panel">
@@ -527,6 +684,7 @@ interface GroupDetail {
   id: string | number
   groupName: string
   groupAvatar?: string
+  groupRemark?: string
   notice?: string
   noticeUpdateTime?: string
   noticeReadTime?: string
@@ -535,7 +693,23 @@ interface GroupDetail {
   maxMembers: number
   memberCount: number
   myRole: number
+  muted?: boolean
+  muteTime?: string
+  notificationMuted?: boolean
   members: GroupMember[]
+}
+
+interface GroupMediaItem {
+  id: string | number
+  fromUserId?: string | number
+  fromNickname?: string
+  fromAvatar?: string
+  content: string
+  msgType: number
+  fileName?: string
+  fileSize?: number
+  fileType?: string
+  createTime?: string
 }
 
 interface GroupRequestItem {
@@ -583,6 +757,18 @@ const transferringOwner = ref(false)
 const showMuteMemberModal = ref(false)
 const muteTargetMember = ref<GroupMember | null>(null)
 const muteMinutesInput = ref('10')
+const groupPreferenceDraft = reactive({
+  groupRemark: '',
+  notificationMuted: false
+})
+const savingGroupPreferences = ref(false)
+const mediaType = ref<'all' | 'image' | 'file'>('all')
+const mediaKeyword = ref('')
+const groupMediaItems = ref<GroupMediaItem[]>([])
+const groupMediaLoading = ref(false)
+const messageSearchKeyword = ref('')
+const groupMessageSearchResults = ref<GroupMediaItem[]>([])
+const groupMessageSearchLoading = ref(false)
 
 const groupProfileDraft = reactive({
   groupName: '',
@@ -612,6 +798,14 @@ const mutedCount = computed(() => (groupDetail.value?.members || []).filter(memb
 const memberCount = computed(() => (groupDetail.value?.members || []).filter(member => member.role === GROUP_ROLE_MEMBER).length)
 const activeRoleFilterLabel = computed(() => roleFilters.find(option => option.value === roleFilter.value)?.label || '全部')
 const manageableMemberCount = computed(() => (groupDetail.value?.members || []).filter(member => canOperateMember(member)).length)
+const groupDisplayName = computed(() => groupDetail.value?.groupRemark || groupDetail.value?.groupName || '')
+const isGroupPreferenceChanged = computed(() => {
+  if (!groupDetail.value) {
+    return false
+  }
+  return groupPreferenceDraft.groupRemark.trim() !== (groupDetail.value.groupRemark || '').trim()
+    || groupPreferenceDraft.notificationMuted !== Boolean(groupDetail.value.notificationMuted)
+})
 const isGroupProfileChanged = computed(() => {
   if (!groupDetail.value) {
     return false
@@ -771,6 +965,11 @@ function discardGroupProfileDrafts() {
   syncGroupProfileDraft(groupDetail.value)
 }
 
+function syncGroupPreferenceDraft(detail?: GroupDetail | null) {
+  groupPreferenceDraft.groupRemark = detail?.groupRemark || ''
+  groupPreferenceDraft.notificationMuted = Boolean(detail?.notificationMuted)
+}
+
 function syncNoticeReminder(detail: GroupDetail | null) {
   if (!detail?.noticeUnread || !detail.notice?.trim()) {
     showNoticeReminder.value = false
@@ -786,6 +985,9 @@ function applyGroupDetail(detail: GroupDetail | null, syncDraft = true) {
   }
   if (syncDraft || !isGroupProfileChanged.value) {
     syncGroupProfileDraft(detail)
+  }
+  if (syncDraft || !isGroupPreferenceChanged.value) {
+    syncGroupPreferenceDraft(detail)
   }
   syncNoticeReminder(detail)
 }
@@ -812,7 +1014,12 @@ async function loadGroupRequests() {
 }
 
 async function refreshPageData() {
-  await Promise.all([loadGroupDetail(true), loadGroupRequests()])
+  await Promise.all([
+    loadGroupDetail(true),
+    loadGroupRequests(),
+    loadGroupMedia(),
+    messageSearchKeyword.value.trim() ? searchGroupMessages() : Promise.resolve()
+  ])
 }
 
 async function copyGroupId() {
@@ -836,6 +1043,137 @@ function openGroupChat() {
     path: `/chat/${groupId.value}`,
     query: { sessionType: '2' }
   })
+}
+
+function formatFileSize(fileSize?: number) {
+  const size = Number(fileSize || 0)
+  if (!size) {
+    return '0 B'
+  }
+  if (size < 1024) {
+    return `${size} B`
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`
+  }
+  if (size < 1024 * 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  }
+  return `${(size / (1024 * 1024 * 1024)).toFixed(1)} GB`
+}
+
+function isImageMedia(item: GroupMediaItem) {
+  return Number(item.msgType) === 1
+}
+
+function getMediaTypeText(item: GroupMediaItem) {
+  if (Number(item.msgType) === 1) {
+    return '图片'
+  }
+  if (Number(item.msgType) === 2) {
+    return '文件'
+  }
+  if (Number(item.msgType) === 3) {
+    return '系统'
+  }
+  return '消息'
+}
+
+function getMessageSearchPreview(item: GroupMediaItem) {
+  if (Number(item.msgType) === 1) {
+    return item.fileName ? `[图片] ${item.fileName}` : '[图片]'
+  }
+  if (Number(item.msgType) === 2) {
+    return item.fileName ? `[文件] ${item.fileName}` : '[文件]'
+  }
+  if (Number(item.msgType) === 3) {
+    return `[系统] ${item.content}`
+  }
+  return item.content
+}
+
+async function copyMediaLink(url?: string) {
+  if (!url) {
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    message.success('链接已复制')
+  } catch (error) {
+    message.error('复制链接失败')
+  }
+}
+
+function openMediaResource(url?: string) {
+  if (!url) {
+    return
+  }
+  window.open(url, '_blank', 'noopener')
+}
+
+async function submitGroupPreferences() {
+  if (!groupId.value || !isGroupPreferenceChanged.value) {
+    return
+  }
+  savingGroupPreferences.value = true
+  try {
+    await groupApi.updatePreferences(groupId.value, {
+      groupRemark: groupPreferenceDraft.groupRemark.trim(),
+      notificationMuted: groupPreferenceDraft.notificationMuted
+    })
+    if (groupDetail.value) {
+      applyGroupDetail({
+        ...groupDetail.value,
+        groupRemark: groupPreferenceDraft.groupRemark.trim(),
+        notificationMuted: groupPreferenceDraft.notificationMuted
+      }, true)
+    }
+    message.success('群偏好已保存')
+  } catch (error: any) {
+    console.error('submitGroupPreferences error:', error)
+    message.error(error.response?.data?.message || '保存群偏好失败')
+  } finally {
+    savingGroupPreferences.value = false
+  }
+}
+
+async function loadGroupMedia() {
+  if (!groupId.value) {
+    groupMediaItems.value = []
+    return
+  }
+  groupMediaLoading.value = true
+  try {
+    const response: any = await groupApi.getMedia(groupId.value, {
+      mediaType: mediaType.value,
+      keyword: mediaKeyword.value.trim() || undefined,
+      size: 200
+    })
+    groupMediaItems.value = response.data || []
+  } catch (error: any) {
+    console.error('loadGroupMedia error:', error)
+    message.error(error.response?.data?.message || '加载群相册/文件库失败')
+  } finally {
+    groupMediaLoading.value = false
+  }
+}
+
+async function searchGroupMessages() {
+  const keyword = messageSearchKeyword.value.trim()
+  if (!groupId.value || !keyword) {
+    groupMessageSearchResults.value = []
+    return
+  }
+  groupMessageSearchLoading.value = true
+  try {
+    const response: any = await groupApi.searchMessages(groupId.value, keyword, 100)
+    groupMessageSearchResults.value = response.data || []
+  } catch (error: any) {
+    console.error('searchGroupMessages error:', error)
+    message.error(error.response?.data?.message || '搜索群消息失败')
+  } finally {
+    groupMessageSearchLoading.value = false
+  }
 }
 
 function triggerGroupAvatarUpload() {
@@ -1254,14 +1592,20 @@ async function handleLeaveGroup() {
 watch(() => route.params.groupId, () => {
   searchText.value = ''
   roleFilter.value = 'all'
+  mediaKeyword.value = ''
+  mediaType.value = 'all'
+  messageSearchKeyword.value = ''
+  groupMessageSearchResults.value = []
   void loadGroupDetail()
   void loadGroupRequests()
+  void loadGroupMedia()
 })
 
 onMounted(() => {
   void loadFriends()
   void loadGroupDetail()
   void loadGroupRequests()
+  void loadGroupMedia()
 })
 
 onUnmounted(() => {

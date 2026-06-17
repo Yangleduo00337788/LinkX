@@ -22,6 +22,7 @@ public class MessageDTO {
     private List<String> mentionDisplayNames;
     private String fileName;
     private Long fileSize;
+    private String fileType;
     private Integer status;
     private LocalDateTime readTime;
     private LocalDateTime createTime;

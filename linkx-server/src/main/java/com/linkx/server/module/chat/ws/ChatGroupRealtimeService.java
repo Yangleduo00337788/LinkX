@@ -5,11 +5,13 @@ import com.linkx.server.entity.ImGroupInfo;
 import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.ImSession;
+import com.linkx.server.entity.SysFile;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.ImGroupInfoMapper;
 import com.linkx.server.mapper.ImGroupMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.ImSessionMapper;
+import com.linkx.server.mapper.SysFileMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.chat.constant.ChatConstants;
 import com.linkx.server.module.chat.dto.ChatSessionDTO;
@@ -18,6 +20,7 @@ import com.linkx.server.module.group.dto.GroupDetailDTO;
 import com.linkx.server.module.group.dto.GroupMemberDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -36,6 +39,7 @@ public class ChatGroupRealtimeService {
     private final ImGroupMemberMapper groupMemberMapper;
     private final ImMessageMapper messageMapper;
     private final ImSessionMapper sessionMapper;
+    private final SysFileMapper sysFileMapper;
     private final SysUserMapper userMapper;
     private final ChatEventPushService chatEventPushService;
 
@@ -114,8 +118,10 @@ public class ChatGroupRealtimeService {
         dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));
         dto.setMentionUserIds(mentionUserIds);
         dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));
-        dto.setFileName(null);
-        dto.setFileSize(null);
+        SysFile file = resolveFile(message);
+        dto.setFileName(file != null ? file.getOriginalName() : null);
+        dto.setFileSize(file != null ? file.getFileSize() : null);
+        dto.setFileType(file != null ? file.getFileType() : null);
         dto.setStatus(message.getStatus());
         dto.setReadTime(message.getReadTime());
         dto.setCreateTime(message.getCreateTime());
@@ -140,6 +146,7 @@ public class ChatGroupRealtimeService {
         detailDTO.setId(groupInfo.getId());
         detailDTO.setGroupName(groupInfo.getGroupName());
         detailDTO.setGroupAvatar(groupInfo.getGroupAvatar());
+        detailDTO.setGroupRemark(currentMember.getGroupRemark());
         detailDTO.setNotice(groupInfo.getNotice());
         detailDTO.setNoticeUpdateTime(groupInfo.getNoticeUpdateTime());
         detailDTO.setNoticeReadTime(currentMember.getNoticeReadTime());
@@ -150,6 +157,7 @@ public class ChatGroupRealtimeService {
         detailDTO.setMyRole(currentMember.getRole());
         detailDTO.setMuted(isMuted(currentMember));
         detailDTO.setMuteTime(currentMember.getMuteTime());
+        detailDTO.setNotificationMuted(Boolean.TRUE.equals(currentMember.getNotificationMuted()));
         detailDTO.setCreateTime(groupInfo.getCreateTime());
         detailDTO.setMembers(members.stream()
                 .sorted((left, right) -> {
@@ -196,7 +204,7 @@ public class ChatGroupRealtimeService {
         dto.setUserId(session.getUserId());
         dto.setTargetId(session.getTargetId());
         dto.setSessionType(session.getSessionType());
-        dto.setTargetNickname(groupInfo.getGroupName());
+        dto.setTargetNickname(resolveGroupDisplayName(groupInfo, member));
         dto.setTargetUsername("group-" + groupInfo.getId());
         dto.setTargetAvatar(groupInfo.getGroupAvatar());
         dto.setLastMessage(session.getLastMessage());
@@ -204,10 +212,12 @@ public class ChatGroupRealtimeService {
         dto.setUnreadCount(session.getUnreadCount());
         dto.setMemberCount(listMembersByGroupId(groupId).size());
         dto.setMyRole(member.getRole());
+        dto.setGroupRemark(member.getGroupRemark());
         dto.setNotice(groupInfo.getNotice());
         dto.setNoticeUnread(hasUnreadNotice(groupInfo, member));
         dto.setMuted(isMuted(member));
         dto.setMuteTime(member.getMuteTime());
+        dto.setNotificationMuted(Boolean.TRUE.equals(member.getNotificationMuted()));
         dto.setTargetOnline(false);
         return dto;
     }
@@ -280,6 +290,25 @@ public class ChatGroupRealtimeService {
         }
         LocalDateTime noticeReadTime = member.getNoticeReadTime();
         return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());
+    }
+
+    private SysFile resolveFile(ImMessage message) {
+        if (message == null || !StringUtils.hasText(message.getContent())) {
+            return null;
+        }
+        if (message.getMsgType() != ChatConstants.MESSAGE_TYPE_FILE && message.getMsgType() != ChatConstants.MESSAGE_TYPE_IMAGE) {
+            return null;
+        }
+        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysFile::getFileUrl, message.getContent()).last("LIMIT 1");
+        return sysFileMapper.selectOne(wrapper);
+    }
+
+    private String resolveGroupDisplayName(ImGroupInfo groupInfo, ImGroupMember member) {
+        if (member != null && StringUtils.hasText(member.getGroupRemark())) {
+            return member.getGroupRemark().trim();
+        }
+        return groupInfo.getGroupName();
     }
 
     private List<Long> parseMentionUserIds(String mentionUserIds) {

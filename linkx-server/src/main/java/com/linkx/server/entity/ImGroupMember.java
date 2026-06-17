@@ -26,6 +26,10 @@ public class ImGroupMember {
 
     private LocalDateTime noticeReadTime;
 
+    private String groupRemark;
+
+    private Boolean notificationMuted;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 }

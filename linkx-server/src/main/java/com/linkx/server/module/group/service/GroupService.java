@@ -3,6 +3,7 @@ package com.linkx.server.module.group.service;
 import com.linkx.server.module.group.dto.GroupDTO;
 import com.linkx.server.module.group.dto.GroupDetailDTO;
 import com.linkx.server.module.group.dto.GroupRequestDTO;
+import com.linkx.server.module.chat.dto.MessageDTO;
 
 import java.util.List;
 
@@ -24,7 +25,10 @@ public interface GroupService {
     void unmuteMember(Long operatorId, Long groupId, Long memberUserId);
     void updateProfile(Long operatorId, Long groupId, String groupName, String groupAvatar);
     void updateNotice(Long operatorId, Long groupId, String notice);
+    void updatePreferences(Long userId, Long groupId, String groupRemark, Boolean notificationMuted);
     void markNoticeRead(Long userId, Long groupId);
+    List<MessageDTO> getGroupMedia(Long userId, Long groupId, String mediaType, String keyword, int size);
+    List<MessageDTO> searchGroupMessages(Long userId, Long groupId, String keyword, int size);
     void leaveGroup(Long userId, Long groupId);
     void transferOwner(Long operatorId, Long groupId, Long newOwnerId);
     List<GroupDTO> searchGroups(Long userId, String keyword);

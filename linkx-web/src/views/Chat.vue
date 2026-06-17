@@ -802,10 +802,12 @@ interface ChatSession {
   unreadCount: number
   memberCount?: number
   myRole?: number
+  groupRemark?: string
   notice?: string
   noticeUnread?: boolean
   muted?: boolean
   muteTime?: string
+  notificationMuted?: boolean
   targetOnline?: boolean
   isDraft?: boolean
 }
@@ -824,6 +826,7 @@ interface GroupDetail {
   id: string | number
   groupName: string
   groupAvatar?: string
+  groupRemark?: string
   notice?: string
   noticeUpdateTime?: string
   noticeReadTime?: string
@@ -834,6 +837,7 @@ interface GroupDetail {
   myRole: number
   muted?: boolean
   muteTime?: string
+  notificationMuted?: boolean
   members: GroupMember[]
 }
 
@@ -970,13 +974,14 @@ const currentSession = computed(() => {
 })
 
 const isGroupSession = computed(() => currentSessionType.value === SESSION_TYPE_GROUP)
-const currentSessionName = computed(() => groupDetail.value?.groupName || currentSession.value?.targetNickname || '')
+const currentSessionName = computed(() => groupDetail.value?.groupRemark || groupDetail.value?.groupName || currentSession.value?.targetNickname || '')
 const currentSessionAvatar = computed(() => groupDetail.value?.groupAvatar || currentSession.value?.targetAvatar || '')
 const currentMemberCount = computed(() => groupDetail.value?.memberCount || currentSession.value?.memberCount || 0)
 const currentNotice = computed(() => groupDetail.value?.notice || currentSession.value?.notice || '')
 const currentGroupRole = computed(() => groupDetail.value?.myRole ?? currentSession.value?.myRole ?? GROUP_ROLE_MEMBER)
 const currentMuted = computed(() => Boolean(groupDetail.value?.muted ?? currentSession.value?.muted))
 const currentMuteTimeText = computed(() => formatDateTime(groupDetail.value?.muteTime || currentSession.value?.muteTime || ''))
+const currentNotificationMuted = computed(() => Boolean(groupDetail.value?.notificationMuted ?? currentSession.value?.notificationMuted))
 const canManageMembers = computed(() => isGroupSession.value && currentGroupRole.value >= GROUP_ROLE_ADMIN)
 const canEditGroupProfile = computed(() => isGroupSession.value && currentGroupRole.value >= GROUP_ROLE_ADMIN)
 const canEditNotice = computed(() => isGroupSession.value && currentGroupRole.value >= GROUP_ROLE_ADMIN)
@@ -1186,6 +1191,7 @@ function normalizeSession(session: any): ChatSession {
     myRole: session.myRole != null ? Number(session.myRole) : undefined,
     noticeUnread: Boolean(session.noticeUnread),
     muted: Boolean(session.muted),
+    notificationMuted: Boolean(session.notificationMuted),
     targetOnline: Boolean(session.targetOnline)
   }
 }
@@ -1227,14 +1233,15 @@ function updateCurrentSessionFromStore(nextSession: ChatSession) {
   if (isGroupSession.value && groupDetail.value) {
     groupDetail.value = {
       ...groupDetail.value,
-      groupName: nextSession.targetNickname || groupDetail.value.groupName,
       groupAvatar: nextSession.targetAvatar || groupDetail.value.groupAvatar,
+      groupRemark: nextSession.groupRemark ?? groupDetail.value.groupRemark,
       notice: nextSession.notice ?? groupDetail.value.notice,
       noticeUnread: nextSession.noticeUnread ?? groupDetail.value.noticeUnread,
       memberCount: nextSession.memberCount ?? groupDetail.value.memberCount,
       myRole: nextSession.myRole ?? groupDetail.value.myRole,
       muted: nextSession.muted ?? groupDetail.value.muted,
-      muteTime: nextSession.muteTime ?? groupDetail.value.muteTime
+      muteTime: nextSession.muteTime ?? groupDetail.value.muteTime,
+      notificationMuted: nextSession.notificationMuted ?? groupDetail.value.notificationMuted
     }
   }
 }
@@ -1553,6 +1560,21 @@ function getNotificationTitle(messageItem: DisplayMessage) {
   return sessionName || messageItem.name || '新消息'
 }
 
+function shouldShowDesktopNotification(messageItem: DisplayMessage) {
+  if (messageItem.isMe) {
+    return false
+  }
+  if (messageItem.sessionType !== SESSION_TYPE_GROUP) {
+    return true
+  }
+  const targetId = String(messageItem.targetId)
+  if (currentTargetId.value && currentSessionType.value === SESSION_TYPE_GROUP && String(currentTargetId.value) === targetId) {
+    return !currentNotificationMuted.value
+  }
+  const session = sessions.value.find(item => buildSessionKey(item.targetId, item.sessionType) === buildSessionKey(targetId, SESSION_TYPE_GROUP))
+  return !Boolean(session?.notificationMuted)
+}
+
 function releaseMessageResource(messageItem?: DisplayMessage | null) {
   if (!messageItem?.content?.startsWith('blob:')) {
     return
@@ -1662,14 +1684,18 @@ function handleRealtimeMessage(rawMessage: any) {
       }
     })
     if (!messageItem.isMe) {
-      showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
+      if (shouldShowDesktopNotification(messageItem)) {
+        showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
+      }
       markCurrentSessionRead(messageTargetId, messageSessionType)
     }
     return
   }
 
   if (!messageItem.isMe) {
-    showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
+    if (shouldShowDesktopNotification(messageItem)) {
+      showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
+    }
     flashSession(messageTargetId, messageSessionType)
   }
 }
@@ -1743,13 +1769,15 @@ function applyGroupDetail(detail: GroupDetail | null, syncDraft = true) {
   const sessionKey = buildSessionKey(detail.id, SESSION_TYPE_GROUP)
   const session = sessions.value.find(item => buildSessionKey(item.targetId, item.sessionType) === sessionKey)
   if (session) {
-    session.targetNickname = detail.groupName
+    session.targetNickname = detail.groupRemark || detail.groupName
     session.targetAvatar = detail.groupAvatar || ''
+    session.groupRemark = detail.groupRemark || ''
     session.memberCount = detail.memberCount
     session.notice = detail.notice || ''
     session.myRole = detail.myRole
     session.muted = detail.muted
     session.muteTime = detail.muteTime
+    session.notificationMuted = Boolean(detail.notificationMuted)
   }
 }
 
@@ -1796,17 +1824,19 @@ function handleRealtimeGroupDetail(detail: GroupDetail | null) {
   upsertSession({
     targetId: detail.id,
     sessionType: SESSION_TYPE_GROUP,
-    targetNickname: detail.groupName,
+    targetNickname: detail.groupRemark || detail.groupName,
     targetAvatar: detail.groupAvatar || '',
     lastMessage: existingSession?.lastMessage || '',
     lastMessageTime: existingSession?.lastMessageTime || '',
     unreadCount: existingSession?.unreadCount || 0,
     memberCount: detail.memberCount,
     myRole: detail.myRole,
+    groupRemark: detail.groupRemark || '',
     notice: detail.notice || '',
     noticeUnread: Boolean(detail.noticeUnread),
     muted: detail.muted,
-    muteTime: detail.muteTime
+    muteTime: detail.muteTime,
+    notificationMuted: Boolean(detail.notificationMuted)
   })
 
   if (currentTargetId.value && currentSessionType.value === SESSION_TYPE_GROUP && String(currentTargetId.value) === String(detail.id)) {

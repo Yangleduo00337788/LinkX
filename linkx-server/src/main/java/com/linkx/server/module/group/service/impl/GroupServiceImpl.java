@@ -9,14 +9,17 @@ import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.ImGroupRequest;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.ImSession;
+import com.linkx.server.entity.SysFile;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.ImGroupInfoMapper;
 import com.linkx.server.mapper.ImGroupMemberMapper;
 import com.linkx.server.mapper.ImGroupRequestMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.ImSessionMapper;
+import com.linkx.server.mapper.SysFileMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.chat.constant.ChatConstants;
+import com.linkx.server.module.chat.dto.MessageDTO;
 import com.linkx.server.module.chat.ws.ChatGroupRealtimeService;
 import com.linkx.server.module.group.constant.GroupConstants;
 import com.linkx.server.module.group.dto.GroupDTO;
@@ -54,6 +57,7 @@ public class GroupServiceImpl implements GroupService {
     private final ImGroupRequestMapper groupRequestMapper;
     private final ImMessageMapper messageMapper;
     private final ImSessionMapper sessionMapper;
+    private final SysFileMapper fileMapper;
     private final SysUserMapper userMapper;
     private final ChatGroupRealtimeService chatGroupRealtimeService;
 
@@ -312,6 +316,7 @@ public class GroupServiceImpl implements GroupService {
         detailDTO.setId(groupInfo.getId());
         detailDTO.setGroupName(groupInfo.getGroupName());
         detailDTO.setGroupAvatar(groupInfo.getGroupAvatar());
+        detailDTO.setGroupRemark(currentMember.getGroupRemark());
         detailDTO.setNotice(groupInfo.getNotice());
         detailDTO.setNoticeUpdateTime(groupInfo.getNoticeUpdateTime());
         detailDTO.setNoticeReadTime(currentMember.getNoticeReadTime());
@@ -322,6 +327,7 @@ public class GroupServiceImpl implements GroupService {
         detailDTO.setMyRole(currentMember.getRole());
         detailDTO.setMuted(isMuted(currentMember));
         detailDTO.setMuteTime(currentMember.getMuteTime());
+        detailDTO.setNotificationMuted(Boolean.TRUE.equals(currentMember.getNotificationMuted()));
         detailDTO.setCreateTime(groupInfo.getCreateTime());
         detailDTO.setMembers(members.stream()
                 .sorted(Comparator.comparing(ImGroupMember::getRole).reversed()
@@ -576,6 +582,27 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     @Transactional
+    public void updatePreferences(Long userId, Long groupId, String groupRemark, Boolean notificationMuted) {
+        requireActiveGroup(groupId);
+        ImGroupMember member = requireMember(groupId, userId);
+        String normalizedRemark = normalizeGroupRemark(groupRemark);
+        boolean nextNotificationMuted = Boolean.TRUE.equals(notificationMuted);
+        boolean changed = !Objects.equals(normalizedRemark, normalizeNullableText(member.getGroupRemark()))
+                || nextNotificationMuted != Boolean.TRUE.equals(member.getNotificationMuted());
+        if (!changed) {
+            return;
+        }
+        member.setGroupRemark(normalizedRemark);
+        member.setNotificationMuted(nextNotificationMuted);
+        groupMemberMapper.updateById(member);
+        executeAfterCommit(() -> {
+            chatGroupRealtimeService.pushGroupSessions(groupId, List.of(userId));
+            chatGroupRealtimeService.pushGroupDetails(groupId, List.of(userId));
+        });
+    }
+
+    @Override
+    @Transactional
     public void markNoticeRead(Long userId, Long groupId) {
         ImGroupInfo groupInfo = requireActiveGroup(groupId);
         ImGroupMember member = requireMember(groupId, userId);
@@ -591,6 +618,93 @@ public class GroupServiceImpl implements GroupService {
             chatGroupRealtimeService.pushGroupSessions(groupId, List.of(userId));
             chatGroupRealtimeService.pushGroupDetails(groupId, List.of(userId));
         });
+    }
+
+    @Override
+    public List<MessageDTO> getGroupMedia(Long userId, Long groupId, String mediaType, String keyword, int size) {
+        requireActiveGroup(groupId);
+        requireMember(groupId, userId);
+
+        List<Integer> messageTypes = resolveMediaMessageTypes(mediaType);
+        List<ImMessage> messages;
+        if (StringUtils.hasText(keyword)) {
+            Map<String, SysFile> matchedFileMap = loadMatchedFileMap(keyword.trim());
+            if (matchedFileMap.isEmpty()) {
+                return List.of();
+            }
+            LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(ImMessage::getToUserId, groupId)
+                    .eq(ImMessage::getSessionId, groupId)
+                    .in(ImMessage::getMsgType, messageTypes)
+                    .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED)
+                    .in(ImMessage::getContent, matchedFileMap.keySet())
+                    .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                    .last("LIMIT " + size);
+            messages = messageMapper.selectList(wrapper);
+            return toMessageList(messages, ChatConstants.SESSION_TYPE_GROUP, matchedFileMap);
+        }
+
+        LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImMessage::getToUserId, groupId)
+                .eq(ImMessage::getSessionId, groupId)
+                .in(ImMessage::getMsgType, messageTypes)
+                .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED)
+                .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                .last("LIMIT " + size);
+        messages = messageMapper.selectList(wrapper);
+        return toMessageList(messages, ChatConstants.SESSION_TYPE_GROUP, loadFileMap(messages));
+    }
+
+    @Override
+    public List<MessageDTO> searchGroupMessages(Long userId, Long groupId, String keyword, int size) {
+        requireActiveGroup(groupId);
+        requireMember(groupId, userId);
+
+        String normalizedKeyword = normalizeSearchKeyword(keyword);
+        if (normalizedKeyword == null) {
+            return List.of();
+        }
+
+        LinkedHashSet<Long> matchedMessageIds = new LinkedHashSet<>();
+
+        LambdaQueryWrapper<ImMessage> textWrapper = new LambdaQueryWrapper<>();
+        textWrapper.eq(ImMessage::getToUserId, groupId)
+                .eq(ImMessage::getSessionId, groupId)
+                .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED)
+                .like(ImMessage::getContent, normalizedKeyword)
+                .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                .last("LIMIT " + size);
+        messageMapper.selectList(textWrapper).stream()
+                .map(ImMessage::getId)
+                .forEach(matchedMessageIds::add);
+
+        if (matchedMessageIds.size() < size) {
+            Map<String, SysFile> matchedFileMap = loadMatchedFileMap(normalizedKeyword);
+            if (!matchedFileMap.isEmpty()) {
+                LambdaQueryWrapper<ImMessage> fileWrapper = new LambdaQueryWrapper<>();
+                fileWrapper.eq(ImMessage::getToUserId, groupId)
+                        .eq(ImMessage::getSessionId, groupId)
+                        .in(ImMessage::getMsgType, List.of(ChatConstants.MESSAGE_TYPE_IMAGE, ChatConstants.MESSAGE_TYPE_FILE))
+                        .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED)
+                        .in(ImMessage::getContent, matchedFileMap.keySet())
+                        .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                        .last("LIMIT " + size);
+                messageMapper.selectList(fileWrapper).stream()
+                        .map(ImMessage::getId)
+                        .forEach(matchedMessageIds::add);
+            }
+        }
+
+        if (matchedMessageIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<ImMessage> matchedMessages = messageMapper.selectBatchIds(matchedMessageIds);
+        matchedMessages.sort(this::compareMessagesByNewest);
+        if (matchedMessages.size() > size) {
+            matchedMessages = new ArrayList<>(matchedMessages.subList(0, size));
+        }
+        return toMessageList(matchedMessages, ChatConstants.SESSION_TYPE_GROUP, loadFileMap(matchedMessages));
     }
 
     private GroupDTO buildGroupDTO(ImGroupInfo groupInfo, ImGroupMember currentMember, int memberCount) {
@@ -676,6 +790,7 @@ public class GroupServiceImpl implements GroupService {
         member.setUserId(userId);
         member.setRole(role);
         member.setNoticeReadTime(noticeReadTime);
+        member.setNotificationMuted(false);
         groupMemberMapper.insert(member);
     }
 
@@ -793,6 +908,25 @@ public class GroupServiceImpl implements GroupService {
             return null;
         }
         return value.trim();
+    }
+
+    private String normalizeGroupRemark(String groupRemark) {
+        String normalizedRemark = normalizeNullableText(groupRemark);
+        if (normalizedRemark != null && normalizedRemark.length() > 100) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "群备注长度不能超过100个字符");
+        }
+        return normalizedRemark;
+    }
+
+    private String normalizeSearchKeyword(String keyword) {
+        String normalizedKeyword = normalizeNullableText(keyword);
+        if (normalizedKeyword == null) {
+            return null;
+        }
+        if (normalizedKeyword.length() > 100) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "搜索关键词长度不能超过100个字符");
+        }
+        return normalizedKeyword;
     }
 
     private String normalizeRequestMessage(String message) {
@@ -1015,6 +1149,143 @@ public class GroupServiceImpl implements GroupService {
         }
         LocalDateTime noticeReadTime = member.getNoticeReadTime();
         return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());
+    }
+
+    private List<Integer> resolveMediaMessageTypes(String mediaType) {
+        String normalizedMediaType = normalizeNullableText(mediaType);
+        if (normalizedMediaType == null || "all".equalsIgnoreCase(normalizedMediaType)) {
+            return List.of(ChatConstants.MESSAGE_TYPE_IMAGE, ChatConstants.MESSAGE_TYPE_FILE);
+        }
+        if ("image".equalsIgnoreCase(normalizedMediaType)) {
+            return List.of(ChatConstants.MESSAGE_TYPE_IMAGE);
+        }
+        if ("file".equalsIgnoreCase(normalizedMediaType)) {
+            return List.of(ChatConstants.MESSAGE_TYPE_FILE);
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的媒体类型");
+    }
+
+    private Map<String, SysFile> loadMatchedFileMap(String keyword) {
+        String normalizedKeyword = normalizeSearchKeyword(keyword);
+        if (normalizedKeyword == null) {
+            return Map.of();
+        }
+        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
+        wrapper.like(SysFile::getOriginalName, normalizedKeyword)
+                .or()
+                .like(SysFile::getFileType, normalizedKeyword)
+                .last("LIMIT 500");
+        return fileMapper.selectList(wrapper).stream()
+                .filter(file -> StringUtils.hasText(file.getFileUrl()))
+                .collect(Collectors.toMap(SysFile::getFileUrl, file -> file, (left, right) -> left));
+    }
+
+    private Map<String, SysFile> loadFileMap(List<ImMessage> messages) {
+        Set<String> fileUrls = messages.stream()
+                .filter(message -> (message.getMsgType() == ChatConstants.MESSAGE_TYPE_IMAGE || message.getMsgType() == ChatConstants.MESSAGE_TYPE_FILE)
+                        && StringUtils.hasText(message.getContent()))
+                .map(ImMessage::getContent)
+                .collect(Collectors.toSet());
+        if (fileUrls.isEmpty()) {
+            return Map.of();
+        }
+        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
+        wrapper.in(SysFile::getFileUrl, fileUrls);
+        return fileMapper.selectList(wrapper).stream()
+                .collect(Collectors.toMap(SysFile::getFileUrl, file -> file, (left, right) -> left));
+    }
+
+    private List<MessageDTO> toMessageList(List<ImMessage> rawMessages, Integer sessionType, Map<String, SysFile> fileMap) {
+        if (rawMessages == null || rawMessages.isEmpty()) {
+            return List.of();
+        }
+        List<ImMessage> messages = new ArrayList<>(rawMessages);
+        messages.sort(this::compareMessagesByNewest);
+        Set<Long> userIds = messages.stream()
+                .map(ImMessage::getFromUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, SysUser> userMap = loadUserMap(userIds);
+        return messages.stream()
+                .map(message -> toMessageDTO(message, sessionType, userMap, fileMap))
+                .collect(Collectors.toList());
+    }
+
+    private MessageDTO toMessageDTO(ImMessage message, Integer sessionType, Map<Long, SysUser> userMap, Map<String, SysFile> fileMap) {
+        MessageDTO dto = new MessageDTO();
+        dto.setId(message.getId());
+        dto.setSessionId(message.getSessionId());
+        dto.setFromUserId(message.getFromUserId());
+        dto.setToUserId(message.getToUserId());
+        dto.setSessionType(sessionType);
+        dto.setContent(message.getContent());
+        dto.setMsgType(message.getMsgType());
+        dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));
+        dto.setMentionUserIds(parseMentionUserIds(message.getMentionUserIds()));
+        dto.setMentionDisplayNames(List.of());
+        dto.setStatus(message.getStatus());
+        dto.setReadTime(message.getReadTime());
+        dto.setCreateTime(message.getCreateTime());
+        SysUser fromUser = userMap.get(message.getFromUserId());
+        if (fromUser != null) {
+            dto.setFromNickname(fromUser.getNickname());
+            dto.setFromAvatar(fromUser.getAvatar());
+        }
+        SysFile file = fileMap.get(message.getContent());
+        if (file != null) {
+            dto.setFileName(file.getOriginalName());
+            dto.setFileSize(file.getFileSize());
+            dto.setFileType(file.getFileType());
+        }
+        return dto;
+    }
+
+    private int compareMessagesByNewest(ImMessage left, ImMessage right) {
+        LocalDateTime leftTime = left != null ? left.getCreateTime() : null;
+        LocalDateTime rightTime = right != null ? right.getCreateTime() : null;
+        if (leftTime == null && rightTime != null) {
+            return 1;
+        }
+        if (leftTime != null && rightTime == null) {
+            return -1;
+        }
+        if (leftTime != null && rightTime != null) {
+            int timeCompare = rightTime.compareTo(leftTime);
+            if (timeCompare != 0) {
+                return timeCompare;
+            }
+        }
+
+        Long leftId = left != null ? left.getId() : null;
+        Long rightId = right != null ? right.getId() : null;
+        if (leftId == null && rightId != null) {
+            return 1;
+        }
+        if (leftId != null && rightId == null) {
+            return -1;
+        }
+        if (leftId == null) {
+            return 0;
+        }
+        return rightId.compareTo(leftId);
+    }
+
+    private List<Long> parseMentionUserIds(String mentionUserIds) {
+        if (!StringUtils.hasText(mentionUserIds)) {
+            return List.of();
+        }
+        List<Long> result = new ArrayList<>();
+        for (String item : mentionUserIds.split(",")) {
+            if (!StringUtils.hasText(item)) {
+                continue;
+            }
+            try {
+                result.add(Long.parseLong(item.trim()));
+            } catch (NumberFormatException ignored) {
+                // Ignore malformed legacy values when reading search results.
+            }
+        }
+        return result;
     }
 
     private String buildProfileUpdatedSystemMessage(
