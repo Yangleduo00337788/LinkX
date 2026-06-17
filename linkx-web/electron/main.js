@@ -8,6 +8,7 @@ let isDev = !!process.env.ELECTRON_DEV_URL
 let localRendererServer = null
 const LOCAL_RENDERER_HOST = '127.0.0.1'
 const LOCAL_RENDERER_PORT = Number(process.env.LINKX_ELECTRON_PORT || 39689)
+const APP_USER_MODEL_ID = 'com.linkx.im'
 
 const STATIC_MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -217,11 +218,21 @@ function setupIPC() {
 
   ipcMain.handle('notification:show', (_, title, body, icon) => {
     if (Notification.isSupported()) {
-      const notification = new Notification({ 
-        title, 
-        body, 
+      const notification = new Notification({
+        title,
+        body,
         silent: false,
         icon: icon || path.join(__dirname, 'icons', 'tray.png')
+      })
+      notification.on('click', () => {
+        if (!mainWindow) {
+          return
+        }
+        if (mainWindow.isMinimized()) {
+          mainWindow.restore()
+        }
+        mainWindow.show()
+        mainWindow.focus()
       })
       notification.show()
       return true
@@ -253,6 +264,10 @@ function setupIPC() {
   ipcMain.handle('app:getAutoLaunch', () => {
     return app.getLoginItemSettings().openAtLogin
   })
+}
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId(APP_USER_MODEL_ID)
 }
 
 app.whenReady().then(() => {

@@ -769,7 +769,7 @@ import { useChatSocket } from '../hooks/useChatSocket'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
 import { useUserStore } from '../stores/user'
 import { getDateTimeTimestamp, parseDateTime } from '../utils/datetime'
-import { showNotification } from '../utils/notify'
+import { playNotificationSound, showNotification } from '../utils/notify'
 
 const SESSION_TYPE_SINGLE = 1
 const SESSION_TYPE_GROUP = 2
@@ -1634,6 +1634,21 @@ function shouldShowDesktopNotification(messageItem: DisplayMessage) {
   return !Boolean(session?.notificationMuted)
 }
 
+function getNotificationSoundType(messageItem: DisplayMessage) {
+  if (messageItem.isSystem || messageItem.mentionedMe) {
+    return 'attention' as const
+  }
+  return 'message' as const
+}
+
+function notifyIncomingMessage(messageItem: DisplayMessage) {
+  if (!shouldShowDesktopNotification(messageItem)) {
+    return
+  }
+  void showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
+  void playNotificationSound(getNotificationSoundType(messageItem))
+}
+
 function releaseMessageResource(messageItem?: DisplayMessage | null) {
   if (!messageItem?.content?.startsWith('blob:')) {
     return
@@ -1736,18 +1751,14 @@ function handleRealtimeMessage(rawMessage: any) {
       }
     })
     if (!messageItem.isMe) {
-      if (shouldShowDesktopNotification(messageItem)) {
-        showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
-      }
+      notifyIncomingMessage(messageItem)
       markCurrentSessionRead(messageTargetId, messageSessionType)
     }
     return
   }
 
   if (!messageItem.isMe) {
-    if (shouldShowDesktopNotification(messageItem)) {
-      showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
-    }
+    notifyIncomingMessage(messageItem)
     flashSession(messageTargetId, messageSessionType)
   }
 }
