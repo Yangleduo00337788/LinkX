@@ -5,7 +5,7 @@
     <div class="page-shell">
       <div class="page-header">
         <div class="page-header-main">
-          <button class="back-btn" @click="openGroupChat">
+          <button class="back-btn" @click="() => openGroupChat()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M15 18l-6-6 6-6" />
             </svg>
@@ -434,7 +434,7 @@
                   <div class="result-content">{{ getMessageSearchPreview(item) }}</div>
                 </div>
                 <div class="result-actions">
-                  <button v-if="item.content" class="mini-btn" @click="openGroupChat">去群聊查看</button>
+                  <button v-if="item.content" class="mini-btn" @click="() => openGroupChat(item)">去群聊查看</button>
                   <button v-if="item.fileName && item.content" class="mini-btn" @click="openMediaResource(item.content)">打开附件</button>
                 </div>
               </article>
@@ -1034,14 +1034,18 @@ async function copyGroupId() {
   }
 }
 
-function openGroupChat() {
+function openGroupChat(targetMessage?: GroupMediaItem) {
   if (!groupId.value) {
     router.push('/chat')
     return
   }
+  const query: Record<string, string> = { sessionType: '2' }
+  if (targetMessage?.id != null) {
+    query.messageId = String(targetMessage.id)
+  }
   router.push({
     path: `/chat/${groupId.value}`,
-    query: { sessionType: '2' }
+    query
   })
 }
 
@@ -1979,6 +1983,43 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 
+.preference-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.preference-form {
+  display: grid;
+  gap: 12px;
+}
+
+.preference-switch {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  align-items: start;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--linkx-bg-hover);
+  border: 1px solid color-mix(in srgb, var(--linkx-border) 86%, transparent);
+  color: var(--linkx-text);
+}
+
+.preference-switch input {
+  margin-top: 3px;
+}
+
+.preference-switch span,
+.preference-switch small {
+  grid-column: 2;
+}
+
+.preference-switch small {
+  color: var(--linkx-text-muted);
+  line-height: 1.6;
+}
+
 .search-shell {
   margin-top: 16px;
   display: flex;
@@ -1990,6 +2031,59 @@ onUnmounted(() => {
   background: var(--linkx-bg);
   border: 1px solid var(--linkx-border);
   color: var(--linkx-text-muted);
+}
+
+.workspace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.workspace-toolbar {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.workspace-search {
+  margin-top: 0;
+  min-width: min(300px, 100%);
+  flex: 1;
+}
+
+.compact-btn {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.tab-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tab-btn {
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--linkx-border);
+  background: var(--linkx-bg-card);
+  color: var(--linkx-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  transition: var(--linkx-transition-fast);
+}
+
+.tab-btn.active {
+  background: rgba(0, 214, 143, 0.14);
+  border-color: rgba(0, 214, 143, 0.28);
+  color: var(--linkx-primary);
 }
 
 .search-input,
@@ -2324,6 +2418,108 @@ onUnmounted(() => {
   border: 1px dashed color-mix(in srgb, var(--linkx-border) 86%, transparent);
 }
 
+.search-result-list,
+.media-list {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.search-result-card,
+.media-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: var(--linkx-bg-hover);
+  border: 1px solid color-mix(in srgb, var(--linkx-border) 86%, transparent);
+}
+
+.result-main,
+.media-info {
+  min-width: 0;
+}
+
+.result-title-row,
+.media-meta,
+.media-actions,
+.result-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.result-type-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(80, 145, 255, 0.12);
+  color: #4f86ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.result-time,
+.media-meta {
+  color: var(--linkx-text-muted);
+  font-size: 12px;
+}
+
+.result-content {
+  margin-top: 8px;
+  color: var(--linkx-text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.media-card {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.media-cover {
+  width: 88px;
+  height: 88px;
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--linkx-bg-card);
+  border: 1px solid color-mix(in srgb, var(--linkx-border) 88%, transparent);
+  color: var(--linkx-text-muted);
+}
+
+.media-cover.image {
+  background: color-mix(in srgb, var(--linkx-bg-hover) 72%, transparent);
+}
+
+.media-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-name {
+  color: var(--linkx-text);
+  font-size: 15px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.media-meta {
+  margin-top: 8px;
+}
+
+.media-actions {
+  margin-top: 12px;
+}
+
 .panel-subtitle {
   margin-top: 6px;
   font-size: 13px;
@@ -2442,6 +2638,11 @@ onUnmounted(() => {
   margin-top: 8px;
   color: var(--linkx-text-muted);
   font-size: 13px;
+}
+
+.empty-state.compact {
+  min-height: 160px;
+  padding: 12px 0;
 }
 
 .loading-spinner {
@@ -2675,6 +2876,11 @@ onUnmounted(() => {
   .request-actions {
     justify-content: flex-start;
   }
+
+  .search-result-card,
+  .media-card {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2693,7 +2899,9 @@ onUnmounted(() => {
   .member-card-main,
   .member-panel-toolbar,
   .profile-action-row,
-  .request-panel-head {
+  .request-panel-head,
+  .workspace-head,
+  .workspace-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
@@ -2738,6 +2946,14 @@ onUnmounted(() => {
   .request-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .tab-group,
+  .media-actions,
+  .result-actions,
+  .result-title-row,
+  .media-meta {
+    width: 100%;
   }
 }
 </style>

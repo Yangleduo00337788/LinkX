@@ -171,7 +171,7 @@
               v-for="(msg, index) in messages"
               :key="msg.id || index"
               class="message-row"
-              :class="{ self: msg.isMe, system: msg.isSystem }"
+              :class="{ self: msg.isMe, system: msg.isSystem, located: activeJumpMessageKey === getMessageAnchorKey(msg) }"
               :data-message-key="getMessageAnchorKey(msg)"
             >
               <template v-if="msg.isSystem">
@@ -911,6 +911,8 @@ const showNoticeReminder = ref(false)
 const acknowledgingNoticeReminder = ref(false)
 const initialized = ref(false)
 const syncingSocketState = ref(false)
+const activeJumpMessageKey = ref('')
+let activeJumpHighlightTimer: ReturnType<typeof setTimeout> | null = null
 
 const messagesRef = ref<HTMLElement>()
 const textareaRef = ref<HTMLTextAreaElement>()
@@ -1271,6 +1273,51 @@ function getMessageAnchorKey(messageItem: Pick<DisplayMessage, 'id' | 'localId' 
   return String(messageItem.clientMessageId || messageItem.id || messageItem.localId)
 }
 
+function compareDisplayMessages(left: DisplayMessage, right: DisplayMessage) {
+  const leftTime = getDateTimeTimestamp(left.createTime)
+  const rightTime = getDateTimeTimestamp(right.createTime)
+  if (leftTime !== rightTime) {
+    return leftTime - rightTime
+  }
+  return String(left.id).localeCompare(String(right.id))
+}
+
+function getRouteMessageId() {
+  const rawMessageId = route.query.messageId
+  if (Array.isArray(rawMessageId)) {
+    return rawMessageId[0] ? String(rawMessageId[0]) : ''
+  }
+  return rawMessageId ? String(rawMessageId) : ''
+}
+
+function clearActiveJumpHighlight() {
+  if (activeJumpHighlightTimer) {
+    clearTimeout(activeJumpHighlightTimer)
+    activeJumpHighlightTimer = null
+  }
+  activeJumpMessageKey.value = ''
+}
+
+function setActiveJumpHighlight(messageItem: DisplayMessage | null | undefined) {
+  if (!messageItem) {
+    clearActiveJumpHighlight()
+    return
+  }
+  clearActiveJumpHighlight()
+  activeJumpMessageKey.value = getMessageAnchorKey(messageItem)
+  activeJumpHighlightTimer = setTimeout(() => {
+    activeJumpMessageKey.value = ''
+    activeJumpHighlightTimer = null
+  }, 2600)
+}
+
+function findMessageByRouteMessageId(messageId: string) {
+  if (!messageId) {
+    return null
+  }
+  return messages.value.find(messageItem => String(messageItem.id) === messageId || getMessageAnchorKey(messageItem) === messageId) || null
+}
+
 function getMessageTextSegments(content: string) {
   const segments: Array<{ text: string, mention: boolean }> = []
   const pattern = /@[^\s,，。.！!？?；;：:]+/g
@@ -1382,6 +1429,18 @@ function scrollToMessage(messageItem: DisplayMessage | null | undefined, behavio
   target.scrollIntoView({
     behavior,
     block: 'center'
+  })
+}
+
+async function clearRouteMessageQuery() {
+  if (!getRouteMessageId()) {
+    return
+  }
+  const nextQuery = { ...route.query }
+  delete nextQuery.messageId
+  await router.replace({
+    path: route.path,
+    query: nextQuery
   })
 }
 
@@ -1650,14 +1709,7 @@ function upsertMessage(nextMessage: DisplayMessage) {
       ...nextMessage
     })
   }
-  messages.value.sort((left, right) => {
-    const leftTime = getDateTimeTimestamp(left.createTime)
-    const rightTime = getDateTimeTimestamp(right.createTime)
-    if (leftTime !== rightTime) {
-      return leftTime - rightTime
-    }
-    return String(left.id).localeCompare(String(right.id))
-  })
+  messages.value.sort(compareDisplayMessages)
 }
 
 function handleRealtimeMessage(rawMessage: any) {
@@ -2252,7 +2304,13 @@ async function loadGroupDetail(groupId: string | number, syncDraft = true) {
   }
 }
 
-async function selectSession(session: ChatSession, syncRoute = true) {
+async function selectSession(
+  session: ChatSession,
+  syncRoute = true,
+  options: {
+    targetMessageId?: string
+  } = {}
+) {
   allowInitialHomeSessionAutoSelect = false
   const nextSessionKey = buildSessionKey(session.targetId, Number(session.sessionType || SESSION_TYPE_SINGLE))
   const currentSessionKey = currentTargetId.value
@@ -2270,6 +2328,7 @@ async function selectSession(session: ChatSession, syncRoute = true) {
   showMenu.value = false
   wasAtBottom = true
   clearMentionBannerQueue()
+  clearActiveJumpHighlight()
 
   if (currentSessionType.value === SESSION_TYPE_GROUP) {
     await loadGroupDetail(session.targetId)
@@ -2280,7 +2339,8 @@ async function selectSession(session: ChatSession, syncRoute = true) {
 
   await loadMessages(String(session.targetId), currentSessionType.value, {
     unreadCountSnapshot: Number(session.unreadCount || 0),
-    preferMentionScroll: Number(session.sessionType || SESSION_TYPE_SINGLE) === SESSION_TYPE_GROUP
+    preferMentionScroll: Number(session.sessionType || SESSION_TYPE_SINGLE) === SESSION_TYPE_GROUP,
+    targetMessageId: options.targetMessageId || ''
   })
 
   if (syncRoute) {
@@ -2298,6 +2358,7 @@ async function initializeRouteSession() {
 
   const routeTargetId = route.params.targetId ? String(route.params.targetId) : ''
   const routeSessionType = Number(route.query.sessionType || SESSION_TYPE_SINGLE)
+  const routeMessageId = getRouteMessageId()
 
   if (!routeTargetId) {
     if (allowInitialHomeSessionAutoSelect && !currentTargetId.value && sessions.value.length > 0) {
@@ -2308,8 +2369,12 @@ async function initializeRouteSession() {
 
   const existingSession = sessions.value.find(session => buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(routeTargetId, routeSessionType))
   if (existingSession) {
-    if (!currentTargetId.value || buildSessionKey(currentTargetId.value, currentSessionType.value) !== buildSessionKey(routeTargetId, routeSessionType)) {
-      await selectSession(existingSession, false)
+    if (
+      routeMessageId
+      || !currentTargetId.value
+      || buildSessionKey(currentTargetId.value, currentSessionType.value) !== buildSessionKey(routeTargetId, routeSessionType)
+    ) {
+      await selectSession(existingSession, false, { targetMessageId: routeMessageId })
     }
     return
   }
@@ -2338,7 +2403,7 @@ async function initializeRouteSession() {
         isDraft: true
       }
       sessions.value = [draftSession, ...sessions.value]
-      await selectSession(draftSession, false)
+      await selectSession(draftSession, false, { targetMessageId: routeMessageId })
     } catch (error) {
       message.error('打开群聊失败')
     }
@@ -2363,7 +2428,7 @@ async function initializeRouteSession() {
       isDraft: true
     }
     sessions.value = [draftSession, ...sessions.value]
-    await selectSession(draftSession, false)
+    await selectSession(draftSession, false, { targetMessageId: routeMessageId })
   } catch (error) {
     message.error('打开会话失败')
   }
@@ -2382,16 +2447,46 @@ async function loadMessages(
   options: {
     unreadCountSnapshot?: number
     preferMentionScroll?: boolean
+    targetMessageId?: string
   } = {}
 ) {
   loadingMessages.value = true
   try {
-    const response: any = await sendChatCommand('GET_HISTORY', {
-      targetId,
-      sessionType
-    })
-    const rawMessages = response.data || []
-    const nextMessages: DisplayMessage[] = rawMessages.map((item: any) => toDisplayMessage(item))
+    const targetMessageId = options.targetMessageId ? String(options.targetMessageId) : ''
+    let nextMessages: DisplayMessage[] = []
+    if (targetMessageId) {
+      const aggregatedMessages = new Map<string, DisplayMessage>()
+      const pageSize = 100
+      const maxPages = 20
+      let locatedTargetMessage = false
+      for (let page = 1; page <= maxPages; page += 1) {
+        const response: any = await sendChatCommand('GET_HISTORY', {
+          targetId,
+          sessionType,
+          page,
+          size: pageSize
+        })
+        const pageRawMessages = response.data || []
+        for (const item of pageRawMessages) {
+          const messageItem = toDisplayMessage(item)
+          aggregatedMessages.set(getMessageAnchorKey(messageItem), messageItem)
+          if (String(messageItem.id) === targetMessageId || getMessageAnchorKey(messageItem) === targetMessageId) {
+            locatedTargetMessage = true
+          }
+        }
+        if (locatedTargetMessage || pageRawMessages.length < pageSize) {
+          break
+        }
+      }
+      nextMessages = Array.from(aggregatedMessages.values()).sort(compareDisplayMessages)
+    } else {
+      const response: any = await sendChatCommand('GET_HISTORY', {
+        targetId,
+        sessionType
+      })
+      const rawMessages = response.data || []
+      nextMessages = rawMessages.map((item: any) => toDisplayMessage(item))
+    }
     const mentionTargets = options.preferMentionScroll
       ? resolveUnreadMentionMessages(nextMessages, Number(options.unreadCountSnapshot || 0))
       : []
@@ -2413,7 +2508,21 @@ async function loadMessages(
     loadingMessages.value = false
     wasAtBottom = true
     await nextTick()
-    if (showMentionBanner.value && activeMentionBannerMessage.value) {
+    const targetMessageId = options.targetMessageId ? String(options.targetMessageId) : ''
+    const targetMessage = targetMessageId ? findMessageByRouteMessageId(targetMessageId) : null
+    if (targetMessage) {
+      scrollToMessage(targetMessage, 'auto')
+      setActiveJumpHighlight(targetMessage)
+      await clearRouteMessageQuery()
+    } else if (targetMessageId) {
+      message.warning('未找到目标聊天内容，可能已超出当前加载范围')
+      await clearRouteMessageQuery()
+      if (showMentionBanner.value && activeMentionBannerMessage.value) {
+        scrollToActiveMentionMessage('auto')
+      } else {
+        scrollMessagesToBottom(true)
+      }
+    } else if (showMentionBanner.value && activeMentionBannerMessage.value) {
       scrollToActiveMentionMessage('auto')
     } else {
       scrollMessagesToBottom(true)
@@ -3129,6 +3238,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearActiveJumpHighlight()
   disconnectChatSocket()
   cleanupMessageResources()
   resetCreateGroupForm()
@@ -3784,6 +3894,14 @@ onUnmounted(() => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+  transition: background-color 0.25s ease, box-shadow 0.25s ease, padding 0.25s ease;
+}
+
+.message-row.located {
+  padding: 8px 10px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--linkx-primary) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--linkx-primary) 22%, transparent);
 }
 
 .message-row.system {
