@@ -155,3 +155,10 @@ body {
 .text-primary { color: var(--linkx-primary); }
 .text-secondary { color: var(--linkx-text-secondary); }
 .text-muted { color: var(--linkx-text-muted); }
+
+/* Override focus-visible for message input */
+.message-input:focus,
+.message-input:focus-visible {
+  box-shadow: none;
+  outline: none;
+}

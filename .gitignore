@@ -18,3 +18,10 @@ Thumbs.db
 
 # Logs
 *.log
+log.txt
+
+# Debug
+.dbg/
+
+# Uploads
+linkx-server/uploads/
