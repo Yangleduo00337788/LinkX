@@ -18,8 +18,8 @@
         </div>
         <div class="page-header-actions">
           <button class="secondary-btn" @click="copyGroupId">复制群号</button>
-          <button class="primary-btn" :disabled="pageLoading" @click="loadGroupDetail(true)">
-            {{ pageLoading ? '刷新中...' : '刷新成员' }}
+          <button class="primary-btn" :disabled="pageLoading || loadingGroupRequests" @click="refreshPageData">
+            {{ pageLoading || loadingGroupRequests ? '刷新中...' : '刷新页面' }}
           </button>
         </div>
       </div>
@@ -242,6 +242,54 @@
               <span v-else>当前仅支持浏览成员与状态信息</span>
             </div>
           </div>
+
+          <section v-if="canManageMembers" class="request-panel">
+            <div class="request-panel-head">
+              <div>
+                <div class="panel-title">入群审批</div>
+                <div class="panel-subtitle">集中处理当前群的入群申请与邀请通知</div>
+              </div>
+              <div class="request-panel-count">{{ currentGroupRequests.length }} 条待处理</div>
+            </div>
+
+            <div v-if="currentGroupRequests.length > 0" class="request-list">
+              <article v-for="request in currentGroupRequests" :key="request.id" class="request-card">
+                <div class="request-avatar" :class="{ invite: request.requestType === 1 }">
+                  <img v-if="request.groupAvatar" :src="request.groupAvatar" class="avatar-img" />
+                  <span v-else>{{ request.groupName?.charAt(0) || '群' }}</span>
+                </div>
+                <div class="request-info">
+                  <div class="request-title-row">
+                    <span class="request-name">{{ request.groupName }}</span>
+                    <span class="request-type-tag" :class="groupRequestTagClass(request.requestType)">
+                      {{ groupRequestTypeText(request.requestType) }}
+                    </span>
+                  </div>
+                  <div class="request-message">{{ buildGroupRequestMessage(request) }}</div>
+                  <div class="request-time">{{ formatRequestTime(request.createTime) }}</div>
+                </div>
+                <div class="request-actions">
+                  <button
+                    class="request-action-btn accept"
+                    :disabled="requestActionLoadingId === request.id"
+                    @click="handleAcceptGroupRequest(request.id)"
+                  >
+                    通过
+                  </button>
+                  <button
+                    class="request-action-btn reject"
+                    :disabled="requestActionLoadingId === request.id"
+                    @click="handleRejectGroupRequest(request.id)"
+                  >
+                    拒绝
+                  </button>
+                </div>
+              </article>
+            </div>
+            <div v-else class="request-empty-state">
+              当前群暂无待处理入群申请
+            </div>
+          </section>
 
           <div v-if="filteredMembers.length > 0" class="member-list">
             <article v-for="member in filteredMembers" :key="member.userId" class="member-card">
@@ -478,6 +526,18 @@ interface GroupDetail {
   members: GroupMember[]
 }
 
+interface GroupRequestItem {
+  id: number | string
+  groupId: string | number
+  groupName: string
+  groupAvatar?: string
+  fromNickname?: string
+  fromUsername?: string
+  message?: string
+  requestType: number
+  createTime?: string
+}
+
 type RoleFilter = 'all' | 'owner' | 'admin' | 'member' | 'muted'
 
 const route = useRoute()
@@ -489,8 +549,11 @@ const { confirmDialog, openConfirmDialog, cancelConfirmDialog, confirmConfirmDia
 const groupAvatarInputRef = ref<HTMLInputElement>()
 const groupDetail = ref<GroupDetail | null>(null)
 const friends = ref<FriendItem[]>([])
+const groupRequests = ref<GroupRequestItem[]>([])
 const pageLoading = ref(false)
+const loadingGroupRequests = ref(false)
 const actionLoading = ref(false)
+const requestActionLoadingId = ref<string | number | null>(null)
 const searchText = ref('')
 const roleFilter = ref<RoleFilter>('all')
 const updatingGroupProfile = ref(false)
@@ -557,6 +620,11 @@ const availableFriendsForCurrentGroup = computed(() => {
 const transferableMembers = computed(() => (groupDetail.value?.members || []).filter(member => {
   return String(member.userId) !== String(userStore.userId) && member.role !== GROUP_ROLE_OWNER
 }))
+const currentGroupRequests = computed(() => {
+  return groupRequests.value
+    .filter(item => String(item.groupId) === String(groupId.value))
+    .sort((left, right) => String(right.id).localeCompare(String(left.id)))
+})
 
 const filteredMembers = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
@@ -708,6 +776,22 @@ async function loadFriends() {
   }
 }
 
+async function loadGroupRequests() {
+  loadingGroupRequests.value = true
+  try {
+    const response: any = await groupApi.getRequests()
+    groupRequests.value = response.data || []
+  } catch (error) {
+    console.error('loadGroupRequests error:', error)
+  } finally {
+    loadingGroupRequests.value = false
+  }
+}
+
+async function refreshPageData() {
+  await Promise.all([loadGroupDetail(true), loadGroupRequests()])
+}
+
 async function copyGroupId() {
   if (!groupDetail.value) {
     return
@@ -753,6 +837,55 @@ function handleGroupAvatarSelected(event: Event) {
   }
   groupProfileDraft.avatarFile = file
   groupProfileDraft.avatarPreview = previewUrl
+}
+
+function groupRequestTypeText(requestType: number) {
+  return requestType === 1 ? '邀请入群' : '申请入群'
+}
+
+function groupRequestTagClass(requestType: number) {
+  return requestType === 1 ? 'invite' : 'join'
+}
+
+function buildGroupRequestMessage(request: GroupRequestItem) {
+  const actor = request.fromNickname || request.fromUsername || '成员'
+  const suffix = request.message?.trim() ? `：${request.message.trim()}` : ''
+  if (request.requestType === 1) {
+    return `${actor} 邀请加入当前群聊${suffix}`
+  }
+  return `${actor} 申请加入当前群聊${suffix}`
+}
+
+function formatRequestTime(time?: string) {
+  return time?.substring(0, 16)?.replace('T', ' ') || ''
+}
+
+async function handleAcceptGroupRequest(requestId: number | string) {
+  requestActionLoadingId.value = requestId
+  try {
+    await groupApi.acceptRequest(requestId)
+    message.success('已通过入群申请')
+    await Promise.all([loadGroupRequests(), loadGroupDetail()])
+  } catch (error: any) {
+    console.error('handleAcceptGroupRequest error:', error)
+    message.error(error.response?.data?.message || '处理入群申请失败')
+  } finally {
+    requestActionLoadingId.value = null
+  }
+}
+
+async function handleRejectGroupRequest(requestId: number | string) {
+  requestActionLoadingId.value = requestId
+  try {
+    await groupApi.rejectRequest(requestId)
+    message.success('已拒绝入群申请')
+    await loadGroupRequests()
+  } catch (error: any) {
+    console.error('handleRejectGroupRequest error:', error)
+    message.error(error.response?.data?.message || '处理入群申请失败')
+  } finally {
+    requestActionLoadingId.value = null
+  }
 }
 
 async function submitUpdateNotice() {
@@ -1082,11 +1215,13 @@ watch(() => route.params.groupId, () => {
   searchText.value = ''
   roleFilter.value = 'all'
   void loadGroupDetail()
+  void loadGroupRequests()
 })
 
 onMounted(() => {
   void loadFriends()
   void loadGroupDetail()
+  void loadGroupRequests()
 })
 
 onUnmounted(() => {
@@ -1650,6 +1785,161 @@ onUnmounted(() => {
   line-height: 1.6;
 }
 
+.request-panel {
+  margin-bottom: 20px;
+  padding: 18px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--linkx-bg-hover) 52%, transparent);
+  border: 1px solid color-mix(in srgb, var(--linkx-border) 82%, transparent);
+}
+
+.request-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.request-panel-count {
+  flex-shrink: 0;
+  min-width: 72px;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: rgba(0, 214, 143, 0.14);
+  color: var(--linkx-primary);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.request-list {
+  display: grid;
+  gap: 12px;
+}
+
+.request-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--linkx-bg-card);
+  border: 1px solid color-mix(in srgb, var(--linkx-border) 88%, transparent);
+}
+
+.request-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #00a6ff 0%, #0066ff 100%);
+  color: white;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.request-avatar.invite {
+  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
+}
+
+.request-info {
+  min-width: 0;
+}
+
+.request-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.request-name {
+  color: var(--linkx-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.request-type-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.request-type-tag.join {
+  color: #ffb020;
+  background: rgba(255, 176, 32, 0.12);
+  border-color: rgba(255, 176, 32, 0.22);
+}
+
+.request-type-tag.invite {
+  color: var(--linkx-primary);
+  background: rgba(0, 214, 143, 0.12);
+  border-color: rgba(0, 214, 143, 0.22);
+}
+
+.request-message {
+  margin-top: 6px;
+  color: var(--linkx-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.request-time {
+  margin-top: 6px;
+  color: var(--linkx-text-muted);
+  font-size: 12px;
+}
+
+.request-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.request-action-btn {
+  min-width: 72px;
+  height: 34px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  transition: var(--linkx-transition-fast);
+}
+
+.request-action-btn.accept {
+  background: rgba(0, 214, 143, 0.12);
+  color: var(--linkx-primary);
+}
+
+.request-action-btn.reject {
+  background: rgba(255, 107, 107, 0.12);
+  color: #ff6b6b;
+}
+
+.request-empty-state {
+  padding: 18px;
+  border-radius: 16px;
+  text-align: center;
+  color: var(--linkx-text-muted);
+  font-size: 13px;
+  background: var(--linkx-bg-card);
+  border: 1px dashed color-mix(in srgb, var(--linkx-border) 86%, transparent);
+}
+
 .panel-subtitle {
   margin-top: 6px;
   font-size: 13px;
@@ -1968,7 +2258,8 @@ onUnmounted(() => {
 
   .member-panel-head,
   .member-panel-toolbar,
-  .member-card {
+  .member-card,
+  .request-card {
     grid-template-columns: 1fr;
   }
 
@@ -1996,6 +2287,10 @@ onUnmounted(() => {
   .member-actions {
     justify-content: flex-start;
   }
+
+  .request-actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2013,7 +2308,8 @@ onUnmounted(() => {
   .group-hero-top,
   .member-card-main,
   .member-panel-toolbar,
-  .profile-action-row {
+  .profile-action-row,
+  .request-panel-head {
     flex-direction: column;
     align-items: stretch;
   }
@@ -2053,6 +2349,11 @@ onUnmounted(() => {
 
   .member-actions {
     justify-content: stretch;
+  }
+
+  .request-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 </style>
