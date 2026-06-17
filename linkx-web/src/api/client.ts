@@ -1,8 +1,54 @@
 import axios from 'axios'
 import router from '../router'
+import { useUserStore } from '../stores/user'
 
 export const API_BASE_URL = 'http://localhost:8080'
 export const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws')
+
+let globalErrorHandler: ((message: string) => void) | null = null
+let refreshTokenPromise: Promise<string> | null = null
+
+export function setGlobalErrorHandler(handler: (message: string) => void) {
+  globalErrorHandler = handler
+}
+
+function applyAuthResponse(data: any) {
+  useUserStore().setLoginData(data)
+}
+
+function clearAuthState() {
+  try {
+    useUserStore().logout()
+  } catch {
+    localStorage.clear()
+  }
+}
+
+function isRefreshRequest(url?: string) {
+  return typeof url === 'string' && url.includes('/api/auth/refresh')
+}
+
+async function refreshAccessToken() {
+  const storedRefreshToken = localStorage.getItem('refreshToken')
+  if (!storedRefreshToken) {
+    throw new Error('登录已过期')
+  }
+  if (!refreshTokenPromise) {
+    refreshTokenPromise = axios.post(`${API_BASE_URL}/api/auth/refresh`, { refreshToken: storedRefreshToken }, {
+      timeout: 10000
+    }).then(response => {
+      const payload = response.data
+      if (!payload || payload.code !== 200 || !payload.data?.accessToken) {
+        throw new Error(payload?.message || '登录续期失败')
+      }
+      applyAuthResponse(payload.data)
+      return String(payload.data.accessToken)
+    }).finally(() => {
+      refreshTokenPromise = null
+    })
+  }
+  return refreshTokenPromise
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -30,10 +76,33 @@ api.interceptors.response.use(
     }
     return payload
   },
-  error => {
+  async error => {
+    const originalRequest = error.config || {}
+    const shouldRetryWithRefresh = error.response?.status === 401
+      && !originalRequest._retry
+      && !isRefreshRequest(originalRequest.url)
+      && Boolean(localStorage.getItem('refreshToken'))
+
+    if (shouldRetryWithRefresh) {
+      originalRequest._retry = true
+      try {
+        const nextAccessToken = await refreshAccessToken()
+        originalRequest.headers = originalRequest.headers || {}
+        originalRequest.headers.Authorization = `Bearer ${nextAccessToken}`
+        return api(originalRequest)
+      } catch (refreshError) {
+        clearAuthState()
+        await router.push('/login')
+        return Promise.reject(refreshError)
+      }
+    }
+
     if (error.response?.status === 401) {
-      localStorage.clear()
-      router.push('/login')
+      clearAuthState()
+      await router.push('/login')
+    } else {
+      const msg = error.response?.data?.message || error.message || '请求失败'
+      globalErrorHandler?.(msg)
     }
     return Promise.reject(error)
   }
@@ -46,6 +115,10 @@ export const authApi = {
     api.post('/api/auth/login', data),
   refresh: (refreshToken: string) =>
     api.post('/api/auth/refresh', { refreshToken })
+}
+
+export const chatApi = {
+  createWsTicket: () => api.post('/api/chat/ws-ticket')
 }
 
 export const userApi = {

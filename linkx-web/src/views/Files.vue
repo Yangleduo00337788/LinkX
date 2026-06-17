@@ -185,6 +185,7 @@
 import { ref, onMounted } from 'vue'
 import { fileApi } from '../api/client'
 import { useMessage } from 'naive-ui'
+import { parseDateTime } from '../utils/datetime'
 
 const message = useMessage()
 const fileInputRef = ref<HTMLInputElement>()
@@ -297,7 +298,8 @@ function formatSize(bytes: number) {
 
 function formatTime(time: string) {
   if (!time) return ''
-  const date = new Date(time)
+  const date = parseDateTime(time)
+  if (!date) return ''
   return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 </script>

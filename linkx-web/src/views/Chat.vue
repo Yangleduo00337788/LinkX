@@ -90,7 +90,7 @@
                 </template>
                 <template v-else>
                   {{ currentSession?.targetOnline ? '在线' : '离线' }}
-                  <template v-if="!wsConnected"> · 实时连接重连中</template>
+                  <template v-if="!wsConnected"> · 实时连接重连中{{ wsReconnectAttempt ? `（第 ${wsReconnectAttempt} 次）` : '' }}</template>
                 </template>
               </span>
             </div>
@@ -172,7 +172,22 @@
                     <img :src="msg.content" class="msg-image" @click="previewImage(msg.content)" />
                   </template>
                   <template v-else-if="msg.msgType === MESSAGE_TYPE_FILE">
-                    <a :href="msg.content" target="_blank" class="msg-file" @click.prevent="downloadFile(msg)">
+                    <button
+                      v-if="msg.deliveryStatus !== 'sent'"
+                      type="button"
+                      class="msg-file pending"
+                      :disabled="msg.deliveryStatus === 'sending'"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                      <div class="file-info">
+                        <span class="file-name">{{ msg.fileName || getFileName(msg.content) }}</span>
+                        <span class="file-size">{{ getFileSizeText(msg) || '待发送文件' }}</span>
+                      </div>
+                    </button>
+                    <a v-else :href="msg.content" target="_blank" class="msg-file" @click.prevent="downloadFile(msg)">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
@@ -189,7 +204,21 @@
                 </div>
                 <div class="msg-meta" :class="{ self: msg.isMe }">
                   <span class="msg-time">{{ msg.time }}</span>
-                  <span v-if="msg.isMe && msg.status !== MESSAGE_STATUS_RECALLED && !isGroupSession" class="msg-status" :class="{ read: msg.readStatus === '已读' }">
+                  <button
+                    v-if="msg.isMe && msg.status !== MESSAGE_STATUS_RECALLED && msg.deliveryStatus === 'failed'"
+                    type="button"
+                    class="msg-status retry"
+                    @click="retryFailedMessage(msg)"
+                  >
+                    发送失败，点击重试
+                  </button>
+                  <span
+                    v-else-if="msg.isMe && msg.status !== MESSAGE_STATUS_RECALLED && msg.deliveryStatus === 'sending'"
+                    class="msg-status pending"
+                  >
+                    发送中
+                  </span>
+                  <span v-else-if="msg.isMe && msg.status !== MESSAGE_STATUS_RECALLED && !isGroupSession" class="msg-status" :class="{ read: msg.readStatus === '已读' }">
                     {{ msg.readStatus }}
                   </span>
                 </div>
@@ -428,6 +457,17 @@
       </div>
       <div v-else class="panel-placeholder">所有好友都已在群内，暂无可邀请成员。</div>
 
+      <div class="form-section">
+        <label class="form-label">邀请说明</label>
+        <textarea
+          v-model="addMembersMessage"
+          class="modal-textarea"
+          rows="3"
+          maxlength="255"
+          placeholder="选填，邀请说明会出现在对方的群通知中"
+        ></textarea>
+      </div>
+
       <div class="modal-actions">
         <button class="secondary-btn" @click="closeAddMembersModal">取消</button>
         <button class="primary-btn" :disabled="addingMembers" @click="submitAddMembers">
@@ -664,11 +704,12 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from
 import { useRoute, useRouter } from 'vue-router'
 import { NIcon, useMessage } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
-import { fileApi, friendApi, groupApi, userApi } from '../api/client'
+import { chatApi, fileApi, friendApi, groupApi, userApi } from '../api/client'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import { useChatSocket } from '../hooks/useChatSocket'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
 import { useUserStore } from '../stores/user'
+import { getDateTimeTimestamp, parseDateTime } from '../utils/datetime'
 import { showNotification } from '../utils/notify'
 
 const SESSION_TYPE_SINGLE = 1
@@ -736,6 +777,8 @@ interface GroupDetail {
 
 interface DisplayMessage {
   id: string | number
+  localId: string
+  clientMessageId?: string
   isMe: boolean
   isSystem: boolean
   name: string
@@ -747,8 +790,13 @@ interface DisplayMessage {
   createTime: string
   time: string
   readStatus: string
+  deliveryStatus: 'sending' | 'sent' | 'failed'
   fileName?: string
   fileSize?: number
+  sessionType: number
+  targetId: string
+  retryFile?: File
+  uploadedFileId?: string | number
 }
 
 const route = useRoute()
@@ -768,6 +816,7 @@ const inputMessage = ref('')
 const sending = ref(false)
 const loadingMessages = ref(false)
 const loadingSessions = ref(false)
+let sendLock = false
 const showMenu = ref(false)
 const showMsgContextMenu = ref(false)
 const showImagePreview = ref(false)
@@ -809,6 +858,7 @@ const muteTargetMember = ref<GroupMember | null>(null)
 const muteMinutesInput = ref('10')
 const mutingMember = ref(false)
 const addMembersSelection = ref<Array<string | number>>([])
+const addMembersMessage = ref('')
 const flashSessionKey = ref<string | null>(null)
 const { confirmDialog, openConfirmDialog, cancelConfirmDialog, confirmConfirmDialog } = useConfirmDialog()
 
@@ -936,11 +986,16 @@ async function syncSocketState() {
 
 const {
   connected: wsConnected,
+  reconnectAttempt: wsReconnectAttempt,
   connect: connectChatSocket,
   disconnect: disconnectChatSocket,
   sendRequest: sendChatSocketRequest
 } = useChatSocket({
   token: () => userStore.token,
+  createTicket: async () => {
+    const res: any = await chatApi.createWsTicket()
+    return String(res.data?.ticket || '')
+  },
   onMessage: handleRealtimeEvent,
   onOpen: () => {
     void syncSocketState()
@@ -971,8 +1026,8 @@ function normalizeSession(session: any): ChatSession {
 
 function sortSessions() {
   sessions.value = [...sessions.value].sort((left, right) => {
-    const leftTime = left.lastMessageTime ? new Date(left.lastMessageTime).getTime() : 0
-    const rightTime = right.lastMessageTime ? new Date(right.lastMessageTime).getTime() : 0
+    const leftTime = getDateTimeTimestamp(left.lastMessageTime)
+    const rightTime = getDateTimeTimestamp(right.lastMessageTime)
     if (leftTime !== rightTime) {
       return rightTime - leftTime
     }
@@ -1034,40 +1089,86 @@ function isCurrentSession(session: ChatSession) {
   return buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(currentTargetId.value, currentSessionType.value)
 }
 
+function createLocalMessageId(prefix = 'local') {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function resolveMessageTargetId(item: any, isMe: boolean, sessionType: number) {
+  if (sessionType === SESSION_TYPE_GROUP) {
+    return String(item.toUserId)
+  }
+  return String(isMe ? item.toUserId : item.fromUserId)
+}
+
+function releaseMessageResource(messageItem?: DisplayMessage | null) {
+  if (!messageItem?.content?.startsWith('blob:')) {
+    return
+  }
+  URL.revokeObjectURL(messageItem.content)
+}
+
+function cleanupMessageResources(messageList = messages.value) {
+  for (const messageItem of messageList) {
+    releaseMessageResource(messageItem)
+  }
+}
+
 function toDisplayMessage(item: any): DisplayMessage {
   const readTime = item.readTime || ''
   const isRecalled = Number(item.status ?? 0) === MESSAGE_STATUS_RECALLED
+  const msgType = Number(item.msgType ?? MESSAGE_TYPE_TEXT)
+  const sessionType = Number(item.sessionType || SESSION_TYPE_SINGLE)
+  const isSystem = msgType === MESSAGE_TYPE_SYSTEM
+  const isMe = !isSystem && String(item.fromUserId) === String(userStore.userId)
   return {
     id: item.id,
-    isMe: Number(item.msgType ?? MESSAGE_TYPE_TEXT) !== MESSAGE_TYPE_SYSTEM && String(item.fromUserId) === String(userStore.userId),
-    isSystem: Number(item.msgType ?? MESSAGE_TYPE_TEXT) === MESSAGE_TYPE_SYSTEM,
+    localId: item.clientMessageId || String(item.id || createLocalMessageId('server')),
+    clientMessageId: item.clientMessageId || '',
+    isMe,
+    isSystem,
     name: item.fromNickname,
     fromAvatar: item.fromAvatar || '',
     content: item.content,
-    msgType: Number(item.msgType ?? MESSAGE_TYPE_TEXT),
+    msgType,
     status: Number(item.status ?? 0),
     readTime,
     createTime: item.createTime,
     time: item.createTime?.substring(11, 16) || '',
     readStatus: isRecalled ? '已撤回' : (readTime ? '已读' : '未读'),
+    deliveryStatus: 'sent',
     fileName: item.fileName || '',
-    fileSize: item.fileSize ? Number(item.fileSize) : undefined
+    fileSize: item.fileSize ? Number(item.fileSize) : undefined,
+    sessionType,
+    targetId: resolveMessageTargetId(item, isMe, sessionType),
+    uploadedFileId: undefined
   }
 }
 
 function upsertMessage(nextMessage: DisplayMessage) {
-  const messageIndex = messages.value.findIndex(item => String(item.id) === String(nextMessage.id))
+  const messageIndex = messages.value.findIndex(item => {
+    if (String(item.id) === String(nextMessage.id)) {
+      return true
+    }
+    if (item.clientMessageId && nextMessage.clientMessageId && item.clientMessageId === nextMessage.clientMessageId) {
+      return true
+    }
+    return item.localId === nextMessage.localId
+  })
   if (messageIndex === -1) {
     messages.value = [...messages.value, nextMessage]
   } else {
+    const previousMessage = messages.value[messageIndex]
+    if (previousMessage.content !== nextMessage.content) {
+      releaseMessageResource(previousMessage)
+    }
     messages.value.splice(messageIndex, 1, {
       ...messages.value[messageIndex],
       ...nextMessage
     })
   }
   messages.value.sort((left, right) => {
-    const leftTime = left.createTime ? new Date(left.createTime).getTime() : 0
-    const rightTime = right.createTime ? new Date(right.createTime).getTime() : 0
+    const leftTime = getDateTimeTimestamp(left.createTime)
+    const rightTime = getDateTimeTimestamp(right.createTime)
     if (leftTime !== rightTime) {
       return leftTime - rightTime
     }
@@ -1207,6 +1308,7 @@ async function handleRealtimeGroupRemoved(payload: any) {
   currentTargetId.value = null
   currentSessionType.value = SESSION_TYPE_SINGLE
   applyGroupDetail(null)
+  cleanupMessageResources()
   messages.value = []
   if (route.path.startsWith('/chat')) {
     await router.replace('/chat')
@@ -1245,8 +1347,8 @@ function formatTime(time?: string) {
   if (!time) {
     return ''
   }
-  const date = new Date(time)
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDateTime(time)
+  if (!date) {
     return ''
   }
   const now = new Date()
@@ -1269,8 +1371,8 @@ function formatDateTime(time?: string) {
   if (!time) {
     return ''
   }
-  const date = new Date(time)
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDateTime(time)
+  if (!date) {
     return ''
   }
   return date.toLocaleString('zh-CN', {
@@ -1377,19 +1479,157 @@ function getMessagePreview(msg: Pick<DisplayMessage, 'content' | 'msgType' | 'st
   return '[消息]'
 }
 
+function createPendingMessage(options: {
+  content: string
+  msgType: number
+  fileName?: string
+  fileSize?: number
+  retryFile?: File
+}) {
+  if (!currentTargetId.value) {
+    throw new Error('当前会话不存在')
+  }
+  const now = new Date()
+  const clientMessageId = createLocalMessageId('client')
+  const localId = createLocalMessageId('pending')
+  const pendingMessage: DisplayMessage = {
+    id: localId,
+    localId,
+    clientMessageId,
+    isMe: true,
+    isSystem: false,
+    name: userStore.nickname || '我',
+    fromAvatar: userStore.avatar || '',
+    content: options.content,
+    msgType: options.msgType,
+    status: 0,
+    readTime: '',
+    createTime: now.toISOString(),
+    time: now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+    readStatus: '未读',
+    deliveryStatus: 'sending',
+    fileName: options.fileName || '',
+    fileSize: options.fileSize,
+    sessionType: currentSessionType.value,
+    targetId: String(currentTargetId.value),
+    retryFile: options.retryFile
+  }
+  upsertMessage(pendingMessage)
+  return pendingMessage
+}
+
+function markMessageDelivery(localId: string, deliveryStatus: DisplayMessage['deliveryStatus']) {
+  const messageIndex = messages.value.findIndex(item => item.localId === localId)
+  if (messageIndex === -1) {
+    return
+  }
+  messages.value.splice(messageIndex, 1, {
+    ...messages.value[messageIndex],
+    deliveryStatus
+  })
+}
+
+function patchMessage(localId: string, patch: Partial<DisplayMessage>) {
+  const messageIndex = messages.value.findIndex(item => item.localId === localId)
+  if (messageIndex === -1) {
+    return
+  }
+  messages.value.splice(messageIndex, 1, {
+    ...messages.value[messageIndex],
+    ...patch
+  })
+}
+
+function scrollMessagesToBottom(force = false) {
+  nextTick(() => {
+    if (!messagesRef.value) {
+      return
+    }
+    if (!force && !wasAtBottom) {
+      return
+    }
+    messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+  })
+}
+
+async function sendPendingTextMessage(localMessage: DisplayMessage, content: string) {
+  const response: any = await sendChatCommand('SEND_MESSAGE', {
+    toUserId: localMessage.targetId,
+    content,
+    sessionType: localMessage.sessionType,
+    clientMessageId: localMessage.clientMessageId
+  })
+  if (response?.data) {
+    upsertMessage(toDisplayMessage(response.data))
+  } else {
+    markMessageDelivery(localMessage.localId, 'sent')
+  }
+}
+
+async function sendPendingFileMessage(localMessage: DisplayMessage, file: File, msgType: number) {
+  let fileId = localMessage.uploadedFileId
+  if (!fileId) {
+    const uploadResponse: any = msgType === MESSAGE_TYPE_IMAGE
+      ? await fileApi.uploadImage(file)
+      : await fileApi.uploadFile(file)
+    fileId = uploadResponse.data?.id
+    patchMessage(localMessage.localId, {
+      uploadedFileId: fileId,
+      fileName: uploadResponse.data?.originalName || localMessage.fileName,
+      fileSize: uploadResponse.data?.fileSize != null ? Number(uploadResponse.data.fileSize) : localMessage.fileSize
+    })
+  }
+  const sendResponse: any = await sendChatCommand('SEND_FILE_MESSAGE', {
+    toUserId: localMessage.targetId,
+    fileId,
+    msgType,
+    sessionType: localMessage.sessionType,
+    clientMessageId: localMessage.clientMessageId
+  })
+  if (sendResponse?.data) {
+    upsertMessage(toDisplayMessage(sendResponse.data))
+  } else {
+    markMessageDelivery(localMessage.localId, 'sent')
+  }
+}
+
+async function executePendingMessage(localMessage: DisplayMessage, executor: () => Promise<void>, failureMessage: string) {
+  try {
+    await executor()
+    scrollMessagesToBottom(true)
+  } catch (error: any) {
+    console.error('executePendingMessage error:', error)
+    markMessageDelivery(localMessage.localId, 'failed')
+    message.error(error.response?.data?.message || failureMessage)
+    return
+  }
+}
+
+async function retryFailedMessage(messageItem: DisplayMessage) {
+  if (messageItem.deliveryStatus !== 'failed') {
+    return
+  }
+  if (buildSessionKey(messageItem.targetId, messageItem.sessionType) !== buildSessionKey(currentTargetId.value || '', currentSessionType.value)) {
+    message.warning('请回到原会话后重试发送')
+    return
+  }
+  markMessageDelivery(messageItem.localId, 'sending')
+  if (messageItem.msgType === MESSAGE_TYPE_TEXT) {
+    await executePendingMessage(messageItem, () => sendPendingTextMessage(messageItem, messageItem.content), '发送失败')
+    return
+  }
+  if (messageItem.retryFile) {
+    const failureMessage = messageItem.msgType === MESSAGE_TYPE_IMAGE ? '发送图片失败' : '发送文件失败'
+    await executePendingMessage(messageItem, () => sendPendingFileMessage(messageItem, messageItem.retryFile!, messageItem.msgType), failureMessage)
+  }
+}
+
 function downloadFile(msg: DisplayMessage) {
   downloadFileName.value = msg.fileName || getFileName(msg.content)
   downloadFileSize.value = getFileSizeText(msg)
   downloadFileUrl.value = msg.content
-  downloadProgress.value = 0
+  downloadProgress.value = 100
   showDownloadModal.value = true
-  const interval = setInterval(() => {
-    downloadProgress.value += Math.random() * 30
-    if (downloadProgress.value >= 100) {
-      downloadProgress.value = 100
-      clearInterval(interval)
-    }
-  }, 200)
 }
 
 function openDownloadedFile() {
@@ -1623,6 +1863,7 @@ async function loadMessages(targetId: string, sessionType: number) {
     const rawMessages = response.data || []
     const nextMessages: DisplayMessage[] = rawMessages.map((item: any) => toDisplayMessage(item))
 
+    cleanupMessageResources(messages.value)
     messages.value = nextMessages
 
     await nextTick()
@@ -1633,6 +1874,7 @@ async function loadMessages(targetId: string, sessionType: number) {
     await markCurrentSessionRead(targetId, sessionType)
   } catch (error) {
     console.error('loadMessages error:', error)
+    cleanupMessageResources(messages.value)
     messages.value = []
   } finally {
     loadingMessages.value = false
@@ -1660,31 +1902,27 @@ async function handleSend() {
     message.warning('你已被禁言，暂时无法发送消息')
     return
   }
+  if (sendLock) {
+    return
+  }
 
+  sendLock = true
   sending.value = true
   try {
-    const response: any = await sendChatCommand('SEND_MESSAGE', {
-      toUserId: currentTargetId.value,
-      content: inputMessage.value.trim(),
-      sessionType: currentSessionType.value
+    const content = inputMessage.value.trim()
+    const localMessage = createPendingMessage({
+      content,
+      msgType: MESSAGE_TYPE_TEXT
     })
     inputMessage.value = ''
     if (textareaRef.value) {
       textareaRef.value.style.height = 'auto'
     }
-    if (response?.data) {
-      upsertMessage(toDisplayMessage(response.data))
-      nextTick(() => {
-        if (messagesRef.value) {
-          messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-        }
-      })
-    }
-  } catch (error: any) {
-    console.error('handleSend error:', error)
-    message.error(error.response?.data?.message || '发送失败')
+    scrollMessagesToBottom(true)
+    await executePendingMessage(localMessage, () => sendPendingTextMessage(localMessage, content), '发送失败')
   } finally {
     sending.value = false
+    sendLock = false
   }
 }
 
@@ -1701,25 +1939,15 @@ async function handleFileUpload(event: Event) {
   }
 
   try {
-    const uploadResponse: any = await fileApi.uploadFile(file)
-    const fileId = uploadResponse.data?.id
-    const sendResponse: any = await sendChatCommand('SEND_FILE_MESSAGE', {
-      toUserId: currentTargetId.value,
-      fileId,
+    const localMessage = createPendingMessage({
+      content: file.name,
       msgType: MESSAGE_TYPE_FILE,
-      sessionType: currentSessionType.value
+      fileName: file.name,
+      fileSize: file.size,
+      retryFile: file
     })
-    if (sendResponse?.data) {
-      upsertMessage(toDisplayMessage(sendResponse.data))
-      nextTick(() => {
-        if (messagesRef.value) {
-          messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-        }
-      })
-    }
-  } catch (error: any) {
-    console.error('handleFileUpload error:', error)
-    message.error(error.response?.data?.message || '发送文件失败')
+    scrollMessagesToBottom(true)
+    await executePendingMessage(localMessage, () => sendPendingFileMessage(localMessage, file, MESSAGE_TYPE_FILE), '发送文件失败')
   } finally {
     input.value = ''
   }
@@ -1738,25 +1966,16 @@ async function handleImageUpload(event: Event) {
   }
 
   try {
-    const uploadResponse: any = await fileApi.uploadImage(file)
-    const fileId = uploadResponse.data?.id
-    const sendResponse: any = await sendChatCommand('SEND_FILE_MESSAGE', {
-      toUserId: currentTargetId.value,
-      fileId,
+    const localPreviewUrl = URL.createObjectURL(file)
+    const localMessage = createPendingMessage({
+      content: localPreviewUrl,
       msgType: MESSAGE_TYPE_IMAGE,
-      sessionType: currentSessionType.value
+      fileName: file.name,
+      fileSize: file.size,
+      retryFile: file
     })
-    if (sendResponse?.data) {
-      upsertMessage(toDisplayMessage(sendResponse.data))
-      nextTick(() => {
-        if (messagesRef.value) {
-          messagesRef.value.scrollTop = messagesRef.value.scrollHeight
-        }
-      })
-    }
-  } catch (error: any) {
-    console.error('handleImageUpload error:', error)
-    message.error(error.response?.data?.message || '发送图片失败')
+    scrollMessagesToBottom(true)
+    await executePendingMessage(localMessage, () => sendPendingFileMessage(localMessage, file, MESSAGE_TYPE_IMAGE), '发送图片失败')
   } finally {
     input.value = ''
   }
@@ -1774,10 +1993,10 @@ function showMsgMenu(event: MouseEvent, msg: DisplayMessage) {
 }
 
 function canRecallMessage(msg: DisplayMessage | null) {
-  if (!msg || msg.isSystem || !msg.isMe || msg.status === MESSAGE_STATUS_RECALLED || !msg.createTime) {
+  if (!msg || msg.isSystem || !msg.isMe || msg.status === MESSAGE_STATUS_RECALLED || !msg.createTime || msg.deliveryStatus !== 'sent') {
     return false
   }
-  const messageTime = new Date(msg.createTime).getTime()
+  const messageTime = getDateTimeTimestamp(msg.createTime)
   return Date.now() - messageTime < 2 * 60 * 1000
 }
 
@@ -1990,12 +2209,14 @@ async function closeGroupDrawer(options: { force?: boolean } = {}) {
 
 function openAddMembersModal() {
   addMembersSelection.value = []
+  addMembersMessage.value = ''
   showAddMembersModal.value = true
 }
 
 function closeAddMembersModal() {
   showAddMembersModal.value = false
   addMembersSelection.value = []
+  addMembersMessage.value = ''
 }
 
 async function submitAddMembers() {
@@ -2006,7 +2227,7 @@ async function submitAddMembers() {
 
   addingMembers.value = true
   try {
-    await groupApi.inviteMembers(currentTargetId.value, addMembersSelection.value)
+    await groupApi.inviteMembers(currentTargetId.value, addMembersSelection.value, addMembersMessage.value.trim())
     closeAddMembersModal()
     message.success('入群邀请已发送')
   } catch (error: any) {
@@ -2227,6 +2448,7 @@ async function handleDissolveGroup() {
     currentTargetId.value = null
     currentSessionType.value = SESSION_TYPE_SINGLE
     applyGroupDetail(null)
+    cleanupMessageResources()
     messages.value = []
     await router.replace('/chat')
     message.success('群聊已解散')
@@ -2257,6 +2479,7 @@ async function handleLeaveGroup() {
     currentTargetId.value = null
     currentSessionType.value = SESSION_TYPE_SINGLE
     applyGroupDetail(null)
+    cleanupMessageResources()
     messages.value = []
     await router.replace('/chat')
     message.success('已退出群聊')
@@ -2322,6 +2545,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   disconnectChatSocket()
+  cleanupMessageResources()
   resetCreateGroupForm()
   resetGroupProfileDraft()
   document.removeEventListener('click', handleClickOutside)
@@ -2999,8 +3223,24 @@ onUnmounted(() => {
   margin-right: 4px;
 }
 
+.msg-status {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+}
+
 .msg-status.read {
   color: var(--linkx-primary);
+}
+
+.msg-status.pending {
+  color: var(--linkx-text-muted);
+}
+
+.msg-status.retry {
+  color: var(--linkx-error);
+  cursor: pointer;
 }
 
 .msg-image {
@@ -3014,8 +3254,19 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
   color: inherit;
   text-decoration: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+}
+
+.msg-file.pending {
+  cursor: default;
+  opacity: 0.82;
 }
 
 .file-info {

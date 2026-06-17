@@ -3,6 +3,7 @@ import { WS_BASE_URL } from '../api/client'
 
 interface SocketOptions {
   token: () => string
+  createTicket: () => Promise<string>
   onMessage: (payload: any) => void
   onOpen?: () => void
   onClose?: () => void
@@ -23,11 +24,14 @@ export function useChatSocket(options: SocketOptions) {
   const socket = ref<WebSocket | null>(null)
   const connected = ref(false)
   const connecting = ref(false)
+  const reconnectAttempt = ref(0)
   const reconnectDelays = [1000, 2000, 5000, 10000, 30000]
   const pendingRequests = new Map<string, PendingRequest>()
   const openWaiters = new Set<Waiter>()
 
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
+  let heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null
   let reconnectAttempts = 0
   let manualClose = false
   let requestSequence = 0
@@ -39,6 +43,17 @@ export function useChatSocket(options: SocketOptions) {
     }
   }
 
+  function clearHeartbeatTimers() {
+    if (heartbeatTimer) {
+      clearTimeout(heartbeatTimer)
+      heartbeatTimer = null
+    }
+    if (heartbeatTimeoutTimer) {
+      clearTimeout(heartbeatTimeoutTimer)
+      heartbeatTimeoutTimer = null
+    }
+  }
+
   function scheduleReconnect() {
     clearReconnectTimer()
     if (manualClose) {
@@ -47,6 +62,7 @@ export function useChatSocket(options: SocketOptions) {
     const nextDelay = reconnectDelays[Math.min(reconnectAttempts, reconnectDelays.length - 1)]
     reconnectTimer = setTimeout(() => {
       reconnectAttempts += 1
+      reconnectAttempt.value = reconnectAttempts
       connect()
     }, nextDelay)
   }
@@ -124,7 +140,28 @@ export function useChatSocket(options: SocketOptions) {
     })
   }
 
-  function connect() {
+  function scheduleHeartbeat() {
+    clearHeartbeatTimers()
+    heartbeatTimer = setTimeout(() => {
+      const currentSocket = socket.value
+      if (!currentSocket || currentSocket.readyState !== WebSocket.OPEN) {
+        return
+      }
+      try {
+        currentSocket.send('PING')
+      } catch (error) {
+        currentSocket.close()
+        return
+      }
+      heartbeatTimeoutTimer = setTimeout(() => {
+        if (socket.value === currentSocket && currentSocket.readyState === WebSocket.OPEN) {
+          currentSocket.close()
+        }
+      }, 10000)
+    }, 20000)
+  }
+
+  async function connect() {
     const token = options.token()
     if (!token || connecting.value || connected.value) {
       return
@@ -134,25 +171,53 @@ export function useChatSocket(options: SocketOptions) {
     connecting.value = true
     manualClose = false
 
-    const wsUrl = `${WS_BASE_URL}/ws/chat?token=${encodeURIComponent(token)}`
-    const ws = new WebSocket(wsUrl)
-    socket.value = ws
+    let ws: WebSocket
+    try {
+      const ticket = await options.createTicket()
+      if (!ticket) {
+        throw createSocketError('WebSocket 握手票据为空')
+      }
+      if (manualClose) {
+        connecting.value = false
+        return
+      }
+      const wsUrl = `${WS_BASE_URL}/ws/chat?ticket=${encodeURIComponent(ticket)}`
+      ws = new WebSocket(wsUrl)
+      socket.value = ws
+    } catch (error: any) {
+      connecting.value = false
+      socket.value = null
+      const connectError = error instanceof Error ? error : createSocketError(error?.message || 'WebSocket 连接失败')
+      rejectOpenWaiters(connectError)
+      rejectPendingRequests(connectError)
+      options.onClose?.()
+      scheduleReconnect()
+      return
+    }
 
     ws.onopen = () => {
       connecting.value = false
       connected.value = true
       reconnectAttempts = 0
+      reconnectAttempt.value = 0
       resolveOpenWaiters()
+      scheduleHeartbeat()
       options.onOpen?.()
     }
 
     ws.onmessage = event => {
+      if (event.data === 'PONG') {
+        clearHeartbeatTimers()
+        scheduleHeartbeat()
+        return
+      }
       try {
         const payload = JSON.parse(event.data)
         if (payload?.type === 'COMMAND_RESULT') {
           handleCommandResult(payload.data)
           return
         }
+        scheduleHeartbeat()
         options.onMessage(payload)
       } catch (error) {
         console.error('parse websocket message error:', error)
@@ -164,6 +229,7 @@ export function useChatSocket(options: SocketOptions) {
     ws.onclose = event => {
       connecting.value = false
       connected.value = false
+      clearHeartbeatTimers()
       socket.value = null
       const closeError = createSocketError(event.reason || 'WebSocket 连接已关闭')
       rejectOpenWaiters(closeError)
@@ -209,8 +275,10 @@ export function useChatSocket(options: SocketOptions) {
   function disconnect() {
     manualClose = true
     clearReconnectTimer()
+    clearHeartbeatTimers()
     connecting.value = false
     connected.value = false
+    reconnectAttempt.value = 0
     if (socket.value) {
       socket.value.close()
       socket.value = null
@@ -228,6 +296,7 @@ export function useChatSocket(options: SocketOptions) {
     socket,
     connected,
     connecting,
+    reconnectAttempt,
     connect,
     disconnect,
     sendRequest
