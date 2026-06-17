@@ -1,11 +1,48 @@
 import { getElectronAPI } from './electron'
 
 type NotificationSoundType = 'message' | 'attention'
+const IN_APP_NOTIFICATION_EVENT = 'linkx-in-app-notification'
 
 let audioContext: AudioContext | null = null
 let soundThrottleTimer = 0
 
-export async function showNotification(title: string, body: string, icon?: string): Promise<boolean> {
+export interface InAppNotificationPayload {
+  id: string
+  title: string
+  body: string
+  icon?: string
+  targetId?: string
+  sessionType?: number
+  messageId?: string
+  attention?: boolean
+}
+
+function emitInAppNotification(payload: InAppNotificationPayload) {
+  if (typeof window === 'undefined') {
+    return
+  }
+  window.dispatchEvent(new CustomEvent(IN_APP_NOTIFICATION_EVENT, {
+    detail: payload
+  }))
+}
+
+function buildNotificationId() {
+  return `notify-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+export async function showNotification(
+  title: string,
+  body: string,
+  icon?: string,
+  payload: Omit<InAppNotificationPayload, 'id' | 'title' | 'body' | 'icon'> = {}
+): Promise<boolean> {
+  emitInAppNotification({
+    id: buildNotificationId(),
+    title,
+    body,
+    icon,
+    ...payload
+  })
   const api = getElectronAPI()
   if (api) {
     return await api.showNotification(title, body, icon)
@@ -66,6 +103,10 @@ function createTone(
 }
 
 export async function playNotificationSound(type: NotificationSoundType = 'message'): Promise<boolean> {
+  const api = getElectronAPI()
+  if (api?.playNotificationSound) {
+    return await api.playNotificationSound(type)
+  }
   const now = Date.now()
   if (now - soundThrottleTimer < 280) {
     return false
@@ -110,4 +151,13 @@ export function emitNewMessage(senderName: string, content: string): void {
   window.dispatchEvent(new CustomEvent('new-message', {
     detail: { senderName, content }
   }))
+}
+
+export function onInAppNotification(callback: (payload: InAppNotificationPayload) => void): () => void {
+  const handler = (event: Event) => {
+    const customEvent = event as CustomEvent<InAppNotificationPayload>
+    callback(customEvent.detail)
+  }
+  window.addEventListener(IN_APP_NOTIFICATION_EVENT, handler)
+  return () => window.removeEventListener(IN_APP_NOTIFICATION_EVENT, handler)
 }

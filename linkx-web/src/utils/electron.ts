@@ -21,6 +21,7 @@ export interface ElectronAPI {
 
   // 系统通知
   showNotification: (title: string, body: string, icon?: string) => Promise<boolean>
+  playNotificationSound: (type?: 'message' | 'attention') => Promise<boolean>
 
   // 文件拖拽
   onFileDrop: (callback: (files: string[]) => void) => void

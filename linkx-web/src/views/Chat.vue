@@ -1642,10 +1642,18 @@ function getNotificationSoundType(messageItem: DisplayMessage) {
 }
 
 function notifyIncomingMessage(messageItem: DisplayMessage) {
-  if (!shouldShowDesktopNotification(messageItem)) {
+  const shouldNotify = shouldShowDesktopNotification(messageItem)
+  const targetId = String(messageItem.targetId || '')
+  const sessionType = Number(messageItem.sessionType || SESSION_TYPE_SINGLE)
+  if (!shouldNotify) {
     return
   }
-  void showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
+  void showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem), undefined, {
+    targetId,
+    sessionType,
+    messageId: String(messageItem.id || ''),
+    attention: Boolean(messageItem.isSystem || messageItem.mentionedMe)
+  })
   void playNotificationSound(getNotificationSoundType(messageItem))
 }
 

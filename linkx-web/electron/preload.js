@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 系统通知
   showNotification: (title, body, icon) => ipcRenderer.invoke('notification:show', title, body, icon),
+  playNotificationSound: (type) => ipcRenderer.invoke('notification:playSound', type),
 
   // 文件拖拽
   onFileDrop: (callback) => ipcRenderer.on('file:drop', (_, files) => callback(files)),

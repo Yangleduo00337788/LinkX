@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 .electron-builder-cache
+release
+release-inapp
 *.local
 
 # Editor directories and files

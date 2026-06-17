@@ -9,6 +9,31 @@ let localRendererServer = null
 const LOCAL_RENDERER_HOST = '127.0.0.1'
 const LOCAL_RENDERER_PORT = Number(process.env.LINKX_ELECTRON_PORT || 39689)
 const APP_USER_MODEL_ID = 'com.linkx.im'
+const TOAST_ACTIVATOR_CLSID = '2E35D3A8-5D13-4D74-A824-6C6C3D4B8F71'
+
+function getRuntimeAppUserModelId() {
+  return app.isPackaged ? APP_USER_MODEL_ID : process.execPath
+}
+
+function ensureWindowsNotificationShortcut() {
+  if (process.platform !== 'win32') {
+    return
+  }
+  try {
+    const programsDir = path.join(process.env.APPDATA || app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs')
+    const shortcutPath = path.join(programsDir, 'LinkX IM.lnk')
+    fs.mkdirSync(programsDir, { recursive: true })
+    shell.writeShortcutLink(shortcutPath, 'create', {
+      target: process.execPath,
+      cwd: path.dirname(process.execPath),
+      description: 'LinkX IM',
+      appUserModelId: getRuntimeAppUserModelId(),
+      toastActivatorClsid: TOAST_ACTIVATOR_CLSID
+    })
+  } catch (error) {
+    console.warn('ensureWindowsNotificationShortcut failed:', error)
+  }
+}
 
 const STATIC_MIME_TYPES = {
   '.css': 'text/css; charset=utf-8',
@@ -165,7 +190,7 @@ async function createWindow() {
   }
 
   try {
-    const { createTray, destroyTray } = require('./tray')
+    const { createTray } = require('./tray')
     createTray(mainWindow)
     console.log('Tray loaded')
   } catch (e) {
@@ -181,6 +206,7 @@ async function createWindow() {
     console.error('Updater load error:', e.message)
   }
 
+  ensureWindowsNotificationShortcut()
   setupIPC()
   console.log('IPC setup complete')
 }
@@ -217,7 +243,10 @@ function setupIPC() {
   })
 
   ipcMain.handle('notification:show', (_, title, body, icon) => {
-    if (Notification.isSupported()) {
+    const supported = Notification.isSupported()
+    const shouldUseTrayBalloonFallback = process.platform === 'win32' && !app.isPackaged
+    let shown = false
+    if (supported) {
       const notification = new Notification({
         title,
         body,
@@ -235,9 +264,38 @@ function setupIPC() {
         mainWindow.focus()
       })
       notification.show()
-      return true
+      shown = true
     }
-    return false
+    if (shouldUseTrayBalloonFallback) {
+      try {
+        const { showTrayBalloon } = require('./tray')
+        shown = showTrayBalloon(title, body) || shown
+      } catch (error) {
+        console.warn('Tray balloon fallback error:', error)
+      }
+    }
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isFocused()) {
+      try {
+        const { startWindowAttention } = require('./tray')
+        startWindowAttention()
+      } catch (error) {
+        console.warn('Window attention fallback error:', error)
+      }
+    }
+    return shown
+  })
+
+  ipcMain.handle('notification:playSound', (_, type = 'message') => {
+    try {
+      shell.beep()
+      if (type === 'attention') {
+        setTimeout(() => shell.beep(), 180)
+      }
+      return true
+    } catch (error) {
+      console.warn('notification:playSound failed:', error)
+      return false
+    }
   })
 
   ipcMain.handle('app:versions', () => ({
@@ -267,7 +325,7 @@ function setupIPC() {
 }
 
 if (process.platform === 'win32') {
-  app.setAppUserModelId(APP_USER_MODEL_ID)
+  app.setAppUserModelId(getRuntimeAppUserModelId())
 }
 
 app.whenReady().then(() => {

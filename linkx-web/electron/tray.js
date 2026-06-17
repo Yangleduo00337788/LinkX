@@ -4,6 +4,46 @@ const fs = require('fs')
 
 let tray = null
 let mainWindow = null
+let trayIcon = null
+const MAX_BALLOON_CONTENT_LENGTH = 160
+
+function focusMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
+  }
+  mainWindow.show()
+  mainWindow.focus()
+  stopWindowAttention()
+}
+
+function stopWindowAttention() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return
+  }
+  mainWindow.flashFrame(false)
+}
+
+function startWindowAttention() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return false
+  }
+  mainWindow.flashFrame(true)
+  return true
+}
+
+function normalizeBalloonContent(content) {
+  const text = String(content || '').trim()
+  if (!text) {
+    return '你有一条新消息'
+  }
+  if (text.length <= MAX_BALLOON_CONTENT_LENGTH) {
+    return text
+  }
+  return `${text.slice(0, MAX_BALLOON_CONTENT_LENGTH - 1)}...`
+}
 
 function createTray(window) {
   mainWindow = window
@@ -16,6 +56,7 @@ function createTray(window) {
   } else {
     icon = nativeImage.createEmpty()
   }
+  trayIcon = icon
 
   tray = new Tray(icon)
   tray.setToolTip('LinkX IM')
@@ -23,13 +64,7 @@ function createTray(window) {
   updateTrayMenu()
 
   tray.on('click', () => {
-    if (mainWindow) {
-      if (mainWindow.isVisible()) {
-        mainWindow.focus()
-      } else {
-        mainWindow.show()
-      }
-    }
+    focusMainWindow()
   })
 
   mainWindow.on('close', (e) => {
@@ -38,6 +73,9 @@ function createTray(window) {
       mainWindow.hide()
     }
   })
+  mainWindow.on('focus', stopWindowAttention)
+  mainWindow.on('show', stopWindowAttention)
+  mainWindow.on('restore', stopWindowAttention)
 
   return tray
 }
@@ -71,6 +109,26 @@ function destroyTray() {
     tray.destroy()
     tray = null
   }
+  trayIcon = null
 }
 
-module.exports = { createTray, destroyTray }
+function showTrayBalloon(title, body) {
+  if (process.platform !== 'win32' || !tray || typeof tray.displayBalloon !== 'function') {
+    return false
+  }
+  try {
+    tray.displayBalloon({
+      title: String(title || 'LinkX IM'),
+      content: normalizeBalloonContent(body),
+      icon: trayIcon,
+      iconType: 'custom',
+      noSound: true
+    })
+    return true
+  } catch (error) {
+    console.warn('showTrayBalloon failed:', error)
+    return false
+  }
+}
+
+module.exports = { createTray, destroyTray, showTrayBalloon, startWindowAttention, stopWindowAttention }
