@@ -10,6 +10,7 @@ const routes = [
     children: [
       { path: 'chat', name: 'Chat', component: () => import('../views/Chat.vue') },
       { path: 'chat/:targetId', name: 'ChatRoom', component: () => import('../views/Chat.vue') },
+      { path: 'groups/:groupId/members', name: 'GroupMembers', component: () => import('../views/GroupMembers.vue') },
       { path: 'friends', name: 'Friends', component: () => import('../views/Friends.vue') },
       { path: 'files', name: 'Files', component: () => import('../views/Files.vue') },
       { path: 'blacklist', name: 'Blacklist', component: () => import('../views/Blacklist.vue') },

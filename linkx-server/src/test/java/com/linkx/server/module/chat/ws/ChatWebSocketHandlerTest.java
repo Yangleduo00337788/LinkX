@@ -83,7 +83,7 @@ class ChatWebSocketHandlerTest {
         message.setStatus(0);
         message.setCreateTime(LocalDateTime.of(2026, 6, 16, 22, 0));
 
-        when(chatService.sendMessage(1L, 2L, "hello", 0, 1, "client-msg-1")).thenReturn(message);
+        when(chatService.sendMessage(1L, 2L, "hello", 0, 1, "client-msg-1", false, List.of())).thenReturn(message);
 
         handler.handleTextMessage(session, new TextMessage("""
                 {
@@ -99,7 +99,7 @@ class ChatWebSocketHandlerTest {
                 }
                 """));
 
-        verify(chatService).sendMessage(1L, 2L, "hello", 0, 1, "client-msg-1");
+        verify(chatService).sendMessage(1L, 2L, "hello", 0, 1, "client-msg-1", false, List.of());
         assertEquals(1, outboundMessages.size());
 
         JsonNode payload = objectMapper.readTree(outboundMessages.get(0).getPayload());
@@ -107,6 +107,41 @@ class ChatWebSocketHandlerTest {
         assertTrue(payload.path("data").path("success").asBoolean());
         assertEquals("req-1", payload.path("data").path("requestId").asText());
         assertEquals("client-msg-1", payload.path("data").path("data").path("clientMessageId").asText());
+    }
+
+    @Test
+    void should_forward_group_mentions_when_sending_message() throws Exception {
+        MessageDTO message = new MessageDTO();
+        message.setId(100L);
+        message.setContent("@张三 开会");
+        message.setMsgType(0);
+        message.setMentionAll(true);
+        message.setMentionUserIds(List.of(3L, 4L));
+        message.setCreateTime(LocalDateTime.of(2026, 6, 17, 10, 30));
+
+        when(chatService.sendMessage(1L, 200L, "@张三 开会", 0, 2, "client-msg-2", true, List.of(3L, 4L))).thenReturn(message);
+
+        handler.handleTextMessage(session, new TextMessage("""
+                {
+                  "requestId": "req-2",
+                  "action": "SEND_MESSAGE",
+                  "data": {
+                    "toUserId": 200,
+                    "content": "@张三 开会",
+                    "msgType": 0,
+                    "sessionType": 2,
+                    "clientMessageId": "client-msg-2",
+                    "mentionAll": true,
+                    "mentionUserIds": [3, "4"]
+                  }
+                }
+                """));
+
+        verify(chatService).sendMessage(1L, 200L, "@张三 开会", 0, 2, "client-msg-2", true, List.of(3L, 4L));
+        JsonNode payload = objectMapper.readTree(outboundMessages.get(0).getPayload());
+        assertTrue(payload.path("data").path("success").asBoolean());
+        assertTrue(payload.path("data").path("data").path("mentionAll").asBoolean());
+        assertEquals(2, payload.path("data").path("data").path("mentionUserIds").size());
     }
 
     @Test

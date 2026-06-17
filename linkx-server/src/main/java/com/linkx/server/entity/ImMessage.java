@@ -22,6 +22,10 @@ public class ImMessage {
 
     private Integer msgType;
 
+    private Boolean mentionAll;
+
+    private String mentionUserIds;
+
     private Integer status;
 
     private LocalDateTime readTime;

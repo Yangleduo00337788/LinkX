@@ -149,10 +149,29 @@
 
           <template v-else>
             <div
+              v-if="showMentionBanner"
+              role="button"
+              tabindex="0"
+              class="mention-banner"
+              @click="handleMentionBannerClick()"
+              @keydown.enter.prevent="handleMentionBannerClick()"
+              @keydown.space.prevent="handleMentionBannerClick()"
+            >
+              <span class="mention-banner-badge">特别提醒</span>
+              <span class="mention-banner-text">{{ mentionBannerText }}</span>
+              <span class="mention-banner-action">{{ mentionBannerActionText }}</span>
+              <span class="mention-banner-close" @click.stop="dismissMentionBanner">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </span>
+            </div>
+            <div
               v-for="(msg, index) in messages"
               :key="msg.id || index"
               class="message-row"
               :class="{ self: msg.isMe, system: msg.isSystem }"
+              :data-message-key="getMessageAnchorKey(msg)"
             >
               <template v-if="msg.isSystem">
                 <div class="system-message">{{ msg.content }}</div>
@@ -164,12 +183,16 @@
               </div>
               <div class="msg-content">
                 <div v-if="isGroupSession && !msg.isMe" class="msg-sender">{{ msg.name }}</div>
-                <div class="msg-bubble" :class="{ self: msg.isMe, recalled: msg.status === MESSAGE_STATUS_RECALLED }" @contextmenu.prevent="showMsgMenu($event, msg)">
+                <div
+                  class="msg-bubble"
+                  :class="{ self: msg.isMe, recalled: msg.status === MESSAGE_STATUS_RECALLED }"
+                  @contextmenu.prevent="showMsgMenu($event, msg)"
+                >
                   <template v-if="msg.status === MESSAGE_STATUS_RECALLED">
                     <span class="recalled-text">[消息已撤回]</span>
                   </template>
                   <template v-else-if="msg.msgType === MESSAGE_TYPE_IMAGE">
-                    <img :src="msg.content" class="msg-image" @click="previewImage(msg.content)" />
+                    <img :src="msg.content" class="msg-image" @load="handleMessageMediaLoad" @click="previewImage(msg.content)" />
                   </template>
                   <template v-else-if="msg.msgType === MESSAGE_TYPE_FILE">
                     <button
@@ -199,7 +222,13 @@
                     </a>
                   </template>
                   <template v-else>
-                    {{ msg.content }}
+                    <span
+                      v-for="(segment, segmentIndex) in getMessageTextSegments(msg.content)"
+                      :key="`${getMessageAnchorKey(msg)}-${segmentIndex}`"
+                      :class="{ 'mention-text': segment.mention }"
+                    >
+                      {{ segment.text }}
+                    </span>
                   </template>
                 </div>
                 <div class="msg-meta" :class="{ self: msg.isMe }">
@@ -299,8 +328,9 @@
               class="message-input"
               rows="1"
               :disabled="currentMuted"
-              @keydown.enter.exact.prevent="handleSend"
-              @input="autoResize"
+              @keydown="handleInputKeydown"
+              @input="handleInputChange"
+              @click="syncMentionMenu"
             ></textarea>
             <button
               class="send-btn"
@@ -314,6 +344,22 @@
               </svg>
               <div v-else class="send-loading"></div>
             </button>
+          </div>
+          <div v-if="showMentionMenu" class="mention-menu" ref="mentionMenuRef">
+            <div v-if="mentionCandidates.length > 0" class="mention-menu-list">
+              <button
+                v-for="(candidate, index) in mentionCandidates"
+                :key="candidate.key"
+                type="button"
+                class="mention-menu-item"
+                :class="{ active: index === mentionHighlightedIndex }"
+                @mousedown.prevent="selectMentionCandidate(candidate)"
+              >
+                <span class="mention-menu-name">{{ candidate.label }}</span>
+                <span class="mention-menu-meta">{{ candidate.meta }}</span>
+              </button>
+            </div>
+            <div v-else class="mention-menu-empty">未找到可提及成员</div>
           </div>
         </div>
       </template>
@@ -634,7 +680,10 @@
           <div class="drawer-section">
             <div class="section-title-row">
               <span class="drawer-section-title">成员管理</span>
-              <button v-if="canManageMembers" class="text-btn" @click="openAddMembersModal">邀请进群</button>
+              <div class="section-actions">
+                <button class="text-btn" @click="openGroupMembersPage">独立页查看</button>
+                <button v-if="canManageMembers" class="text-btn" @click="openAddMembersModal">邀请进群</button>
+              </div>
             </div>
             <div class="member-manage-list">
               <div v-for="member in groupDetail.members" :key="member.userId" class="member-row">
@@ -795,8 +844,21 @@ interface DisplayMessage {
   fileSize?: number
   sessionType: number
   targetId: string
+  mentionAll: boolean
+  mentionUserIds: string[]
+  mentionDisplayNames: string[]
+  mentionedMe: boolean
   retryFile?: File
   uploadedFileId?: string | number
+}
+
+interface MentionCandidate {
+  key: string
+  label: string
+  meta: string
+  insertToken: string
+  mentionUserId?: string
+  isAll: boolean
 }
 
 const route = useRoute()
@@ -839,6 +901,7 @@ const groupAvatarInputRef = ref<HTMLInputElement>()
 const menuRef = ref<HTMLElement>()
 const menuBtnRef = ref<HTMLElement>()
 const emojiRef = ref<HTMLElement>()
+const mentionMenuRef = ref<HTMLElement>()
 
 const msgMenuX = ref(0)
 const msgMenuY = ref(0)
@@ -860,6 +923,11 @@ const mutingMember = ref(false)
 const addMembersSelection = ref<Array<string | number>>([])
 const addMembersMessage = ref('')
 const flashSessionKey = ref<string | null>(null)
+const showMentionMenu = ref(false)
+const mentionQuery = ref('')
+const mentionTriggerIndex = ref(-1)
+const mentionHighlightedIndex = ref(0)
+const mentionBannerQueue = ref<string[]>([])
 const { confirmDialog, openConfirmDialog, cancelConfirmDialog, confirmConfirmDialog } = useConfirmDialog()
 
 const createGroupForm = reactive({
@@ -897,6 +965,7 @@ const currentMuteTimeText = computed(() => formatDateTime(groupDetail.value?.mut
 const canManageMembers = computed(() => isGroupSession.value && currentGroupRole.value >= GROUP_ROLE_ADMIN)
 const canEditGroupProfile = computed(() => isGroupSession.value && currentGroupRole.value >= GROUP_ROLE_ADMIN)
 const canEditNotice = computed(() => isGroupSession.value && currentGroupRole.value >= GROUP_ROLE_ADMIN)
+const canMentionAll = computed(() => isGroupSession.value && currentGroupRole.value >= GROUP_ROLE_ADMIN)
 const canDissolveGroup = computed(() => isGroupSession.value && currentGroupRole.value === GROUP_ROLE_OWNER)
 const isGroupOwner = computed(() => isGroupSession.value && currentGroupRole.value === GROUP_ROLE_OWNER)
 const isGroupProfileChanged = computed(() => {
@@ -927,6 +996,87 @@ const filteredSessions = computed(() => {
 const availableFriendsForCurrentGroup = computed(() => {
   const memberIds = new Set((groupDetail.value?.members || []).map(member => String(member.userId)))
   return friends.value.filter(friend => !memberIds.has(String(friend.friendId)))
+})
+
+const mentionMenuBaseOptions = computed<MentionCandidate[]>(() => {
+  if (!isGroupSession.value) {
+    return []
+  }
+  const options: MentionCandidate[] = []
+  if (canMentionAll.value) {
+    options.push({
+      key: 'all',
+      label: '所有人',
+      meta: '仅群主和管理员可用',
+      insertToken: '所有人',
+      isAll: true
+    })
+  }
+  for (const member of groupDetail.value?.members || []) {
+    if (String(member.userId) === String(userStore.userId)) {
+      continue
+    }
+    const displayName = member.nickname || member.username || `成员${member.userId}`
+    options.push({
+      key: `user-${member.userId}`,
+      label: displayName,
+      meta: `@${member.username}`,
+      insertToken: getMemberMentionToken(member),
+      mentionUserId: String(member.userId),
+      isAll: false
+    })
+  }
+  return options
+})
+
+const mentionCandidates = computed(() => {
+  const keyword = mentionQuery.value.trim().toLowerCase()
+  if (!keyword) {
+    return mentionMenuBaseOptions.value
+  }
+  return mentionMenuBaseOptions.value.filter(candidate => {
+    const text = `${candidate.label} ${candidate.meta} ${candidate.insertToken}`.toLowerCase()
+    return text.includes(keyword)
+  })
+})
+
+const resolvedMentionBannerKeys = computed(() => {
+  const existingKeys = new Set(messages.value.map(messageItem => getMessageAnchorKey(messageItem)))
+  const seen = new Set<string>()
+  return mentionBannerQueue.value.filter(key => {
+    if (!existingKeys.has(key) || seen.has(key)) {
+      return false
+    }
+    seen.add(key)
+    return true
+  })
+})
+
+const activeMentionBannerMessage = computed(() => {
+  const activeKey = resolvedMentionBannerKeys.value[0]
+  if (!activeKey) {
+    return null
+  }
+  return messages.value.find(messageItem => getMessageAnchorKey(messageItem) === activeKey) || null
+})
+
+const showMentionBanner = computed(() => {
+  return isGroupSession.value && Boolean(activeMentionBannerMessage.value)
+})
+
+const mentionBannerText = computed(() => {
+  const messageItem = activeMentionBannerMessage.value
+  if (!messageItem) {
+    return ''
+  }
+  const senderName = messageItem.name || '有成员'
+  const preview = getMessagePreview(messageItem)
+  return `${senderName}提醒你留意这条消息：${preview}`
+})
+
+const mentionBannerActionText = computed(() => {
+  const remainingCount = Math.max(0, resolvedMentionBannerKeys.value.length - 1)
+  return remainingCount > 0 ? `定位后还有 ${remainingCount} 条` : '点击定位'
 })
 
 function handleRealtimeEvent(payload: any) {
@@ -1093,11 +1243,297 @@ function createLocalMessageId(prefix = 'local') {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+function getMessageAnchorKey(messageItem: Pick<DisplayMessage, 'id' | 'localId' | 'clientMessageId'>) {
+  return String(messageItem.clientMessageId || messageItem.id || messageItem.localId)
+}
+
+function getMessageTextSegments(content: string) {
+  const segments: Array<{ text: string, mention: boolean }> = []
+  const pattern = /@[^\s,，。.！!？?；;：:]+/g
+  let lastIndex = 0
+  for (const match of content.matchAll(pattern)) {
+    const index = match.index ?? 0
+    if (index > lastIndex) {
+      segments.push({
+        text: content.slice(lastIndex, index),
+        mention: false
+      })
+    }
+    segments.push({
+      text: match[0],
+      mention: true
+    })
+    lastIndex = index + match[0].length
+  }
+  if (lastIndex < content.length) {
+    segments.push({
+      text: content.slice(lastIndex),
+      mention: false
+    })
+  }
+  if (segments.length === 0) {
+    segments.push({
+      text: content,
+      mention: false
+    })
+  }
+  return segments
+}
+
 function resolveMessageTargetId(item: any, isMe: boolean, sessionType: number) {
   if (sessionType === SESSION_TYPE_GROUP) {
     return String(item.toUserId)
   }
   return String(isMe ? item.toUserId : item.fromUserId)
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function getMemberMentionToken(member: GroupMember) {
+  const nickname = member.nickname?.trim()
+  if (nickname) {
+    const duplicateCount = (groupDetail.value?.members || []).filter(item => item.nickname?.trim() === nickname).length
+    if (duplicateCount === 1) {
+      return nickname
+    }
+  }
+  return member.username?.trim() || nickname || `成员${member.userId}`
+}
+
+function closeMentionMenu() {
+  showMentionMenu.value = false
+  mentionQuery.value = ''
+  mentionTriggerIndex.value = -1
+  mentionHighlightedIndex.value = 0
+}
+
+function clearMentionBannerQueue() {
+  mentionBannerQueue.value = []
+}
+
+function setMentionBannerQueue(messageItems: DisplayMessage[]) {
+  mentionBannerQueue.value = messageItems
+    .filter(messageItem => messageItem.mentionedMe && !messageItem.isMe && !messageItem.isSystem)
+    .map(messageItem => getMessageAnchorKey(messageItem))
+}
+
+function appendMentionBanner(messageItem: DisplayMessage | null | undefined) {
+  if (!messageItem?.mentionedMe || messageItem.isMe || messageItem.isSystem) {
+    return
+  }
+  const nextKey = getMessageAnchorKey(messageItem)
+  mentionBannerQueue.value = [nextKey, ...mentionBannerQueue.value.filter(key => key !== nextKey)]
+}
+
+function consumeMentionBanner(messageItem: DisplayMessage | null | undefined = activeMentionBannerMessage.value) {
+  if (!messageItem) {
+    return
+  }
+  const key = getMessageAnchorKey(messageItem)
+  mentionBannerQueue.value = mentionBannerQueue.value.filter(item => item !== key)
+}
+
+function dismissMentionBanner() {
+  consumeMentionBanner()
+}
+
+function escapeAttributeSelector(value: string) {
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(value)
+  }
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+}
+
+function scrollToMessage(messageItem: DisplayMessage | null | undefined, behavior: ScrollBehavior = 'smooth') {
+  if (!messagesRef.value || !messageItem) {
+    return
+  }
+  const selector = `[data-message-key="${escapeAttributeSelector(getMessageAnchorKey(messageItem))}"]`
+  const target = messagesRef.value.querySelector<HTMLElement>(selector)
+  if (!target) {
+    return
+  }
+  target.scrollIntoView({
+    behavior,
+    block: 'center'
+  })
+}
+
+function scrollToActiveMentionMessage(behavior: ScrollBehavior = 'smooth') {
+  if (!activeMentionBannerMessage.value) {
+    return
+  }
+  scrollToMessage(activeMentionBannerMessage.value, behavior)
+}
+
+function handleMentionBannerClick() {
+  const messageItem = activeMentionBannerMessage.value
+  if (!messageItem) {
+    return
+  }
+  scrollToMessage(messageItem)
+  consumeMentionBanner(messageItem)
+}
+
+function resolveUnreadMentionMessages(messageList: DisplayMessage[], unreadCount: number) {
+  if (!Number.isFinite(unreadCount) || unreadCount <= 0) {
+    return []
+  }
+  const incomingMessages = messageList.filter(messageItem => !messageItem.isMe && !messageItem.isSystem)
+  if (incomingMessages.length === 0) {
+    return []
+  }
+  const unreadMessages = incomingMessages.slice(-Math.max(0, Math.trunc(unreadCount)))
+  return unreadMessages.filter(messageItem => messageItem.mentionedMe).reverse()
+}
+
+function getMentionTrigger(text: string, cursor: number) {
+  const beforeCursor = text.slice(0, cursor)
+  const atIndex = beforeCursor.lastIndexOf('@')
+  if (atIndex === -1) {
+    return null
+  }
+  const beforeChar = atIndex > 0 ? beforeCursor[atIndex - 1] : ''
+  if (beforeChar && !/\s/.test(beforeChar)) {
+    return null
+  }
+  const query = beforeCursor.slice(atIndex + 1)
+  if (/[\s@]/.test(query)) {
+    return null
+  }
+  return {
+    atIndex,
+    query
+  }
+}
+
+function syncMentionMenu() {
+  if (!isGroupSession.value || !textareaRef.value || currentMuted.value) {
+    closeMentionMenu()
+    return
+  }
+  const cursor = textareaRef.value.selectionStart ?? inputMessage.value.length
+  const trigger = getMentionTrigger(inputMessage.value, cursor)
+  if (!trigger) {
+    closeMentionMenu()
+    return
+  }
+  mentionTriggerIndex.value = trigger.atIndex
+  mentionQuery.value = trigger.query
+  mentionHighlightedIndex.value = 0
+  showMentionMenu.value = true
+}
+
+function handleInputChange() {
+  autoResize()
+  syncMentionMenu()
+}
+
+function selectMentionCandidate(candidate: MentionCandidate) {
+  if (!textareaRef.value) {
+    return
+  }
+  const cursor = textareaRef.value.selectionStart ?? inputMessage.value.length
+  const replaceStart = mentionTriggerIndex.value >= 0 ? mentionTriggerIndex.value : cursor
+  const before = inputMessage.value.slice(0, replaceStart)
+  const after = inputMessage.value.slice(cursor)
+  inputMessage.value = `${before}@${candidate.insertToken} ${after}`
+  closeMentionMenu()
+  nextTick(() => {
+    if (!textareaRef.value) {
+      return
+    }
+    const nextCursor = before.length + candidate.insertToken.length + 2
+    textareaRef.value.focus()
+    textareaRef.value.setSelectionRange(nextCursor, nextCursor)
+    autoResize()
+  })
+}
+
+function handleInputKeydown(event: KeyboardEvent) {
+  if (showMentionMenu.value) {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (mentionCandidates.value.length > 0) {
+        mentionHighlightedIndex.value = (mentionHighlightedIndex.value + 1) % mentionCandidates.value.length
+      }
+      return
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (mentionCandidates.value.length > 0) {
+        mentionHighlightedIndex.value = (mentionHighlightedIndex.value - 1 + mentionCandidates.value.length) % mentionCandidates.value.length
+      }
+      return
+    }
+    if (event.key === 'Enter' && !event.shiftKey) {
+      if (mentionCandidates.value.length > 0) {
+        event.preventDefault()
+        selectMentionCandidate(mentionCandidates.value[mentionHighlightedIndex.value] || mentionCandidates.value[0])
+        return
+      }
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeMentionMenu()
+      return
+    }
+  }
+  if (event.key === 'Enter' && !event.shiftKey) {
+    event.preventDefault()
+    void handleSend()
+  }
+}
+
+function hasMentionToken(content: string, token: string, ignoreCase = false) {
+  if (!content || !token) {
+    return false
+  }
+  const flags = ignoreCase ? 'i' : ''
+  const pattern = new RegExp(`(^|[\\s])@${escapeRegExp(token)}(?=$|[\\s,，。.！!？?；;：:])`, flags)
+  return pattern.test(content)
+}
+
+function resolveOutgoingMentions(content: string) {
+  if (!isGroupSession.value) {
+    return {
+      mentionAll: false,
+      mentionUserIds: [] as string[],
+      mentionDisplayNames: [] as string[]
+    }
+  }
+  const mentionUserIds: string[] = []
+  const mentionDisplayNames: string[] = []
+  for (const member of groupDetail.value?.members || []) {
+    if (String(member.userId) === String(userStore.userId)) {
+      continue
+    }
+    if (!hasMentionToken(content, getMemberMentionToken(member))) {
+      continue
+    }
+    mentionUserIds.push(String(member.userId))
+    mentionDisplayNames.push(member.nickname || member.username || `成员${member.userId}`)
+  }
+  return {
+    mentionAll: hasMentionToken(content, '所有人') || hasMentionToken(content, 'all', true),
+    mentionUserIds,
+    mentionDisplayNames
+  }
+}
+
+function getNotificationTitle(messageItem: DisplayMessage) {
+  if (messageItem.isSystem) {
+    return '群系统通知'
+  }
+  const sessionName = sessions.value.find(session =>
+    buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(messageItem.targetId, messageItem.sessionType)
+  )?.targetNickname
+  if (messageItem.mentionedMe) {
+    return `${sessionName || currentSessionName.value || '群聊'} · 特别提醒`
+  }
+  return sessionName || messageItem.name || '新消息'
 }
 
 function releaseMessageResource(messageItem?: DisplayMessage | null) {
@@ -1120,6 +1556,11 @@ function toDisplayMessage(item: any): DisplayMessage {
   const sessionType = Number(item.sessionType || SESSION_TYPE_SINGLE)
   const isSystem = msgType === MESSAGE_TYPE_SYSTEM
   const isMe = !isSystem && String(item.fromUserId) === String(userStore.userId)
+  const mentionUserIds = Array.isArray(item.mentionUserIds) ? item.mentionUserIds.map((id: string | number) => String(id)) : []
+  const mentionAll = Boolean(item.mentionAll)
+  const mentionDisplayNames = Array.isArray(item.mentionDisplayNames)
+    ? item.mentionDisplayNames.filter((value: unknown): value is string => typeof value === 'string' && value.trim().length > 0)
+    : []
   return {
     id: item.id,
     localId: item.clientMessageId || String(item.id || createLocalMessageId('server')),
@@ -1140,6 +1581,10 @@ function toDisplayMessage(item: any): DisplayMessage {
     fileSize: item.fileSize ? Number(item.fileSize) : undefined,
     sessionType,
     targetId: resolveMessageTargetId(item, isMe, sessionType),
+    mentionAll,
+    mentionUserIds,
+    mentionDisplayNames,
+    mentionedMe: sessionType === SESSION_TYPE_GROUP && !isSystem && !isMe && (mentionAll || mentionUserIds.includes(String(userStore.userId))),
     uploadedFileId: undefined
   }
 }
@@ -1191,20 +1636,23 @@ function handleRealtimeMessage(rawMessage: any) {
   if (sameCurrentSession) {
     const shouldStickBottom = wasAtBottom
     upsertMessage(messageItem)
+    if (!messageItem.isMe && messageItem.mentionedMe) {
+      appendMentionBanner(messageItem)
+    }
     nextTick(() => {
       if (messagesRef.value && shouldStickBottom) {
         messagesRef.value.scrollTop = messagesRef.value.scrollHeight
       }
     })
     if (!messageItem.isMe) {
-      showNotification(messageItem.isSystem ? '群系统通知' : messageItem.name || '新消息', getMessagePreview(messageItem))
+      showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
       markCurrentSessionRead(messageTargetId, messageSessionType)
     }
     return
   }
 
   if (!messageItem.isMe) {
-    showNotification(messageItem.isSystem ? '群系统通知' : messageItem.name || '新消息', getMessagePreview(messageItem))
+    showNotification(getNotificationTitle(messageItem), getMessagePreview(messageItem))
     flashSession(messageTargetId, messageSessionType)
   }
 }
@@ -1433,6 +1881,13 @@ function checkIfAtBottom() {
   wasAtBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 50
 }
 
+function handleMessageMediaLoad() {
+  if (!wasAtBottom) {
+    return
+  }
+  scrollMessagesToBottom(true)
+}
+
 function previewImage(url: string) {
   previewImageUrl.value = url
   showImagePreview.value = true
@@ -1484,6 +1939,9 @@ function createPendingMessage(options: {
   msgType: number
   fileName?: string
   fileSize?: number
+  mentionAll?: boolean
+  mentionUserIds?: string[]
+  mentionDisplayNames?: string[]
   retryFile?: File
 }) {
   if (!currentTargetId.value) {
@@ -1512,6 +1970,10 @@ function createPendingMessage(options: {
     fileSize: options.fileSize,
     sessionType: currentSessionType.value,
     targetId: String(currentTargetId.value),
+    mentionAll: Boolean(options.mentionAll),
+    mentionUserIds: options.mentionUserIds || [],
+    mentionDisplayNames: options.mentionDisplayNames || [],
+    mentionedMe: false,
     retryFile: options.retryFile
   }
   upsertMessage(pendingMessage)
@@ -1557,7 +2019,9 @@ async function sendPendingTextMessage(localMessage: DisplayMessage, content: str
     toUserId: localMessage.targetId,
     content,
     sessionType: localMessage.sessionType,
-    clientMessageId: localMessage.clientMessageId
+    clientMessageId: localMessage.clientMessageId,
+    mentionAll: localMessage.mentionAll,
+    mentionUserIds: localMessage.mentionUserIds
   })
   if (response?.data) {
     upsertMessage(toDisplayMessage(response.data))
@@ -1649,7 +2113,7 @@ function insertEmoji(emoji: string) {
   inputMessage.value += emoji
   showEmojiPicker.value = false
   textareaRef.value?.focus()
-  nextTick(autoResize)
+  nextTick(handleInputChange)
 }
 
 function triggerFileUpload() {
@@ -1682,6 +2146,9 @@ function handleClickOutside(event: MouseEvent) {
   }
   if (showEmojiPicker.value && emojiRef.value && !emojiRef.value.contains(target)) {
     showEmojiPicker.value = false
+  }
+  if (showMentionMenu.value && mentionMenuRef.value && !mentionMenuRef.value.contains(target) && !textareaRef.value?.contains(target)) {
+    closeMentionMenu()
   }
   if (showMsgContextMenu.value) {
     showMsgContextMenu.value = false
@@ -1749,6 +2216,7 @@ async function selectSession(session: ChatSession, syncRoute = true) {
   currentSessionType.value = Number(session.sessionType || SESSION_TYPE_SINGLE)
   showMenu.value = false
   wasAtBottom = true
+  clearMentionBannerQueue()
 
   if (currentSessionType.value === SESSION_TYPE_GROUP) {
     await loadGroupDetail(session.targetId)
@@ -1759,7 +2227,10 @@ async function selectSession(session: ChatSession, syncRoute = true) {
     showGroupDrawer.value = false
   }
 
-  await loadMessages(String(session.targetId), currentSessionType.value)
+  await loadMessages(String(session.targetId), currentSessionType.value, {
+    unreadCountSnapshot: Number(session.unreadCount || 0),
+    preferMentionScroll: Number(session.sessionType || SESSION_TYPE_SINGLE) === SESSION_TYPE_GROUP
+  })
 
   if (syncRoute) {
     await router.replace({
@@ -1853,7 +2324,14 @@ async function markCurrentSessionRead(targetId = currentTargetId.value, sessionT
   await sendChatCommand('MARK_READ', { targetId, sessionType }).catch(() => undefined)
 }
 
-async function loadMessages(targetId: string, sessionType: number) {
+async function loadMessages(
+  targetId: string,
+  sessionType: number,
+  options: {
+    unreadCountSnapshot?: number
+    preferMentionScroll?: boolean
+  } = {}
+) {
   loadingMessages.value = true
   try {
     const response: any = await sendChatCommand('GET_HISTORY', {
@@ -1862,22 +2340,32 @@ async function loadMessages(targetId: string, sessionType: number) {
     })
     const rawMessages = response.data || []
     const nextMessages: DisplayMessage[] = rawMessages.map((item: any) => toDisplayMessage(item))
+    const mentionTargets = options.preferMentionScroll
+      ? resolveUnreadMentionMessages(nextMessages, Number(options.unreadCountSnapshot || 0))
+      : []
 
     cleanupMessageResources(messages.value)
     messages.value = nextMessages
-
-    await nextTick()
-    if (messagesRef.value) {
-      messagesRef.value.scrollTop = messagesRef.value.scrollHeight
+    if (mentionTargets.length > 0) {
+      setMentionBannerQueue(mentionTargets)
+    } else {
+      clearMentionBannerQueue()
     }
-
     await markCurrentSessionRead(targetId, sessionType)
   } catch (error) {
     console.error('loadMessages error:', error)
     cleanupMessageResources(messages.value)
     messages.value = []
+    clearMentionBannerQueue()
   } finally {
     loadingMessages.value = false
+    wasAtBottom = true
+    await nextTick()
+    if (showMentionBanner.value && activeMentionBannerMessage.value) {
+      scrollToActiveMentionMessage('auto')
+    } else {
+      scrollMessagesToBottom(true)
+    }
   }
 }
 
@@ -1910,11 +2398,16 @@ async function handleSend() {
   sending.value = true
   try {
     const content = inputMessage.value.trim()
+    const outgoingMentions = resolveOutgoingMentions(content)
     const localMessage = createPendingMessage({
       content,
-      msgType: MESSAGE_TYPE_TEXT
+      msgType: MESSAGE_TYPE_TEXT,
+      mentionAll: outgoingMentions.mentionAll,
+      mentionUserIds: outgoingMentions.mentionUserIds,
+      mentionDisplayNames: outgoingMentions.mentionDisplayNames
     })
     inputMessage.value = ''
+    closeMentionMenu()
     if (textareaRef.value) {
       textareaRef.value.style.height = 'auto'
     }
@@ -2187,6 +2680,21 @@ async function openGroupDrawer() {
   }
   showGroupDrawer.value = true
   await loadGroupDetail(currentTargetId.value)
+}
+
+async function openGroupMembersPage() {
+  const targetGroupId = groupDetail.value?.id || currentTargetId.value
+  if (!targetGroupId || !isGroupSession.value) {
+    return
+  }
+  const closed = await closeGroupDrawer()
+  if (!closed) {
+    return
+  }
+  await router.push({
+    path: `/groups/${targetGroupId}/members`,
+    query: { from: 'chat' }
+  })
 }
 
 async function closeGroupDrawer(options: { force?: boolean } = {}) {
@@ -3040,7 +3548,8 @@ onUnmounted(() => {
 
 .dropdown-menu,
 .msg-context-menu,
-.emoji-picker {
+.emoji-picker,
+.mention-menu {
   background: var(--linkx-bg-card);
   border: 1px solid var(--linkx-border);
   border-radius: var(--linkx-radius);
@@ -3088,6 +3597,62 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.mention-banner {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  align-self: center;
+  width: min(100%, 560px);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 170, 0, 0.28);
+  border-radius: var(--linkx-radius);
+  background: color-mix(in srgb, rgba(255, 170, 0, 0.18) 70%, var(--linkx-bg-card));
+  color: var(--linkx-text);
+  box-shadow: var(--linkx-shadow-md);
+  cursor: pointer;
+}
+
+.mention-banner-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: var(--linkx-radius-full);
+  background: rgba(255, 170, 0, 0.18);
+  color: #c97b00;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mention-banner-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-banner-action {
+  flex-shrink: 0;
+  color: var(--linkx-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mention-banner-close {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--linkx-text-muted);
 }
 
 .chat-loading,
@@ -3188,6 +3753,7 @@ onUnmounted(() => {
   box-shadow: var(--linkx-shadow-sm);
   font-size: 14px;
   line-height: 1.6;
+  white-space: pre-wrap;
   word-break: break-word;
 }
 
@@ -3204,6 +3770,11 @@ onUnmounted(() => {
 .msg-bubble.recalled {
   opacity: 0.6;
   background: var(--linkx-bg-hover) !important;
+}
+
+.mention-text {
+  color: #e45252;
+  font-weight: 600;
 }
 
 .recalled-text {
@@ -3288,6 +3859,7 @@ onUnmounted(() => {
 }
 
 .chat-input-area {
+  position: relative;
   padding: 12px 20px 16px;
   background: var(--linkx-bg-card);
   border-top: 1px solid var(--linkx-border);
@@ -3320,6 +3892,56 @@ onUnmounted(() => {
   width: 320px;
   padding: 12px;
   z-index: 100;
+}
+
+.mention-menu {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: calc(100% - 8px);
+  z-index: 120;
+  overflow: hidden;
+}
+
+.mention-menu-list {
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.mention-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: none;
+  background: transparent;
+  color: var(--linkx-text-secondary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mention-menu-item:hover,
+.mention-menu-item.active {
+  background: var(--linkx-bg-hover);
+  color: var(--linkx-text);
+}
+
+.mention-menu-name {
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mention-menu-meta,
+.mention-menu-empty {
+  color: var(--linkx-text-muted);
+  font-size: 12px;
+}
+
+.mention-menu-empty {
+  padding: 12px 14px;
 }
 
 .emoji-grid {
@@ -3914,6 +4536,12 @@ onUnmounted(() => {
 .group-profile-save-btn:hover {
   background: rgba(77, 107, 255, 0.12);
   color: #a8b8ff;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .group-summary-badges {

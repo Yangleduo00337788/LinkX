@@ -153,6 +153,7 @@ const profile = reactive({
 
 watch(() => route.path, (path) => {
   if (path.startsWith('/chat')) currentTab.value = 'chat'
+  else if (path.startsWith('/groups')) currentTab.value = 'chat'
   else if (path.startsWith('/friends')) currentTab.value = 'friends'
   else if (path.startsWith('/files')) currentTab.value = 'files'
   else if (path.startsWith('/blacklist')) currentTab.value = 'blacklist'

@@ -111,6 +111,8 @@ CREATE TABLE IF NOT EXISTS im_message (
     to_user_id BIGINT NOT NULL COMMENT '接收者ID',
     content TEXT COMMENT '消息内容',
     msg_type TINYINT DEFAULT 0 COMMENT '消息类型 0文本 1图片 2文件 3系统消息',
+    mention_all TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否@所有人 0否 1是',
+    mention_user_ids VARCHAR(1024) COMMENT '@成员ID列表，逗号分隔',
     status TINYINT DEFAULT 0 COMMENT '状态 0正常 1已撤回',
     read_time DATETIME COMMENT '已读时间',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

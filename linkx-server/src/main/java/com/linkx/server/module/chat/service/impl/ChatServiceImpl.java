@@ -26,6 +26,7 @@ import com.linkx.server.module.chat.ws.ChatMessagePayload;
 import com.linkx.server.module.chat.ws.ChatPresenceService;
 import com.linkx.server.module.chat.ws.ChatReadReceiptPayload;
 import com.linkx.server.module.chat.ws.ChatSessionPayload;
+import com.linkx.server.module.group.constant.GroupConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +51,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
 
+    private record MentionContext(boolean mentionAll, List<Long> mentionUserIds) {
+        private static final MentionContext EMPTY = new MentionContext(false, List.of());
+
+        private boolean hasMention() {
+            return mentionAll || !mentionUserIds.isEmpty();
+        }
+    }
+
     private final ImSessionMapper sessionMapper;
     private final ImMessageMapper messageMapper;
     private final SysUserMapper userMapper;
@@ -62,7 +71,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
-    public MessageDTO sendMessage(Long fromUserId, Long toUserId, String content, Integer msgType, Integer sessionType, String clientMessageId) {
+    public MessageDTO sendMessage(Long fromUserId, Long toUserId, String content, Integer msgType, Integer sessionType, String clientMessageId, Boolean mentionAll, List<Long> mentionUserIds) {
         if (!StringUtils.hasText(content)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息内容不能为空");
         }
@@ -70,7 +79,10 @@ public class ChatServiceImpl implements ChatService {
         int resolvedSessionType = resolveSessionType(sessionType);
         String normalizedContent = content.trim();
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
-            return sendGroupMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType, clientMessageId);
+            return sendGroupMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType, clientMessageId, mentionAll, mentionUserIds);
+        }
+        if (Boolean.TRUE.equals(mentionAll) || (mentionUserIds != null && !mentionUserIds.isEmpty())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "单聊消息不支持@提醒");
         }
         return sendSingleMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType, clientMessageId);
     }
@@ -88,7 +100,7 @@ public class ChatServiceImpl implements ChatService {
         int resolvedMsgType = resolveFileMessageType(msgType);
         int resolvedSessionType = resolveSessionType(sessionType);
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
-            return sendGroupMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType, clientMessageId);
+            return sendGroupMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType, clientMessageId, false, List.of());
         }
         return sendSingleMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType, clientMessageId);
     }
@@ -196,7 +208,10 @@ public class ChatServiceImpl implements ChatService {
             List<ImGroupMember> members = listGroupMembers(groupId);
             Set<Long> memberUserIds = members.stream().map(ImGroupMember::getUserId).collect(Collectors.toCollection(LinkedHashSet::new));
             refreshGroupSessionPreviews(groupId, memberUserIds);
-            MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(Set.of(message.getFromUserId())), Map.of());
+            Set<Long> relatedUserIds = new LinkedHashSet<>();
+            relatedUserIds.add(message.getFromUserId());
+            relatedUserIds.addAll(parseMentionUserIds(message.getMentionUserIds()));
+            MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(relatedUserIds), Map.of());
             executeAfterCommit(() -> notifyGroupRecall(messageDTO, groupId, memberUserIds));
             return;
         }
@@ -244,7 +259,15 @@ public class ChatServiceImpl implements ChatService {
         return messageDTO;
     }
 
-    private MessageDTO sendGroupMessage(Long fromUserId, Long groupId, String content, Integer msgType, String clientMessageId) {
+    private MessageDTO sendGroupMessage(
+            Long fromUserId,
+            Long groupId,
+            String content,
+            Integer msgType,
+            String clientMessageId,
+            Boolean mentionAll,
+            List<Long> mentionUserIds
+    ) {
         requireActiveGroup(groupId);
         ImGroupMember senderMember = requireGroupMember(groupId, fromUserId);
         if (isMuted(senderMember)) {
@@ -256,6 +279,7 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "群成员不存在");
         }
 
+        MentionContext mentionContext = resolveGroupMentionContext(senderMember, members, msgType, mentionAll, mentionUserIds);
         LocalDateTime now = LocalDateTime.now();
         String preview = buildPreview(content, msgType);
         Set<Long> memberUserIds = new LinkedHashSet<>();
@@ -263,7 +287,7 @@ public class ChatServiceImpl implements ChatService {
         for (ImGroupMember member : members) {
             memberUserIds.add(member.getUserId());
             ImSession session = getOrCreateSession(member.getUserId(), groupId, ChatConstants.SESSION_TYPE_GROUP);
-            session.setLastMessage(preview);
+            session.setLastMessage(buildGroupPreview(preview, mentionContext, fromUserId, member.getUserId()));
             session.setLastMessageTime(now);
             if (!member.getUserId().equals(fromUserId)) {
                 session.setUnreadCount(session.getUnreadCount() + 1);
@@ -277,10 +301,15 @@ public class ChatServiceImpl implements ChatService {
         message.setToUserId(groupId);
         message.setContent(content);
         message.setMsgType(msgType);
+        message.setMentionAll(mentionContext.mentionAll());
+        message.setMentionUserIds(joinMentionUserIds(mentionContext.mentionUserIds()));
         message.setStatus(ChatConstants.MESSAGE_STATUS_NORMAL);
         messageMapper.insert(message);
 
-        MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(Set.of(fromUserId)), Map.of());
+        Set<Long> relatedUserIds = new LinkedHashSet<>();
+        relatedUserIds.add(fromUserId);
+        relatedUserIds.addAll(mentionContext.mentionUserIds());
+        MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(relatedUserIds), Map.of());
         messageDTO.setClientMessageId(normalizeClientMessageId(clientMessageId));
         executeAfterCommit(() -> notifyGroupMessage(messageDTO, groupId, memberUserIds));
         return messageDTO;
@@ -321,6 +350,7 @@ public class ChatServiceImpl implements ChatService {
         Set<Long> userIds = new HashSet<>();
         for (ImMessage message : messages) {
             userIds.add(message.getFromUserId());
+            userIds.addAll(parseMentionUserIds(message.getMentionUserIds()));
         }
         Map<Long, SysUser> userMap = loadUserMap(userIds);
         Map<String, SysFile> fileMap = loadFileMap(messages);
@@ -570,6 +600,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private MessageDTO toMessageDTO(ImMessage message, Integer sessionType, Map<Long, SysUser> userMap, Map<String, SysFile> fileMap) {
+        List<Long> mentionUserIds = parseMentionUserIds(message.getMentionUserIds());
         MessageDTO dto = new MessageDTO();
         dto.setId(message.getId());
         dto.setSessionId(message.getSessionId());
@@ -578,6 +609,9 @@ public class ChatServiceImpl implements ChatService {
         dto.setSessionType(sessionType);
         dto.setContent(message.getContent());
         dto.setMsgType(message.getMsgType());
+        dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));
+        dto.setMentionUserIds(mentionUserIds);
+        dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));
         dto.setStatus(message.getStatus());
         dto.setReadTime(message.getReadTime());
         dto.setCreateTime(message.getCreateTime());
@@ -758,5 +792,108 @@ public class ChatServiceImpl implements ChatService {
             return normalized.substring(0, 64);
         }
         return normalized;
+    }
+
+    private MentionContext resolveGroupMentionContext(
+            ImGroupMember senderMember,
+            List<ImGroupMember> members,
+            Integer msgType,
+            Boolean mentionAll,
+            List<Long> mentionUserIds
+    ) {
+        boolean normalizedMentionAll = Boolean.TRUE.equals(mentionAll);
+        List<Long> normalizedMentionUserIds = normalizeMentionUserIds(mentionUserIds, senderMember.getUserId());
+        if (!normalizedMentionAll && normalizedMentionUserIds.isEmpty()) {
+            return MentionContext.EMPTY;
+        }
+        if (msgType != ChatConstants.MESSAGE_TYPE_TEXT) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "只有文本消息支持@提醒");
+        }
+        if (normalizedMentionAll && senderMember.getRole() < GroupConstants.ROLE_ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有群主或管理员可以@所有人");
+        }
+        Set<Long> memberUserIds = members.stream()
+                .map(ImGroupMember::getUserId)
+                .collect(Collectors.toSet());
+        for (Long mentionUserId : normalizedMentionUserIds) {
+            if (!memberUserIds.contains(mentionUserId)) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "被@成员不在群聊中");
+            }
+        }
+        return new MentionContext(normalizedMentionAll, normalizedMentionUserIds);
+    }
+
+    private List<Long> normalizeMentionUserIds(List<Long> mentionUserIds, Long senderUserId) {
+        if (mentionUserIds == null || mentionUserIds.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Long> normalized = new LinkedHashSet<>();
+        for (Long mentionUserId : mentionUserIds) {
+            if (mentionUserId == null || mentionUserId.equals(senderUserId)) {
+                continue;
+            }
+            normalized.add(mentionUserId);
+        }
+        return new ArrayList<>(normalized);
+    }
+
+    private boolean isMentionTarget(Long targetUserId, Long senderUserId, MentionContext mentionContext) {
+        if (targetUserId == null || senderUserId == null || targetUserId.equals(senderUserId) || !mentionContext.hasMention()) {
+            return false;
+        }
+        return mentionContext.mentionAll() || mentionContext.mentionUserIds().contains(targetUserId);
+    }
+
+    private String buildGroupPreview(String preview, MentionContext mentionContext, Long senderUserId, Long memberUserId) {
+        if (isMentionTarget(memberUserId, senderUserId, mentionContext)) {
+            return "[特别提醒] " + preview;
+        }
+        return preview;
+    }
+
+    private String joinMentionUserIds(List<Long> mentionUserIds) {
+        if (mentionUserIds == null || mentionUserIds.isEmpty()) {
+            return null;
+        }
+        return mentionUserIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(","));
+    }
+
+    private List<Long> parseMentionUserIds(String mentionUserIds) {
+        if (!StringUtils.hasText(mentionUserIds)) {
+            return List.of();
+        }
+        List<Long> result = new ArrayList<>();
+        for (String item : mentionUserIds.split(",")) {
+            if (!StringUtils.hasText(item)) {
+                continue;
+            }
+            try {
+                result.add(Long.parseLong(item.trim()));
+            } catch (NumberFormatException exception) {
+                // Skip malformed legacy values to avoid blocking history loading.
+            }
+        }
+        return result;
+    }
+
+    private List<String> resolveMentionDisplayNames(List<Long> mentionUserIds, Map<Long, SysUser> userMap) {
+        if (mentionUserIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> displayNames = new ArrayList<>();
+        for (Long mentionUserId : mentionUserIds) {
+            SysUser user = userMap.get(mentionUserId);
+            if (user == null) {
+                continue;
+            }
+            if (StringUtils.hasText(user.getNickname())) {
+                displayNames.add(user.getNickname().trim());
+            } else if (StringUtils.hasText(user.getUsername())) {
+                displayNames.add(user.getUsername().trim());
+            }
+        }
+        return displayNames;
     }
 }

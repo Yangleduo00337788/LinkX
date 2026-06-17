@@ -3,6 +3,7 @@ package com.linkx.server.module.chat.dto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class MessageDTO {
@@ -16,6 +17,9 @@ public class MessageDTO {
     private Integer sessionType;
     private String content;
     private Integer msgType;
+    private Boolean mentionAll;
+    private List<Long> mentionUserIds;
+    private List<String> mentionDisplayNames;
     private String fileName;
     private Long fileSize;
     private Integer status;

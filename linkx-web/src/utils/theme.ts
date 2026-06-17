@@ -8,7 +8,7 @@ function getSystemTheme(): 'light' | 'dark' {
   if (typeof window !== 'undefined' && window.matchMedia) {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   }
-  return 'dark'
+  return 'light'
 }
 
 function applyTheme(mode: ThemeMode) {
@@ -17,7 +17,7 @@ function applyTheme(mode: ThemeMode) {
 }
 
 export function useTheme() {
-  const mode = ref<ThemeMode>((localStorage.getItem(THEME_KEY) as ThemeMode) || 'dark')
+  const mode = ref<ThemeMode>((localStorage.getItem(THEME_KEY) as ThemeMode) || 'light')
 
   applyTheme(mode.value)
 

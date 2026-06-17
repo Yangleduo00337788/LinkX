@@ -692,9 +692,16 @@ async function loadAll() {
 }
 
 async function handleSearch() {
-  if (!searchKeyword.value.trim()) return
+  const keyword = searchKeyword.value.trim()
+  if (!keyword) {
+    activeTab.value = 'search'
+    searchResults.value = []
+    return
+  }
+  activeTab.value = 'search'
   try {
-    const res: any = await userApi.search(searchKeyword.value)
+    searchKeyword.value = keyword
+    const res: any = await userApi.search(keyword)
     searchResults.value = res.data || []
     if (searchResults.value.length === 0) {
       message.info('未找到相关用户')

@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -94,7 +95,12 @@ public class ChatGroupRealtimeService {
         if (message == null) {
             return null;
         }
-        SysUser fromUser = userMapper.selectById(message.getFromUserId());
+        List<Long> mentionUserIds = parseMentionUserIds(message.getMentionUserIds());
+        Set<Long> relatedUserIds = new LinkedHashSet<>();
+        relatedUserIds.add(message.getFromUserId());
+        relatedUserIds.addAll(mentionUserIds);
+        Map<Long, SysUser> userMap = loadUserMap(relatedUserIds);
+        SysUser fromUser = userMap.get(message.getFromUserId());
         MessageDTO dto = new MessageDTO();
         dto.setId(message.getId());
         dto.setSessionId(message.getSessionId());
@@ -105,6 +111,9 @@ public class ChatGroupRealtimeService {
         dto.setSessionType(ChatConstants.SESSION_TYPE_GROUP);
         dto.setContent(message.getContent());
         dto.setMsgType(message.getMsgType());
+        dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));
+        dto.setMentionUserIds(mentionUserIds);
+        dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));
         dto.setFileName(null);
         dto.setFileSize(null);
         dto.setStatus(message.getStatus());
@@ -257,5 +266,42 @@ public class ChatGroupRealtimeService {
 
     private boolean isMuted(ImGroupMember member) {
         return member.getMuteTime() != null && member.getMuteTime().isAfter(LocalDateTime.now());
+    }
+
+    private List<Long> parseMentionUserIds(String mentionUserIds) {
+        if (mentionUserIds == null || mentionUserIds.isBlank()) {
+            return List.of();
+        }
+        List<Long> result = new ArrayList<>();
+        for (String item : mentionUserIds.split(",")) {
+            if (item == null || item.isBlank()) {
+                continue;
+            }
+            try {
+                result.add(Long.parseLong(item.trim()));
+            } catch (NumberFormatException ignored) {
+                // Skip malformed legacy values.
+            }
+        }
+        return result;
+    }
+
+    private List<String> resolveMentionDisplayNames(List<Long> mentionUserIds, Map<Long, SysUser> userMap) {
+        if (mentionUserIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> displayNames = new ArrayList<>();
+        for (Long mentionUserId : mentionUserIds) {
+            SysUser user = userMap.get(mentionUserId);
+            if (user == null) {
+                continue;
+            }
+            if (user.getNickname() != null && !user.getNickname().isBlank()) {
+                displayNames.add(user.getNickname().trim());
+            } else if (user.getUsername() != null && !user.getUsername().isBlank()) {
+                displayNames.add(user.getUsername().trim());
+            }
+        }
+        return displayNames;
     }
 }

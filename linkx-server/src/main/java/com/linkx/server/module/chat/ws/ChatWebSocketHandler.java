@@ -19,6 +19,8 @@ import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 @Slf4j
 @Component
@@ -151,7 +153,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     readRequiredText(dataNode, "content"),
                     readInt(dataNode, "msgType", ChatConstants.MESSAGE_TYPE_TEXT),
                     readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE),
-                    readClientMessageId(dataNode)
+                    readClientMessageId(dataNode),
+                    readBoolean(dataNode, "mentionAll", false),
+                    readLongList(dataNode, "mentionUserIds")
             );
             case ChatSocketAction.SEND_FILE_MESSAGE -> chatService.sendFileMessage(
                     userId,
@@ -246,6 +250,63 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "clientMessageId 长度不能超过64");
         }
         return clientMessageId;
+    }
+
+    private boolean readBoolean(JsonNode dataNode, String fieldName, boolean defaultValue) {
+        JsonNode fieldNode = dataNode.get(fieldName);
+        if (fieldNode == null || fieldNode.isNull()) {
+            return defaultValue;
+        }
+        if (fieldNode.isBoolean()) {
+            return fieldNode.booleanValue();
+        }
+        if (fieldNode.isTextual()) {
+            String rawValue = fieldNode.textValue().trim();
+            if (!StringUtils.hasText(rawValue)) {
+                return defaultValue;
+            }
+            if ("true".equalsIgnoreCase(rawValue) || "1".equals(rawValue)) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(rawValue) || "0".equals(rawValue)) {
+                return false;
+            }
+        }
+        throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+    }
+
+    private List<Long> readLongList(JsonNode dataNode, String fieldName) {
+        JsonNode fieldNode = dataNode.get(fieldName);
+        if (fieldNode == null || fieldNode.isNull()) {
+            return List.of();
+        }
+        if (!fieldNode.isArray()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+        }
+        List<Long> values = new ArrayList<>();
+        for (JsonNode itemNode : fieldNode) {
+            if (itemNode == null || itemNode.isNull()) {
+                continue;
+            }
+            if (itemNode.isNumber()) {
+                values.add(itemNode.longValue());
+                continue;
+            }
+            if (itemNode.isTextual()) {
+                String rawValue = itemNode.textValue().trim();
+                if (!StringUtils.hasText(rawValue)) {
+                    continue;
+                }
+                try {
+                    values.add(Long.parseLong(rawValue));
+                    continue;
+                } catch (NumberFormatException exception) {
+                    throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+                }
+            }
+            throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+        }
+        return values;
     }
 
     private boolean allowCommand(WebSocketSession session) {

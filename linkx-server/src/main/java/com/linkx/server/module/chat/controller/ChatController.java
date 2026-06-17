@@ -35,7 +35,9 @@ public class ChatController {
                 request.getContent(),
                 request.getMsgType(),
                 request.getSessionType(),
-                null
+                null,
+                request.getMentionAll(),
+                request.getMentionUserIds()
         );
         return Result.success(message);
     }
