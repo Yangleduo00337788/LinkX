@@ -48,6 +48,7 @@
               <div class="session-title-row">
                 <span class="session-name">{{ session.targetNickname }}</span>
                 <span v-if="session.sessionType === SESSION_TYPE_GROUP" class="session-tag">{{ session.memberCount || 0 }}人</span>
+                <span v-if="session.sessionType === SESSION_TYPE_GROUP && session.noticeUnread" class="session-tag notice">新公告</span>
               </div>
               <span class="session-time">{{ formatTime(session.lastMessageTime) }}</span>
             </div>
@@ -802,6 +803,7 @@ interface ChatSession {
   memberCount?: number
   myRole?: number
   notice?: string
+  noticeUnread?: boolean
   muted?: boolean
   muteTime?: string
   targetOnline?: boolean
@@ -1182,6 +1184,7 @@ function normalizeSession(session: any): ChatSession {
     unreadCount: Number(session.unreadCount || 0),
     memberCount: session.memberCount != null ? Number(session.memberCount) : undefined,
     myRole: session.myRole != null ? Number(session.myRole) : undefined,
+    noticeUnread: Boolean(session.noticeUnread),
     muted: Boolean(session.muted),
     targetOnline: Boolean(session.targetOnline)
   }
@@ -1227,6 +1230,7 @@ function updateCurrentSessionFromStore(nextSession: ChatSession) {
       groupName: nextSession.targetNickname || groupDetail.value.groupName,
       groupAvatar: nextSession.targetAvatar || groupDetail.value.groupAvatar,
       notice: nextSession.notice ?? groupDetail.value.notice,
+      noticeUnread: nextSession.noticeUnread ?? groupDetail.value.noticeUnread,
       memberCount: nextSession.memberCount ?? groupDetail.value.memberCount,
       myRole: nextSession.myRole ?? groupDetail.value.myRole,
       muted: nextSession.muted ?? groupDetail.value.muted,
@@ -1800,6 +1804,7 @@ function handleRealtimeGroupDetail(detail: GroupDetail | null) {
     memberCount: detail.memberCount,
     myRole: detail.myRole,
     notice: detail.notice || '',
+    noticeUnread: Boolean(detail.noticeUnread),
     muted: detail.muted,
     muteTime: detail.muteTime
   })
@@ -2297,6 +2302,7 @@ async function initializeRouteSession() {
         memberCount: detail.memberCount,
         myRole: detail.myRole,
         notice: detail.notice || '',
+        noticeUnread: Boolean(detail.noticeUnread),
         muted: detail.muted,
         muteTime: detail.muteTime,
         isDraft: true
@@ -2672,6 +2678,7 @@ async function submitCreateGroup() {
         memberCount: Number(createdGroup.memberCount || requestedMemberCount),
         myRole: Number(createdGroup.myRole ?? GROUP_ROLE_OWNER),
         notice: createdGroup.notice || requestedNotice,
+        noticeUnread: false,
         muted: Boolean(createdGroup.muted),
         muteTime: createdGroup.muteTime || '',
         isDraft: true
@@ -2787,6 +2794,13 @@ async function acknowledgeNoticeReminder() {
   acknowledgingNoticeReminder.value = true
   try {
     await groupApi.markNoticeRead(currentTargetId.value)
+    const activeSession = currentSession.value
+    if (activeSession) {
+      upsertSession({
+        ...activeSession,
+        noticeUnread: false
+      })
+    }
     applyGroupDetail({
       ...groupDetail.value,
       noticeUnread: false,
@@ -3331,6 +3345,11 @@ onUnmounted(() => {
 .member-role-tag.owner {
   background: rgba(77, 107, 255, 0.18);
   color: #90a7ff;
+}
+
+.session-tag.notice {
+  background: rgba(0, 214, 143, 0.14);
+  color: var(--linkx-primary);
 }
 
 .unread-badge {

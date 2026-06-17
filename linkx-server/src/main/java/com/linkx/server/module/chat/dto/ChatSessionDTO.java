@@ -19,6 +19,7 @@ public class ChatSessionDTO {
     private Integer memberCount;
     private Integer myRole;
     private String notice;
+    private Boolean noticeUnread;
     private Boolean muted;
     private LocalDateTime muteTime;
     private Boolean targetOnline;

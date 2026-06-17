@@ -482,6 +482,7 @@ public class ChatServiceImpl implements ChatService {
         dto.setMemberCount(groupMemberCountMap.getOrDefault(groupInfo.getId(), 0));
         dto.setMyRole(member.getRole());
         dto.setNotice(groupInfo.getNotice());
+        dto.setNoticeUnread(hasUnreadNotice(groupInfo, member));
         dto.setMuted(isMuted(member));
         dto.setMuteTime(member.getMuteTime());
         dto.setTargetOnline(false);
@@ -718,6 +719,17 @@ public class ChatServiceImpl implements ChatService {
 
     private boolean isMuted(ImGroupMember member) {
         return member.getMuteTime() != null && member.getMuteTime().isAfter(LocalDateTime.now());
+    }
+
+    private boolean hasUnreadNotice(ImGroupInfo groupInfo, ImGroupMember member) {
+        if (groupInfo == null || member == null) {
+            return false;
+        }
+        if (!StringUtils.hasText(groupInfo.getNotice()) || groupInfo.getNoticeUpdateTime() == null) {
+            return false;
+        }
+        LocalDateTime noticeReadTime = member.getNoticeReadTime();
+        return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());
     }
 
     private void executeAfterCommit(Runnable action) {

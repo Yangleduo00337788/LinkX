@@ -142,6 +142,8 @@ public class ChatGroupRealtimeService {
         detailDTO.setGroupAvatar(groupInfo.getGroupAvatar());
         detailDTO.setNotice(groupInfo.getNotice());
         detailDTO.setNoticeUpdateTime(groupInfo.getNoticeUpdateTime());
+        detailDTO.setNoticeReadTime(currentMember.getNoticeReadTime());
+        detailDTO.setNoticeUnread(hasUnreadNotice(groupInfo, currentMember));
         detailDTO.setOwnerId(groupInfo.getOwnerId());
         detailDTO.setMaxMembers(groupInfo.getMaxMembers());
         detailDTO.setMemberCount(members.size());
@@ -203,6 +205,7 @@ public class ChatGroupRealtimeService {
         dto.setMemberCount(listMembersByGroupId(groupId).size());
         dto.setMyRole(member.getRole());
         dto.setNotice(groupInfo.getNotice());
+        dto.setNoticeUnread(hasUnreadNotice(groupInfo, member));
         dto.setMuted(isMuted(member));
         dto.setMuteTime(member.getMuteTime());
         dto.setTargetOnline(false);
@@ -266,6 +269,17 @@ public class ChatGroupRealtimeService {
 
     private boolean isMuted(ImGroupMember member) {
         return member.getMuteTime() != null && member.getMuteTime().isAfter(LocalDateTime.now());
+    }
+
+    private boolean hasUnreadNotice(ImGroupInfo groupInfo, ImGroupMember member) {
+        if (groupInfo == null || member == null) {
+            return false;
+        }
+        if (groupInfo.getNotice() == null || groupInfo.getNotice().isBlank() || groupInfo.getNoticeUpdateTime() == null) {
+            return false;
+        }
+        LocalDateTime noticeReadTime = member.getNoticeReadTime();
+        return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());
     }
 
     private List<Long> parseMentionUserIds(String mentionUserIds) {

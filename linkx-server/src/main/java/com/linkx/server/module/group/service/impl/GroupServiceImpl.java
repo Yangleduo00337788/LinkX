@@ -587,6 +587,10 @@ public class GroupServiceImpl implements GroupService {
         }
         member.setNoticeReadTime(LocalDateTime.now());
         groupMemberMapper.updateById(member);
+        executeAfterCommit(() -> {
+            chatGroupRealtimeService.pushGroupSessions(groupId, List.of(userId));
+            chatGroupRealtimeService.pushGroupDetails(groupId, List.of(userId));
+        });
     }
 
     private GroupDTO buildGroupDTO(ImGroupInfo groupInfo, ImGroupMember currentMember, int memberCount) {
