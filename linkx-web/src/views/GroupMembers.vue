@@ -1,5 +1,7 @@
 <template>
   <div class="group-members-page">
+    <input ref="groupAvatarInputRef" type="file" accept="image/*" class="hidden-file-input" @change="handleGroupAvatarSelected" />
+
     <div class="page-shell">
       <div class="page-header">
         <div class="page-header-main">
@@ -61,6 +63,82 @@
                 <span class="stat-label">已禁言</span>
                 <strong>{{ mutedCount }}</strong>
               </div>
+            </div>
+          </section>
+
+          <section class="panel-card profile-card">
+            <div class="panel-title-row">
+              <div>
+                <div class="panel-title">群资料</div>
+                <div class="panel-note">{{ canEditGroupProfile ? '支持直接编辑群名称、头像与公告' : '仅群主和管理员可编辑群资料' }}</div>
+              </div>
+            </div>
+
+            <div class="profile-editor">
+              <button
+                class="profile-avatar-editor"
+                :class="{ editable: canEditGroupProfile }"
+                :disabled="!canEditGroupProfile || updatingGroupProfile"
+                @click="triggerGroupAvatarUpload"
+              >
+                <img
+                  v-if="groupProfileDraft.avatarPreview || groupDetail.groupAvatar"
+                  :src="groupProfileDraft.avatarPreview || groupDetail.groupAvatar"
+                  class="avatar-img"
+                />
+                <span v-else>{{ groupProfileDraft.groupName?.charAt(0) || groupDetail.groupName?.charAt(0) || '群' }}</span>
+                <span v-if="canEditGroupProfile" class="profile-avatar-mask">更换头像</span>
+              </button>
+
+              <div class="profile-fields">
+                <label class="field-label" for="groupNameInput">群名称</label>
+                <input
+                  id="groupNameInput"
+                  v-model="groupProfileDraft.groupName"
+                  type="text"
+                  class="text-input filled-input"
+                  maxlength="30"
+                  :disabled="!canEditGroupProfile || updatingGroupProfile"
+                  placeholder="请输入群名称"
+                />
+
+                <label class="field-label" for="groupNoticeInput">群公告</label>
+                <textarea
+                  id="groupNoticeInput"
+                  v-model="noticeDraft"
+                  class="text-area"
+                  rows="4"
+                  maxlength="255"
+                  :disabled="!canEditNotice || updatingNotice"
+                  :placeholder="canEditNotice ? '请输入群公告' : '暂无群公告'"
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="profile-action-row">
+              <button
+                class="secondary-btn"
+                :disabled="(!isGroupProfileChanged && !isGroupNoticeChanged) || updatingGroupProfile || updatingNotice"
+                @click="discardGroupProfileDrafts"
+              >
+                还原修改
+              </button>
+              <button
+                v-if="canEditNotice"
+                class="secondary-btn"
+                :disabled="!isGroupNoticeChanged || updatingNotice"
+                @click="submitUpdateNotice"
+              >
+                {{ updatingNotice ? '保存公告中...' : '保存公告' }}
+              </button>
+              <button
+                v-if="canEditGroupProfile"
+                class="primary-btn"
+                :disabled="!isGroupProfileChanged || updatingGroupProfile"
+                @click="submitUpdateGroupProfile"
+              >
+                {{ updatingGroupProfile ? '保存资料中...' : '保存资料' }}
+              </button>
             </div>
           </section>
 
@@ -358,10 +436,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
-import { friendApi, groupApi } from '../api/client'
+import { fileApi, friendApi, groupApi } from '../api/client'
 import { useUserStore } from '../stores/user'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
@@ -408,12 +486,16 @@ const message = useMessage()
 const userStore = useUserStore()
 const { confirmDialog, openConfirmDialog, cancelConfirmDialog, confirmConfirmDialog } = useConfirmDialog()
 
+const groupAvatarInputRef = ref<HTMLInputElement>()
 const groupDetail = ref<GroupDetail | null>(null)
 const friends = ref<FriendItem[]>([])
 const pageLoading = ref(false)
 const actionLoading = ref(false)
 const searchText = ref('')
 const roleFilter = ref<RoleFilter>('all')
+const updatingGroupProfile = ref(false)
+const updatingNotice = ref(false)
+const noticeDraft = ref('')
 const showAddMembersModal = ref(false)
 const addMembersSelection = ref<Array<string | number>>([])
 const addMembersMessage = ref('')
@@ -424,6 +506,12 @@ const transferringOwner = ref(false)
 const showMuteMemberModal = ref(false)
 const muteTargetMember = ref<GroupMember | null>(null)
 const muteMinutesInput = ref('10')
+
+const groupProfileDraft = reactive({
+  groupName: '',
+  avatarPreview: '',
+  avatarFile: null as File | null
+})
 
 const roleFilters = [
   { label: '全部', value: 'all' as RoleFilter },
@@ -436,6 +524,8 @@ const roleFilters = [
 const groupId = computed(() => String(route.params.groupId || ''))
 const currentGroupRole = computed(() => groupDetail.value?.myRole ?? GROUP_ROLE_MEMBER)
 const canManageMembers = computed(() => currentGroupRole.value >= GROUP_ROLE_ADMIN)
+const canEditGroupProfile = computed(() => currentGroupRole.value >= GROUP_ROLE_ADMIN)
+const canEditNotice = computed(() => currentGroupRole.value >= GROUP_ROLE_ADMIN)
 const isGroupOwner = computed(() => currentGroupRole.value === GROUP_ROLE_OWNER)
 const canDissolveGroup = computed(() => isGroupOwner.value)
 
@@ -445,6 +535,21 @@ const mutedCount = computed(() => (groupDetail.value?.members || []).filter(memb
 const memberCount = computed(() => (groupDetail.value?.members || []).filter(member => member.role === GROUP_ROLE_MEMBER).length)
 const activeRoleFilterLabel = computed(() => roleFilters.find(option => option.value === roleFilter.value)?.label || '全部')
 const manageableMemberCount = computed(() => (groupDetail.value?.members || []).filter(member => canOperateMember(member)).length)
+const isGroupProfileChanged = computed(() => {
+  if (!groupDetail.value) {
+    return false
+  }
+  const normalizedName = groupProfileDraft.groupName.trim()
+  const currentName = groupDetail.value.groupName?.trim() || ''
+  const currentAvatar = groupDetail.value.groupAvatar || ''
+  return normalizedName !== currentName || Boolean(groupProfileDraft.avatarFile) || groupProfileDraft.avatarPreview !== currentAvatar
+})
+const isGroupNoticeChanged = computed(() => {
+  if (!groupDetail.value) {
+    return false
+  }
+  return noticeDraft.value.trim() !== (groupDetail.value.notice || '').trim()
+})
 const availableFriendsForCurrentGroup = computed(() => {
   const memberIds = new Set((groupDetail.value?.members || []).map(member => String(member.userId)))
   return friends.value.filter(friend => !memberIds.has(String(friend.friendId)))
@@ -543,7 +648,7 @@ async function loadGroupDetail(showSuccess = false) {
   pageLoading.value = true
   try {
     const response: any = await groupApi.detail(groupId.value)
-    groupDetail.value = response.data || null
+    applyGroupDetail(response.data || null, true)
     if (showSuccess) {
       message.success('群成员已刷新')
     }
@@ -552,6 +657,45 @@ async function loadGroupDetail(showSuccess = false) {
     message.error(error.response?.data?.message || '加载群成员失败')
   } finally {
     pageLoading.value = false
+  }
+}
+
+function resetGroupProfileDraft() {
+  if (groupProfileDraft.avatarPreview.startsWith('blob:')) {
+    URL.revokeObjectURL(groupProfileDraft.avatarPreview)
+  }
+  groupProfileDraft.groupName = ''
+  groupProfileDraft.avatarPreview = ''
+  groupProfileDraft.avatarFile = null
+  if (groupAvatarInputRef.value) {
+    groupAvatarInputRef.value.value = ''
+  }
+}
+
+function syncGroupProfileDraft(detail?: GroupDetail | null) {
+  if (groupProfileDraft.avatarPreview.startsWith('blob:')) {
+    URL.revokeObjectURL(groupProfileDraft.avatarPreview)
+  }
+  groupProfileDraft.groupName = detail?.groupName || ''
+  groupProfileDraft.avatarPreview = detail?.groupAvatar || ''
+  groupProfileDraft.avatarFile = null
+  if (groupAvatarInputRef.value) {
+    groupAvatarInputRef.value.value = ''
+  }
+}
+
+function discardGroupProfileDrafts() {
+  noticeDraft.value = groupDetail.value?.notice || ''
+  syncGroupProfileDraft(groupDetail.value)
+}
+
+function applyGroupDetail(detail: GroupDetail | null, syncDraft = true) {
+  groupDetail.value = detail
+  if (syncDraft || !isGroupNoticeChanged.value) {
+    noticeDraft.value = detail?.notice || ''
+  }
+  if (syncDraft || !isGroupProfileChanged.value) {
+    syncGroupProfileDraft(detail)
   }
 }
 
@@ -585,6 +729,89 @@ function openGroupChat() {
     path: `/chat/${groupId.value}`,
     query: { sessionType: '2' }
   })
+}
+
+function triggerGroupAvatarUpload() {
+  if (!canEditGroupProfile.value) {
+    return
+  }
+  groupAvatarInputRef.value?.click()
+}
+
+function handleGroupAvatarSelected(event: Event) {
+  if (!canEditGroupProfile.value) {
+    return
+  }
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) {
+    return
+  }
+  const previewUrl = URL.createObjectURL(file)
+  if (groupProfileDraft.avatarPreview.startsWith('blob:')) {
+    URL.revokeObjectURL(groupProfileDraft.avatarPreview)
+  }
+  groupProfileDraft.avatarFile = file
+  groupProfileDraft.avatarPreview = previewUrl
+}
+
+async function submitUpdateNotice() {
+  if (!groupId.value || !canEditNotice.value) {
+    return
+  }
+  updatingNotice.value = true
+  try {
+    await groupApi.updateNotice(groupId.value, noticeDraft.value.trim())
+    if (groupDetail.value) {
+      applyGroupDetail({
+        ...groupDetail.value,
+        notice: noticeDraft.value.trim()
+      }, false)
+    }
+    message.success('群公告已更新')
+  } catch (error: any) {
+    console.error('submitUpdateNotice error:', error)
+    message.error(error.response?.data?.message || '更新群公告失败')
+  } finally {
+    updatingNotice.value = false
+  }
+}
+
+async function submitUpdateGroupProfile() {
+  if (!groupId.value || !groupDetail.value || !canEditGroupProfile.value) {
+    return
+  }
+  const nextGroupName = groupProfileDraft.groupName.trim()
+  if (!nextGroupName) {
+    message.warning('请输入群名称')
+    return
+  }
+
+  updatingGroupProfile.value = true
+  try {
+    let groupAvatar = groupDetail.value.groupAvatar || ''
+    if (groupProfileDraft.avatarFile) {
+      const uploadResponse: any = await fileApi.uploadImage(groupProfileDraft.avatarFile)
+      groupAvatar = uploadResponse.data?.fileUrl || ''
+    }
+    await groupApi.updateProfile(groupId.value, {
+      groupName: nextGroupName,
+      groupAvatar
+    })
+    if (groupDetail.value) {
+      applyGroupDetail({
+        ...groupDetail.value,
+        groupName: nextGroupName,
+        groupAvatar
+      }, true)
+    }
+    message.success('群资料已更新')
+  } catch (error: any) {
+    console.error('submitUpdateGroupProfile error:', error)
+    message.error(error.response?.data?.message || '更新群资料失败')
+  } finally {
+    updatingGroupProfile.value = false
+  }
 }
 
 function openAddMembersModal() {
@@ -861,6 +1088,10 @@ onMounted(() => {
   void loadFriends()
   void loadGroupDetail()
 })
+
+onUnmounted(() => {
+  resetGroupProfileDraft()
+})
 </script>
 
 <style scoped>
@@ -872,6 +1103,10 @@ onMounted(() => {
     radial-gradient(circle at top right, rgba(0, 214, 143, 0.08), transparent 28%),
     radial-gradient(circle at left center, rgba(80, 145, 255, 0.08), transparent 24%),
     var(--linkx-bg);
+}
+
+.hidden-file-input {
+  display: none;
 }
 
 .page-shell {
@@ -1132,6 +1367,97 @@ onMounted(() => {
   color: var(--linkx-text);
   font-size: 17px;
   font-weight: 700;
+}
+
+.panel-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.panel-note {
+  margin-top: 6px;
+  color: var(--linkx-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.profile-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.profile-editor {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.profile-avatar-editor {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--linkx-border);
+  border-radius: 28px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
+  color: white;
+  font-size: 30px;
+  font-weight: 700;
+  cursor: default;
+}
+
+.profile-avatar-editor.editable {
+  cursor: pointer;
+}
+
+.profile-avatar-mask {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.48);
+  color: white;
+  font-size: 12px;
+  text-align: center;
+}
+
+.profile-fields {
+  min-width: 0;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--linkx-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.field-label + .filled-input,
+.field-label + .text-area {
+  margin-bottom: 14px;
+}
+
+.filled-input {
+  height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius);
+  background: var(--linkx-bg);
+}
+
+.profile-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .search-shell {
@@ -1659,6 +1985,10 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 
+  .profile-editor {
+    grid-template-columns: 1fr;
+  }
+
   .member-card-side {
     align-items: flex-start;
   }
@@ -1682,7 +2012,8 @@ onMounted(() => {
   .page-header-actions,
   .group-hero-top,
   .member-card-main,
-  .member-panel-toolbar {
+  .member-panel-toolbar,
+  .profile-action-row {
     flex-direction: column;
     align-items: stretch;
   }
