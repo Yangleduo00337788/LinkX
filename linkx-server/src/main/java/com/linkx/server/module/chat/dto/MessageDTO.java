@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 public class MessageDTO {
     private Long id;
     private Long sessionId;
+    private String clientMessageId;
     private Long fromUserId;
     private String fromNickname;
     private String fromAvatar;

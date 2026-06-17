@@ -1,6 +1,5 @@
 package com.linkx.server.module.chat.ws;
 
-import com.linkx.server.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
@@ -21,7 +20,7 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
 
     public static final String ATTR_USER_ID = "userId";
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private final ChatWebSocketTicketService chatWebSocketTicketService;
 
     @Override
     public boolean beforeHandshake(
@@ -30,15 +29,12 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
             WebSocketHandler wsHandler,
             Map<String, Object> attributes
     ) {
-        String token = extractToken(request);
-        boolean hasToken = StringUtils.hasText(token);
-        boolean validToken = hasToken && jwtTokenProvider.validateToken(token);
-        boolean accessToken = validToken && jwtTokenProvider.isAccessToken(token);
-        if (!hasToken || !validToken || !accessToken) {
+        String ticket = extractTicket(request);
+        Long userId = chatWebSocketTicketService.consumeTicket(ticket);
+        if (userId == null) {
             response.setStatusCode(HttpStatus.UNAUTHORIZED);
             return false;
         }
-        Long userId = jwtTokenProvider.getUserIdFromToken(token);
         attributes.put(ATTR_USER_ID, userId);
         return true;
     }
@@ -52,11 +48,11 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
     ) {
     }
 
-    private String extractToken(ServerHttpRequest request) {
+    private String extractTicket(ServerHttpRequest request) {
         if (request instanceof ServletServerHttpRequest servletRequest) {
-            String token = servletRequest.getServletRequest().getParameter("token");
-            if (StringUtils.hasText(token)) {
-                return token;
+            String ticket = servletRequest.getServletRequest().getParameter("ticket");
+            if (StringUtils.hasText(ticket)) {
+                return ticket;
             }
         }
 
@@ -66,7 +62,7 @@ public class ChatHandshakeInterceptor implements HandshakeInterceptor {
         }
         for (String pair : query.split("&")) {
             String[] parts = pair.split("=", 2);
-            if (parts.length == 2 && "token".equals(parts[0])) {
+            if (parts.length == 2 && "ticket".equals(parts[0])) {
                 return URLDecoder.decode(parts[1], StandardCharsets.UTF_8);
             }
         }

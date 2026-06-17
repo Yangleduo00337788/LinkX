@@ -1,6 +1,6 @@
 package com.linkx.server.module.blacklist.service;
 
-import com.linkx.server.entity.SysUser;
+import com.linkx.server.module.blacklist.dto.BlacklistUserDTO;
 
 import java.util.List;
 
@@ -10,7 +10,7 @@ public interface BlacklistService {
 
     void removeBlacklist(Long userId, Long targetUserId);
 
-    List<SysUser> getBlacklist(Long userId);
+    List<BlacklistUserDTO> getBlacklist(Long userId);
 
     boolean isBlacklisted(Long userId, Long targetUserId);
 }

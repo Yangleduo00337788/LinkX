@@ -25,6 +25,12 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
+    private static final int MAX_TEXT_PAYLOAD_LENGTH = 16 * 1024;
+    private static final int COMMAND_RATE_WINDOW_MILLIS = 10_000;
+    private static final int COMMAND_RATE_LIMIT = 120;
+    private static final String ATTR_COMMAND_WINDOW_START = "chat:commandWindowStart";
+    private static final String ATTR_COMMAND_WINDOW_COUNT = "chat:commandWindowCount";
+
     private final ChatPresenceService chatPresenceService;
     private final ChatService chatService;
     private final ObjectMapper objectMapper;
@@ -46,10 +52,18 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             session.sendMessage(new TextMessage("PONG"));
             return;
         }
+        if (payload != null && payload.length() > MAX_TEXT_PAYLOAD_LENGTH) {
+            sendCommandError(session, "", "", ErrorCode.BAD_REQUEST.getCode(), "WebSocket 消息过大");
+            return;
+        }
 
         Long userId = getUserId(session);
         if (userId == null) {
             sendCommandError(session, "", "", ErrorCode.UNAUTHORIZED.getCode(), "用户未认证");
+            return;
+        }
+        if (!allowCommand(session)) {
+            sendCommandError(session, "", "", ErrorCode.TOO_MANY_REQUESTS.getCode(), "请求过于频繁，请稍后重试");
             return;
         }
 
@@ -136,14 +150,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     readRequiredLong(dataNode, "toUserId"),
                     readRequiredText(dataNode, "content"),
                     readInt(dataNode, "msgType", ChatConstants.MESSAGE_TYPE_TEXT),
-                    readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE)
+                    readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE),
+                    readClientMessageId(dataNode)
             );
             case ChatSocketAction.SEND_FILE_MESSAGE -> chatService.sendFileMessage(
                     userId,
                     readRequiredLong(dataNode, "toUserId"),
                     readRequiredLong(dataNode, "fileId"),
                     readInt(dataNode, "msgType", ChatConstants.MESSAGE_TYPE_FILE),
-                    readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE)
+                    readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE),
+                    readClientMessageId(dataNode)
             );
             case ChatSocketAction.MARK_READ -> {
                 chatService.markAsRead(
@@ -219,6 +235,38 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             return "";
         }
         return fieldNode.asText("");
+    }
+
+    private String readClientMessageId(JsonNode dataNode) {
+        String clientMessageId = readText(dataNode, "clientMessageId").trim();
+        if (!StringUtils.hasText(clientMessageId)) {
+            return null;
+        }
+        if (clientMessageId.length() > 64) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "clientMessageId 长度不能超过64");
+        }
+        return clientMessageId;
+    }
+
+    private boolean allowCommand(WebSocketSession session) {
+        long now = System.currentTimeMillis();
+        Object rawWindowStart = session.getAttributes().get(ATTR_COMMAND_WINDOW_START);
+        long windowStart = rawWindowStart instanceof Number number ? number.longValue() : now;
+        if (now - windowStart >= COMMAND_RATE_WINDOW_MILLIS) {
+            session.getAttributes().put(ATTR_COMMAND_WINDOW_START, now);
+            session.getAttributes().put(ATTR_COMMAND_WINDOW_COUNT, 1);
+            return true;
+        }
+
+        Object rawWindowCount = session.getAttributes().get(ATTR_COMMAND_WINDOW_COUNT);
+        int count = rawWindowCount instanceof Number number ? number.intValue() : 0;
+        if (count >= COMMAND_RATE_LIMIT) {
+            log.warn("WebSocket command rate limited, sessionId={}, userId={}", session.getId(), getUserId(session));
+            return false;
+        }
+        session.getAttributes().put(ATTR_COMMAND_WINDOW_START, windowStart);
+        session.getAttributes().put(ATTR_COMMAND_WINDOW_COUNT, count + 1);
+        return true;
     }
 
     private void sendCommandSuccess(WebSocketSession session, String requestId, String action, Object data) {

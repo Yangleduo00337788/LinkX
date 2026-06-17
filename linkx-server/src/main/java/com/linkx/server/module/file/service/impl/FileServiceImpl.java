@@ -3,8 +3,11 @@ package com.linkx.server.module.file.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.SysFile;
+import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysFileMapper;
+import com.linkx.server.module.file.dto.FileDTO;
 import com.linkx.server.module.file.service.FileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -63,6 +66,7 @@ public class FileServiceImpl implements FileService {
     private static final Set<String> LEGACY_OFFICE_EXTENSIONS = Set.of(".doc", ".xls", ".ppt");
 
     private final SysFileMapper fileMapper;
+    private final ImMessageMapper messageMapper;
 
     @Value("${linkx.upload.path:uploads/}")
     private String uploadPath;
@@ -71,21 +75,21 @@ public class FileServiceImpl implements FileService {
     private String uploadUrl;
 
     @Override
-    public SysFile uploadImage(Long userId, MultipartFile file) {
+    public FileDTO uploadImage(Long userId, MultipartFile file) {
         return storeFile(userId, file, "image", IMAGE_EXTENSIONS, IMAGE_CONTENT_TYPES, "仅支持上传 JPG、PNG、GIF、WEBP、BMP 图片");
     }
 
     @Override
-    public SysFile uploadAvatar(Long userId, MultipartFile file) {
+    public FileDTO uploadAvatar(Long userId, MultipartFile file) {
         return storeFile(userId, file, "avatar", IMAGE_EXTENSIONS, IMAGE_CONTENT_TYPES, "头像仅支持上传 JPG、PNG、GIF、WEBP、BMP 图片");
     }
 
     @Override
-    public SysFile uploadFile(Long userId, MultipartFile file) {
+    public FileDTO uploadFile(Long userId, MultipartFile file) {
         return storeFile(userId, file, "file", FILE_EXTENSIONS, FILE_CONTENT_TYPES, "仅支持上传常见文档、压缩包、音视频和文本文件");
     }
 
-    private SysFile storeFile(
+    private FileDTO storeFile(
             Long userId,
             MultipartFile file,
             String type,
@@ -131,7 +135,7 @@ public class FileServiceImpl implements FileService {
         sysFile.setFileType(contentType);
         fileMapper.insert(sysFile);
 
-        return sysFile;
+        return toFileDTO(sysFile);
     }
 
     private void validateFileContent(MultipartFile file, String extension, String invalidTypeMessage) {
@@ -325,14 +329,16 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public List<SysFile> listFiles(Long userId, String keyword) {
+    public List<FileDTO> listFiles(Long userId, String keyword) {
         LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysFile::getUserId, userId);
-        if (keyword != null && !keyword.isEmpty()) {
-            wrapper.like(SysFile::getOriginalName, keyword);
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            wrapper.like(SysFile::getOriginalName, keyword.trim());
         }
         wrapper.orderByDesc(SysFile::getCreateTime);
-        return fileMapper.selectList(wrapper);
+        return fileMapper.selectList(wrapper).stream()
+                .map(this::toFileDTO)
+                .toList();
     }
 
     @Override
@@ -342,11 +348,28 @@ public class FileServiceImpl implements FileService {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
 
+        LambdaQueryWrapper<ImMessage> msgWrapper = new LambdaQueryWrapper<>();
+        msgWrapper.eq(ImMessage::getContent, sysFile.getFileUrl());
+        if (messageMapper.selectCount(msgWrapper) > 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "该文件已被聊天消息引用，无法删除");
+        }
+
         File file = new File(sysFile.getFilePath());
         if (file.exists()) {
             file.delete();
         }
 
         fileMapper.deleteById(fileId);
+    }
+
+    private FileDTO toFileDTO(SysFile sysFile) {
+        FileDTO dto = new FileDTO();
+        dto.setId(sysFile.getId());
+        dto.setOriginalName(sysFile.getOriginalName());
+        dto.setFileUrl(sysFile.getFileUrl());
+        dto.setFileSize(sysFile.getFileSize());
+        dto.setFileType(sysFile.getFileType());
+        dto.setCreateTime(sysFile.getCreateTime());
+        return dto;
     }
 }

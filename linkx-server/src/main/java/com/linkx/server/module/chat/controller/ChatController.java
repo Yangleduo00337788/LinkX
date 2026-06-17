@@ -1,11 +1,13 @@
 package com.linkx.server.module.chat.controller;
 
 import com.linkx.server.common.Result;
-import com.linkx.server.module.chat.constant.ChatConstants;
 import com.linkx.server.module.chat.dto.ChatSessionDTO;
+import com.linkx.server.module.chat.dto.ChatWsTicketDTO;
 import com.linkx.server.module.chat.dto.MessageDTO;
+import com.linkx.server.module.chat.dto.SendFileMessageRequest;
 import com.linkx.server.module.chat.dto.SendMessageRequest;
 import com.linkx.server.module.chat.service.ChatService;
+import com.linkx.server.module.chat.ws.ChatWebSocketTicketService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -20,6 +22,7 @@ import java.util.List;
 public class ChatController {
 
     private final ChatService chatService;
+    private final ChatWebSocketTicketService chatWebSocketTicketService;
 
     @PostMapping("/send")
     public Result<MessageDTO> sendMessage(
@@ -31,7 +34,8 @@ public class ChatController {
                 request.getToUserId(),
                 request.getContent(),
                 request.getMsgType(),
-                request.getSessionType()
+                request.getSessionType(),
+                null
         );
         return Result.success(message);
     }
@@ -44,7 +48,9 @@ public class ChatController {
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "50") int size) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        return Result.success(chatService.getChatHistory(userId, targetId, sessionType, page, size));
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safePage = Math.max(page, 1);
+        return Result.success(chatService.getChatHistory(userId, targetId, sessionType, safePage, safeSize));
     }
 
     @GetMapping("/sessions")
@@ -75,11 +81,14 @@ public class ChatController {
     @PostMapping("/send-file")
     public Result<MessageDTO> sendFileMessage(
             @AuthenticationPrincipal UserDetails userDetails,
-            @RequestParam("toUserId") Long toUserId,
-            @RequestParam("fileId") Long fileId,
-            @RequestParam("msgType") Integer msgType,
-            @RequestParam(value = "sessionType", defaultValue = "1") Integer sessionType) {
+            @Valid @RequestBody SendFileMessageRequest request) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        return Result.success(chatService.sendFileMessage(userId, toUserId, fileId, msgType, sessionType));
+        return Result.success(chatService.sendFileMessage(userId, request.getToUserId(), request.getFileId(), request.getMsgType(), request.getSessionType(), null));
+    }
+
+    @PostMapping("/ws-ticket")
+    public Result<ChatWsTicketDTO> createWsTicket(@AuthenticationPrincipal UserDetails userDetails) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(new ChatWsTicketDTO(chatWebSocketTicketService.createTicket(userId)));
     }
 }

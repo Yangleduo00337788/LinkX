@@ -62,7 +62,7 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     @Transactional
-    public MessageDTO sendMessage(Long fromUserId, Long toUserId, String content, Integer msgType, Integer sessionType) {
+    public MessageDTO sendMessage(Long fromUserId, Long toUserId, String content, Integer msgType, Integer sessionType, String clientMessageId) {
         if (!StringUtils.hasText(content)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息内容不能为空");
         }
@@ -70,14 +70,14 @@ public class ChatServiceImpl implements ChatService {
         int resolvedSessionType = resolveSessionType(sessionType);
         String normalizedContent = content.trim();
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
-            return sendGroupMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType);
+            return sendGroupMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType, clientMessageId);
         }
-        return sendSingleMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType);
+        return sendSingleMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType, clientMessageId);
     }
 
     @Override
     @Transactional
-    public MessageDTO sendFileMessage(Long fromUserId, Long toUserId, Long fileId, Integer msgType, Integer sessionType) {
+    public MessageDTO sendFileMessage(Long fromUserId, Long toUserId, Long fileId, Integer msgType, Integer sessionType, String clientMessageId) {
         SysFile sysFile = fileMapper.selectById(fileId);
         if (sysFile == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "文件不存在");
@@ -88,9 +88,9 @@ public class ChatServiceImpl implements ChatService {
         int resolvedMsgType = resolveFileMessageType(msgType);
         int resolvedSessionType = resolveSessionType(sessionType);
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
-            return sendGroupMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType);
+            return sendGroupMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType, clientMessageId);
         }
-        return sendSingleMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType);
+        return sendSingleMessage(fromUserId, toUserId, sysFile.getFileUrl(), resolvedMsgType, clientMessageId);
     }
 
     @Override
@@ -183,6 +183,9 @@ public class ChatServiceImpl implements ChatService {
         if (message.getStatus() == ChatConstants.MESSAGE_STATUS_RECALLED) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息已撤回");
         }
+        if (message.getCreateTime() != null && message.getCreateTime().isBefore(LocalDateTime.now().minusMinutes(2))) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "消息发送超过2分钟，无法撤回");
+        }
 
         int sessionType = resolveMessageSessionType(message);
         message.setStatus(ChatConstants.MESSAGE_STATUS_RECALLED);
@@ -203,7 +206,7 @@ public class ChatServiceImpl implements ChatService {
         executeAfterCommit(() -> notifySingleRecall(messageDTO, message.getFromUserId(), message.getToUserId()));
     }
 
-    private MessageDTO sendSingleMessage(Long fromUserId, Long toUserId, String content, Integer msgType) {
+    private MessageDTO sendSingleMessage(Long fromUserId, Long toUserId, String content, Integer msgType, String clientMessageId) {
         SysUser toUser = userMapper.selectById(toUserId);
         if (toUser == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
@@ -236,11 +239,12 @@ public class ChatServiceImpl implements ChatService {
         messageMapper.insert(message);
 
         MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_SINGLE, loadUserMap(Set.of(fromUserId)), Map.of());
+        messageDTO.setClientMessageId(normalizeClientMessageId(clientMessageId));
         executeAfterCommit(() -> notifySingleMessage(messageDTO, fromUserId, toUserId));
         return messageDTO;
     }
 
-    private MessageDTO sendGroupMessage(Long fromUserId, Long groupId, String content, Integer msgType) {
+    private MessageDTO sendGroupMessage(Long fromUserId, Long groupId, String content, Integer msgType, String clientMessageId) {
         requireActiveGroup(groupId);
         ImGroupMember senderMember = requireGroupMember(groupId, fromUserId);
         if (isMuted(senderMember)) {
@@ -277,6 +281,7 @@ public class ChatServiceImpl implements ChatService {
         messageMapper.insert(message);
 
         MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(Set.of(fromUserId)), Map.of());
+        messageDTO.setClientMessageId(normalizeClientMessageId(clientMessageId));
         executeAfterCommit(() -> notifyGroupMessage(messageDTO, groupId, memberUserIds));
         return messageDTO;
     }
@@ -517,6 +522,7 @@ public class ChatServiceImpl implements ChatService {
                         .or()
                         .eq(ImMessage::getFromUserId, targetId)
                         .eq(ImMessage::getToUserId, userId))
+                .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED)
                 .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
                 .last("LIMIT 1");
         return messageMapper.selectOne(wrapper);
@@ -536,6 +542,7 @@ public class ChatServiceImpl implements ChatService {
         LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ImMessage::getToUserId, groupId)
                 .eq(ImMessage::getSessionId, groupId)
+                .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED)
                 .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
                 .last("LIMIT 1");
         return messageMapper.selectOne(wrapper);
@@ -612,7 +619,7 @@ public class ChatServiceImpl implements ChatService {
             return Map.of();
         }
         return userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, user -> user));
+                .collect(Collectors.toMap(SysUser::getId, user -> user, (left, right) -> left));
     }
 
     private Map<Long, ImGroupInfo> loadActiveGroupMap(Set<Long> groupIds) {
@@ -623,7 +630,7 @@ public class ChatServiceImpl implements ChatService {
         wrapper.in(ImGroupInfo::getId, groupIds)
                 .eq(ImGroupInfo::getDeleted, 0);
         return groupInfoMapper.selectList(wrapper).stream()
-                .collect(Collectors.toMap(ImGroupInfo::getId, group -> group));
+                .collect(Collectors.toMap(ImGroupInfo::getId, group -> group, (left, right) -> left));
     }
 
     private Map<Long, ImGroupMember> loadGroupMembersByUser(Long userId, Set<Long> groupIds) {
@@ -634,7 +641,7 @@ public class ChatServiceImpl implements ChatService {
         wrapper.eq(ImGroupMember::getUserId, userId)
                 .in(ImGroupMember::getGroupId, groupIds);
         return groupMemberMapper.selectList(wrapper).stream()
-                .collect(Collectors.toMap(ImGroupMember::getGroupId, member -> member));
+                .collect(Collectors.toMap(ImGroupMember::getGroupId, member -> member, (left, right) -> left));
     }
 
     private Map<Long, Integer> loadGroupMemberCount(Set<Long> groupIds) {
@@ -740,5 +747,16 @@ public class ChatServiceImpl implements ChatService {
             return "[文件]";
         }
         return "[消息]";
+    }
+
+    private String normalizeClientMessageId(String clientMessageId) {
+        if (!StringUtils.hasText(clientMessageId)) {
+            return null;
+        }
+        String normalized = clientMessageId.trim();
+        if (normalized.length() > 64) {
+            return normalized.substring(0, 64);
+        }
+        return normalized;
     }
 }

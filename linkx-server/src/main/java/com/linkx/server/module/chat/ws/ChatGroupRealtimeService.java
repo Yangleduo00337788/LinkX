@@ -243,7 +243,7 @@ public class ChatGroupRealtimeService {
             return Map.of();
         }
         return userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, item -> item));
+                .collect(Collectors.toMap(SysUser::getId, item -> item, (left, right) -> left));
     }
 
     private Set<Long> normalizeUserIds(Collection<Long> userIds) {

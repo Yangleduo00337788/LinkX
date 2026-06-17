@@ -1,7 +1,7 @@
 package com.linkx.server.module.file.controller;
 
 import com.linkx.server.common.Result;
-import com.linkx.server.entity.SysFile;
+import com.linkx.server.module.file.dto.FileDTO;
 import com.linkx.server.module.file.service.FileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,7 +19,7 @@ public class FileController {
     private final FileService fileService;
 
     @PostMapping("/upload/avatar")
-    public Result<SysFile> uploadAvatar(
+    public Result<FileDTO> uploadAvatar(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam("file") MultipartFile file) {
         Long userId = Long.parseLong(userDetails.getUsername());
@@ -27,7 +27,7 @@ public class FileController {
     }
 
     @PostMapping("/upload/image")
-    public Result<SysFile> uploadImage(
+    public Result<FileDTO> uploadImage(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam("file") MultipartFile file) {
         Long userId = Long.parseLong(userDetails.getUsername());
@@ -35,7 +35,7 @@ public class FileController {
     }
 
     @PostMapping("/upload/file")
-    public Result<SysFile> uploadFile(
+    public Result<FileDTO> uploadFile(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam("file") MultipartFile file) {
         Long userId = Long.parseLong(userDetails.getUsername());
@@ -43,7 +43,7 @@ public class FileController {
     }
 
     @GetMapping("/list")
-    public Result<List<SysFile>> listFiles(
+    public Result<List<FileDTO>> listFiles(
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(value = "keyword", required = false) String keyword) {
         Long userId = Long.parseLong(userDetails.getUsername());

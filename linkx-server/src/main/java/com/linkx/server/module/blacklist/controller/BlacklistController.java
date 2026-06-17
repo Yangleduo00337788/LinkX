@@ -1,7 +1,7 @@
 package com.linkx.server.module.blacklist.controller;
 
 import com.linkx.server.common.Result;
-import com.linkx.server.entity.SysUser;
+import com.linkx.server.module.blacklist.dto.BlacklistUserDTO;
 import com.linkx.server.module.blacklist.service.BlacklistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -36,7 +36,7 @@ public class BlacklistController {
     }
 
     @GetMapping("/list")
-    public Result<List<SysUser>> getBlacklist(
+    public Result<List<BlacklistUserDTO>> getBlacklist(
             @AuthenticationPrincipal UserDetails userDetails) {
         Long userId = Long.parseLong(userDetails.getUsername());
         return Result.success(blacklistService.getBlacklist(userId));

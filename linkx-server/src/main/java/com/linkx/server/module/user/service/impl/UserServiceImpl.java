@@ -42,7 +42,11 @@ public class UserServiceImpl implements UserService {
         }
 
         if (request.getNickname() != null) {
-            user.setNickname(request.getNickname());
+            String trimmedNickname = request.getNickname().trim();
+            if (trimmedNickname.isEmpty()) {
+                throw new BusinessException(ErrorCode.BAD_REQUEST, "昵称不能为空");
+            }
+            user.setNickname(trimmedNickname);
         }
         if (request.getAvatar() != null) {
             user.setAvatar(request.getAvatar());
@@ -57,11 +61,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public List<UserProfileDTO> searchUsers(String keyword) {
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return List.of();
+        }
+        String trimmedKeyword = keyword.trim();
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.and(w -> w
-                .like(SysUser::getUsername, keyword)
+                .like(SysUser::getUsername, trimmedKeyword)
                 .or()
-                .like(SysUser::getNickname, keyword)
+                .like(SysUser::getNickname, trimmedKeyword)
         );
         wrapper.last("LIMIT 20");
 

@@ -4,12 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.entity.SysBlacklist;
+import com.linkx.server.entity.SysFriend;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.SysBlacklistMapper;
+import com.linkx.server.mapper.SysFriendMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.module.blacklist.dto.BlacklistUserDTO;
 import com.linkx.server.module.blacklist.service.BlacklistService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -20,8 +24,10 @@ public class BlacklistServiceImpl implements BlacklistService {
 
     private final SysBlacklistMapper blacklistMapper;
     private final SysUserMapper userMapper;
+    private final SysFriendMapper friendMapper;
 
     @Override
+    @Transactional
     public void addBlacklist(Long userId, Long targetUserId) {
         if (userId.equals(targetUserId)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
@@ -43,6 +49,13 @@ public class BlacklistServiceImpl implements BlacklistService {
         blacklist.setUserId(userId);
         blacklist.setBlacklistUserId(targetUserId);
         blacklistMapper.insert(blacklist);
+
+        LambdaQueryWrapper<SysFriend> deleteWrapper = new LambdaQueryWrapper<>();
+        deleteWrapper.and(w -> w
+                .eq(SysFriend::getUserId, userId).eq(SysFriend::getFriendId, targetUserId)
+                .or()
+                .eq(SysFriend::getUserId, targetUserId).eq(SysFriend::getFriendId, userId));
+        friendMapper.delete(deleteWrapper);
     }
 
     @Override
@@ -54,15 +67,25 @@ public class BlacklistServiceImpl implements BlacklistService {
     }
 
     @Override
-    public List<SysUser> getBlacklist(Long userId) {
+    public List<BlacklistUserDTO> getBlacklist(Long userId) {
         LambdaQueryWrapper<SysBlacklist> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysBlacklist::getUserId, userId)
                 .orderByDesc(SysBlacklist::getCreateTime);
         List<SysBlacklist> list = blacklistMapper.selectList(wrapper);
+        if (list.isEmpty()) {
+            return List.of();
+        }
+
+        java.util.Set<Long> blacklistedUserIds = list.stream()
+                .map(SysBlacklist::getBlacklistUserId)
+                .collect(java.util.stream.Collectors.toSet());
+        java.util.Map<Long, SysUser> userMap = userMapper.selectBatchIds(blacklistedUserIds).stream()
+                .collect(java.util.stream.Collectors.toMap(SysUser::getId, user -> user, (left, right) -> left));
 
         return list.stream()
-                .map(b -> userMapper.selectById(b.getBlacklistUserId()))
+                .map(b -> userMap.get(b.getBlacklistUserId()))
                 .filter(u -> u != null)
+                .map(this::toBlacklistUserDTO)
                 .collect(Collectors.toList());
     }
 
@@ -72,5 +95,14 @@ public class BlacklistServiceImpl implements BlacklistService {
         wrapper.eq(SysBlacklist::getUserId, userId)
                 .eq(SysBlacklist::getBlacklistUserId, targetUserId);
         return blacklistMapper.selectCount(wrapper) > 0;
+    }
+
+    private BlacklistUserDTO toBlacklistUserDTO(SysUser user) {
+        BlacklistUserDTO dto = new BlacklistUserDTO();
+        dto.setId(user.getId());
+        dto.setUsername(user.getUsername());
+        dto.setNickname(user.getNickname());
+        dto.setAvatar(user.getAvatar());
+        return dto;
     }
 }
