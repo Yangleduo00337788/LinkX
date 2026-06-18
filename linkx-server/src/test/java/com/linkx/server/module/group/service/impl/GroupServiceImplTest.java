@@ -1,5 +1,7 @@
 package com.linkx.server.module.group.service.impl;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.linkx.server.entity.ImGroupInfo;
 import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.ImGroupRequest;
@@ -10,12 +12,14 @@ import com.linkx.server.mapper.ImGroupMemberMapper;
 import com.linkx.server.mapper.ImGroupRequestMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.ImSessionMapper;
+import com.linkx.server.mapper.SysFileMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.chat.ws.ChatGroupRealtimeService;
 import com.linkx.server.module.group.constant.GroupConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -53,6 +57,9 @@ class GroupServiceImplTest {
     private ImSessionMapper sessionMapper;
 
     @Mock
+    private SysFileMapper fileMapper;
+
+    @Mock
     private SysUserMapper userMapper;
 
     @Mock
@@ -62,15 +69,26 @@ class GroupServiceImplTest {
 
     @BeforeEach
     void setUp() {
+        initTableInfo(ImGroupInfo.class);
+        initTableInfo(ImGroupMember.class);
+        initTableInfo(ImGroupRequest.class);
+        initTableInfo(ImMessage.class);
+
         groupService = new GroupServiceImpl(
                 groupInfoMapper,
                 groupMemberMapper,
                 groupRequestMapper,
                 messageMapper,
                 sessionMapper,
+                fileMapper,
                 userMapper,
                 chatGroupRealtimeService
         );
+    }
+
+    private void initTableInfo(Class<?> entityClass) {
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(new MybatisConfiguration(), "");
+        TableInfoHelper.initTableInfo(assistant, entityClass);
     }
 
     @Test
@@ -133,12 +151,13 @@ class GroupServiceImplTest {
         applicantUser.setUsername("member-b");
 
         when(groupRequestMapper.selectById(1L)).thenReturn(selectedRequest);
-        when(groupInfoMapper.selectById(groupId)).thenReturn(groupInfo);
+        when(groupInfoMapper.selectOne(any())).thenReturn(groupInfo);
         when(groupMemberMapper.selectOne(any())).thenReturn(approverMember);
         when(groupMemberMapper.selectCount(any())).thenReturn(0L);
         when(groupMemberMapper.selectList(any()))
                 .thenReturn(List.of(approverMember, ownerMember), List.of(approverMember, ownerMember, applicantMember));
         when(groupRequestMapper.selectList(any())).thenReturn(List.of(selectedRequest, duplicateRequest));
+        when(groupRequestMapper.update(any(), any())).thenReturn(1);
         when(userMapper.selectBatchIds(any())).thenReturn(List.of(approverUser, applicantUser));
         when(sessionMapper.selectOne(any())).thenReturn(null);
         doAnswer(invocation -> {
@@ -160,8 +179,7 @@ class GroupServiceImplTest {
         List<ImGroupRequest> updatedRequests = requestCaptor.getAllValues();
         assertTrue(updatedRequests.stream().anyMatch(item ->
                 item.getId().equals(2L) && item.getStatus().equals(GroupConstants.REQUEST_STATUS_REJECTED)));
-        assertTrue(updatedRequests.stream().anyMatch(item ->
-                item.getId().equals(1L) && item.getStatus().equals(GroupConstants.REQUEST_STATUS_ACCEPTED)));
+        verify(groupRequestMapper).update(any(), any());
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Long>> userIdsCaptor = ArgumentCaptor.forClass(List.class);

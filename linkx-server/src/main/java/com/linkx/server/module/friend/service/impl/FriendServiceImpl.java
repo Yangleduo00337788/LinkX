@@ -44,7 +44,7 @@ public class FriendServiceImpl implements FriendService {
             throw new BusinessException(ErrorCode.BAD_REQUEST);
         }
 
-        SysUser toUser = userMapper.selectById(toUserId);
+        SysUser toUser = requireActiveUser(toUserId);
         if (toUser == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
@@ -135,6 +135,12 @@ public class FriendServiceImpl implements FriendService {
         }
         if (!claimPendingRequest(requestId, userId, 1)) {
             return;
+        }
+        if (blacklistService.isBlacklisted(request.getFromUserId(), userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "你已被对方拉黑");
+        }
+        if (blacklistService.isBlacklisted(userId, request.getFromUserId())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "你已将对方拉黑");
         }
 
         SysFriend friend1 = new SysFriend();
@@ -235,5 +241,13 @@ public class FriendServiceImpl implements FriendService {
         } catch (DuplicateKeyException ignored) {
             // Treat duplicate acceptance as idempotent to avoid surfacing a 500 on retries.
         }
+    }
+
+    private SysUser requireActiveUser(Long userId) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null || !Objects.equals(user.getStatus(), 1)) {
+            return null;
+        }
+        return user;
     }
 }

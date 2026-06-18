@@ -11,6 +11,12 @@ const LOCAL_RENDERER_PORT = Number(process.env.LINKX_ELECTRON_PORT || 39689)
 const APP_USER_MODEL_ID = 'com.linkx.im'
 const TOAST_ACTIVATOR_CLSID = '2E35D3A8-5D13-4D74-A824-6C6C3D4B8F71'
 
+function debugLog(...args) {
+  if (isDev) {
+    console.log(...args)
+  }
+}
+
 function getRuntimeAppUserModelId() {
   return app.isPackaged ? APP_USER_MODEL_ID : process.execPath
 }
@@ -52,14 +58,31 @@ function resolveContentType(filePath) {
   return STATIC_MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream'
 }
 
+function resolveSafeExternalUrl(rawUrl) {
+  const normalized = typeof rawUrl === 'string' ? rawUrl.trim() : ''
+  if (!normalized) {
+    return null
+  }
+  try {
+    const parsed = new URL(normalized)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null
+    }
+    return parsed.href
+  } catch {
+    return null
+  }
+}
+
 function createStaticRequestHandler(distDir) {
   return (request, response) => {
     const requestUrl = new URL(request.url || '/', `http://${LOCAL_RENDERER_HOST}:${LOCAL_RENDERER_PORT}`)
     const rawPath = decodeURIComponent(requestUrl.pathname)
     const normalizedPath = rawPath === '/' ? '/index.html' : rawPath
     const requestedFilePath = path.normalize(path.join(distDir, normalizedPath))
+    const relativePath = path.relative(distDir, requestedFilePath)
 
-    if (!requestedFilePath.startsWith(distDir)) {
+    if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
       response.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' })
       response.end('Forbidden')
       return
@@ -109,7 +132,7 @@ function startLocalRendererServer() {
 
       const url = `http://${LOCAL_RENDERER_HOST}:${address.port}`
       localRendererServer = { server, url }
-      console.log('Local renderer server started:', url)
+      debugLog('Local renderer server started:', url)
       resolve(url)
     })
   })
@@ -128,9 +151,7 @@ function stopLocalRendererServer() {
 }
 
 async function createWindow() {
-  console.log('Creating window...')
-  console.log('isDev:', isDev)
-  console.log('ELECTRON_DEV_URL:', process.env.ELECTRON_DEV_URL)
+  debugLog('Creating window...', { isDev, url: process.env.ELECTRON_DEV_URL })
 
   const iconPath = path.join(__dirname, 'icons', 'tray.png')
 
@@ -155,7 +176,7 @@ async function createWindow() {
   })
 
   mainWindow.once('ready-to-show', () => {
-    console.log('Window ready to show')
+    debugLog('Window ready to show')
     mainWindow.show()
   })
 
@@ -164,16 +185,16 @@ async function createWindow() {
   })
 
   mainWindow.webContents.on('console-message', (event, level, message) => {
-    console.log('Renderer:', message)
+    debugLog('Renderer:', { level, message })
   })
 
   if (isDev) {
     const url = process.env.ELECTRON_DEV_URL
-    console.log('Loading URL:', url)
+    debugLog('Loading URL:', url)
     await mainWindow.loadURL(url)
   } else {
     const url = await startLocalRendererServer()
-    console.log('Loading local renderer URL:', url)
+    debugLog('Loading local renderer URL:', url)
     await mainWindow.loadURL(url)
   }
 
@@ -184,7 +205,7 @@ async function createWindow() {
   try {
     const { createMenu } = require('./menu')
     createMenu(mainWindow)
-    console.log('Menu loaded')
+    debugLog('Menu loaded')
   } catch (e) {
     console.error('Menu load error:', e.message)
   }
@@ -192,7 +213,7 @@ async function createWindow() {
   try {
     const { createTray } = require('./tray')
     createTray(mainWindow)
-    console.log('Tray loaded')
+    debugLog('Tray loaded')
   } catch (e) {
     console.error('Tray load error:', e.message)
   }
@@ -201,14 +222,14 @@ async function createWindow() {
     const { initUpdater, checkOnStartup } = require('./updater')
     initUpdater(mainWindow)
     checkOnStartup()
-    console.log('Updater loaded')
+    debugLog('Updater loaded')
   } catch (e) {
     console.error('Updater load error:', e.message)
   }
 
   ensureWindowsNotificationShortcut()
   setupIPC()
-  console.log('IPC setup complete')
+  debugLog('IPC setup complete')
 }
 
 function setupIPC() {
@@ -309,7 +330,13 @@ function setupIPC() {
 
   ipcMain.handle('clipboard:read', () => clipboard.readText())
   ipcMain.handle('clipboard:write', (_, text) => clipboard.writeText(text))
-  ipcMain.handle('shell:openExternal', (_, url) => shell.openExternal(url))
+  ipcMain.handle('shell:openExternal', (_, url) => {
+    const safeUrl = resolveSafeExternalUrl(url)
+    if (!safeUrl) {
+      throw new Error('Unsupported external URL')
+    }
+    return shell.openExternal(safeUrl)
+  })
 
   ipcMain.handle('app:toggleDevTools', () => {
     if (mainWindow) mainWindow.webContents.toggleDevTools()
@@ -329,7 +356,7 @@ if (process.platform === 'win32') {
 }
 
 app.whenReady().then(() => {
-  console.log('App ready')
+  debugLog('App ready')
   createWindow().catch(error => {
     console.error('Create window error:', error)
     app.quit()

@@ -3,12 +3,14 @@ package com.linkx.server.module.user.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.common.UploadAssetUrlUtils;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.user.dto.UpdateProfileRequest;
 import com.linkx.server.module.user.dto.UserProfileDTO;
 import com.linkx.server.module.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,9 +22,12 @@ public class UserServiceImpl implements UserService {
 
     private final SysUserMapper userMapper;
 
+    @Value("${linkx.upload.url:http://localhost:8080/uploads/}")
+    private String uploadUrl;
+
     @Override
     public UserProfileDTO getProfile(Long userId) {
-        SysUser user = userMapper.selectById(userId);
+        SysUser user = requireActiveUser(userId);
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
@@ -36,7 +41,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public UserProfileDTO updateProfile(Long userId, UpdateProfileRequest request) {
-        SysUser user = userMapper.selectById(userId);
+        SysUser user = requireActiveUser(userId);
         if (user == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
@@ -49,7 +54,7 @@ public class UserServiceImpl implements UserService {
             user.setNickname(trimmedNickname);
         }
         if (request.getAvatar() != null) {
-            user.setAvatar(request.getAvatar());
+            user.setAvatar(UploadAssetUrlUtils.normalizeAvatarUrl(request.getAvatar(), uploadUrl, "头像"));
         }
         if (request.getGender() != null) {
             user.setGender(request.getGender());
@@ -66,15 +71,24 @@ public class UserServiceImpl implements UserService {
         }
         String trimmedKeyword = keyword.trim();
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
-        wrapper.and(w -> w
-                .like(SysUser::getUsername, trimmedKeyword)
-                .or()
-                .like(SysUser::getNickname, trimmedKeyword)
-        );
+        wrapper.eq(SysUser::getStatus, 1)
+                .and(w -> w
+                        .like(SysUser::getUsername, trimmedKeyword)
+                        .or()
+                        .like(SysUser::getNickname, trimmedKeyword)
+                );
         wrapper.last("LIMIT 20");
 
         List<SysUser> users = userMapper.selectList(wrapper);
         return users.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    private SysUser requireActiveUser(Long userId) {
+        SysUser user = userMapper.selectById(userId);
+        if (user == null || user.getStatus() == null || user.getStatus() != 1) {
+            return null;
+        }
+        return user;
     }
 
     private UserProfileDTO toDTO(SysUser user) {

@@ -2399,7 +2399,11 @@ async function initializeRouteSession() {
     }
     sessions.value = [draftSession, ...sessions.value]
     await selectSession(draftSession, false, { targetMessageId: routeMessageId })
-  } catch (error) {
+  } catch (error: any) {
+    if (isUnavailableConversationError(error)) {
+      await closeUnavailableSingleSession(routeTargetId, { notify: true })
+      return
+    }
     message.error('打开会话失败')
   }
 }

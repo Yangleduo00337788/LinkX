@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.common.UploadAssetUrlUtils;
 import com.linkx.server.entity.ImGroupInfo;
 import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.ImGroupRequest;
@@ -29,6 +30,7 @@ import com.linkx.server.module.group.dto.GroupRequestDTO;
 import com.linkx.server.module.group.service.GroupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -63,6 +65,9 @@ public class GroupServiceImpl implements GroupService {
     private final SysUserMapper userMapper;
     private final ChatGroupRealtimeService chatGroupRealtimeService;
 
+    @Value("${linkx.upload.url:http://localhost:8080/uploads/}")
+    private String uploadUrl;
+
     @Override
     @Transactional
     public GroupDTO createGroup(Long operatorId, String groupName, String groupAvatar, String notice, List<Long> memberIds) {
@@ -72,7 +77,7 @@ public class GroupServiceImpl implements GroupService {
 
         ImGroupInfo groupInfo = new ImGroupInfo();
         groupInfo.setGroupName(normalizedName);
-        groupInfo.setGroupAvatar(normalizeNullableText(groupAvatar));
+        groupInfo.setGroupAvatar(normalizeAvatarUrl(groupAvatar));
         groupInfo.setOwnerId(operatorId);
         groupInfo.setMaxMembers(DEFAULT_MAX_MEMBERS);
         groupInfo.setNotice(normalizeNullableText(notice));
@@ -117,8 +122,13 @@ public class GroupServiceImpl implements GroupService {
                 .collect(Collectors.toMap(ImGroupMember::getGroupId, item -> item, (left, right) -> left));
 
         return groups.stream()
-                .sorted(Comparator.comparing(ImGroupInfo::getUpdateTime, Comparator.nullsLast(LocalDateTime::compareTo)).reversed()
-                        .thenComparing(ImGroupInfo::getCreateTime, Comparator.nullsLast(LocalDateTime::compareTo)).reversed())
+                .sorted(Comparator
+                        .comparing(ImGroupInfo::getUpdateTime, Comparator.nullsLast(LocalDateTime::compareTo))
+                        .reversed()
+                        .thenComparing(
+                                ImGroupInfo::getCreateTime,
+                                Comparator.nullsLast(LocalDateTime::compareTo).reversed()
+                        ))
                 .map(group -> buildGroupDTO(group, myMemberMap.get(group.getId()), memberCountMap.getOrDefault(group.getId(), 0L).intValue()))
                 .collect(Collectors.toList());
     }
@@ -186,7 +196,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void submitJoinRequest(Long userId, Long groupId, String message) {
-        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        requireActiveGroup(groupId);
         if (isGroupMember(groupId, userId)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "你已加入该群聊");
         }
@@ -283,19 +293,31 @@ public class GroupServiceImpl implements GroupService {
                 );
             }
 
-            completePendingJoinRequests(groupInfo.getId(), request.getFromUserId(), GroupConstants.REQUEST_STATUS_REJECTED);
+            completePendingRequests(
+                    groupInfo.getId(),
+                    request.getFromUserId(),
+                    GroupConstants.REQUEST_TYPE_JOIN,
+                    true,
+                    GroupConstants.REQUEST_STATUS_REJECTED
+            );
         } else if (request.getRequestType() == GroupConstants.REQUEST_TYPE_INVITE) {
             boolean joined = addMemberIfAbsent(groupInfo, userId);
             if (joined) {
                 ensureGroupSessions(groupInfo, List.of(userId));
-                Map<Long, SysUser> userMap = loadUserMap(Set.of(userId, request.getFromUserId()));
+                Map<Long, SysUser> userMap = loadUserMap(Set.of(userId));
                 appendGroupSystemMessage(
                         groupInfo.getId(),
                         userId,
                         getUserDisplayName(userId, userMap) + " 接受邀请加入了群聊"
                 );
             }
-            completePendingInviteRequests(groupInfo.getId(), userId, GroupConstants.REQUEST_STATUS_ACCEPTED);
+            completePendingRequests(
+                    groupInfo.getId(),
+                    userId,
+                    GroupConstants.REQUEST_TYPE_INVITE,
+                    false,
+                    GroupConstants.REQUEST_STATUS_ACCEPTED
+            );
         } else {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的群申请类型");
         }
@@ -401,16 +423,7 @@ public class GroupServiceImpl implements GroupService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "管理员不能移除管理员");
         }
 
-        LambdaQueryWrapper<ImGroupMember> deleteMemberWrapper = new LambdaQueryWrapper<>();
-        deleteMemberWrapper.eq(ImGroupMember::getGroupId, groupId)
-                .eq(ImGroupMember::getUserId, memberUserId);
-        groupMemberMapper.delete(deleteMemberWrapper);
-
-        LambdaQueryWrapper<ImSession> deleteSessionWrapper = new LambdaQueryWrapper<>();
-        deleteSessionWrapper.eq(ImSession::getUserId, memberUserId)
-                .eq(ImSession::getTargetId, groupId)
-                .eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_GROUP);
-        sessionMapper.delete(deleteSessionWrapper);
+        removeGroupMemberData(groupId, memberUserId);
 
         Map<Long, SysUser> userMap = loadUserMap(Set.of(operatorId, memberUserId));
         appendGroupSystemMessage(
@@ -537,7 +550,7 @@ public class GroupServiceImpl implements GroupService {
         String oldGroupName = groupInfo.getGroupName();
         String oldGroupAvatar = groupInfo.getGroupAvatar();
         String normalizedGroupName = normalizeGroupName(groupName);
-        String normalizedGroupAvatar = normalizeNullableText(groupAvatar);
+        String normalizedGroupAvatar = normalizeAvatarUrl(groupAvatar);
         if (normalizedGroupName.equals(oldGroupName) && equalsNullableText(normalizedGroupAvatar, oldGroupAvatar)) {
             return;
         }
@@ -808,47 +821,25 @@ public class GroupServiceImpl implements GroupService {
         return request;
     }
 
-    private void markGroupRequestHandled(ImGroupRequest request, int status) {
-        request.setStatus(status);
-        request.setHandleTime(LocalDateTime.now());
-        groupRequestMapper.updateById(request);
-    }
-
-    private void completePendingInviteRequests(Long groupId, Long toUserId, int status) {
+    private void completePendingRequests(Long groupId, Long userId, Integer requestType, boolean matchFromUserId, int status) {
         LambdaQueryWrapper<ImGroupRequest> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ImGroupRequest::getGroupId, groupId)
-                .eq(ImGroupRequest::getToUserId, toUserId)
-                .eq(ImGroupRequest::getRequestType, GroupConstants.REQUEST_TYPE_INVITE)
+                .eq(ImGroupRequest::getRequestType, requestType)
                 .eq(ImGroupRequest::getStatus, GroupConstants.REQUEST_STATUS_PENDING);
-
-        List<ImGroupRequest> pendingInvites = groupRequestMapper.selectList(wrapper);
-        if (pendingInvites.isEmpty()) {
+        if (matchFromUserId) {
+            wrapper.eq(ImGroupRequest::getFromUserId, userId);
+        } else {
+            wrapper.eq(ImGroupRequest::getToUserId, userId);
+        }
+        List<ImGroupRequest> pendingRequests = groupRequestMapper.selectList(wrapper);
+        if (pendingRequests.isEmpty()) {
             return;
         }
         LocalDateTime handleTime = LocalDateTime.now();
-        for (ImGroupRequest pendingInvite : pendingInvites) {
-            pendingInvite.setStatus(status);
-            pendingInvite.setHandleTime(handleTime);
-            groupRequestMapper.updateById(pendingInvite);
-        }
-    }
-
-    private void completePendingJoinRequests(Long groupId, Long fromUserId, int status) {
-        LambdaQueryWrapper<ImGroupRequest> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ImGroupRequest::getGroupId, groupId)
-                .eq(ImGroupRequest::getFromUserId, fromUserId)
-                .eq(ImGroupRequest::getRequestType, GroupConstants.REQUEST_TYPE_JOIN)
-                .eq(ImGroupRequest::getStatus, GroupConstants.REQUEST_STATUS_PENDING);
-
-        List<ImGroupRequest> pendingJoins = groupRequestMapper.selectList(wrapper);
-        if (pendingJoins.isEmpty()) {
-            return;
-        }
-        LocalDateTime handleTime = LocalDateTime.now();
-        for (ImGroupRequest pendingJoin : pendingJoins) {
-            pendingJoin.setStatus(status);
-            pendingJoin.setHandleTime(handleTime);
-            groupRequestMapper.updateById(pendingJoin);
+        for (ImGroupRequest pendingRequest : pendingRequests) {
+            pendingRequest.setStatus(status);
+            pendingRequest.setHandleTime(handleTime);
+            groupRequestMapper.updateById(pendingRequest);
         }
     }
 
@@ -913,10 +904,11 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private String normalizeNullableText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        return value.trim();
+        return UploadAssetUrlUtils.normalizeNullableText(value);
+    }
+
+    private String normalizeAvatarUrl(String rawAvatarUrl) {
+        return UploadAssetUrlUtils.normalizeAvatarUrl(rawAvatarUrl, uploadUrl, "群头像");
     }
 
     private String normalizeGroupRemark(String groupRemark) {
@@ -1030,16 +1022,7 @@ public class GroupServiceImpl implements GroupService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "群主不能退群，请先转让群主或解散群聊");
         }
 
-        LambdaQueryWrapper<ImGroupMember> deleteMemberWrapper = new LambdaQueryWrapper<>();
-        deleteMemberWrapper.eq(ImGroupMember::getGroupId, groupId)
-                .eq(ImGroupMember::getUserId, userId);
-        groupMemberMapper.delete(deleteMemberWrapper);
-
-        LambdaQueryWrapper<ImSession> deleteSessionWrapper = new LambdaQueryWrapper<>();
-        deleteSessionWrapper.eq(ImSession::getUserId, userId)
-                .eq(ImSession::getTargetId, groupId)
-                .eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_GROUP);
-        sessionMapper.delete(deleteSessionWrapper);
+        removeGroupMemberData(groupId, userId);
         Map<Long, SysUser> userMap = loadUserMap(Set.of(userId));
         appendGroupSystemMessage(
                 groupId,
@@ -1352,6 +1335,19 @@ public class GroupServiceImpl implements GroupService {
             return preview;
         }
         return preview.substring(0, SESSION_PREVIEW_MAX_LENGTH);
+    }
+
+    private void removeGroupMemberData(Long groupId, Long userId) {
+        LambdaQueryWrapper<ImGroupMember> deleteMemberWrapper = new LambdaQueryWrapper<>();
+        deleteMemberWrapper.eq(ImGroupMember::getGroupId, groupId)
+                .eq(ImGroupMember::getUserId, userId);
+        groupMemberMapper.delete(deleteMemberWrapper);
+
+        LambdaQueryWrapper<ImSession> deleteSessionWrapper = new LambdaQueryWrapper<>();
+        deleteSessionWrapper.eq(ImSession::getUserId, userId)
+                .eq(ImSession::getTargetId, groupId)
+                .eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_GROUP);
+        sessionMapper.delete(deleteSessionWrapper);
     }
 
     private void executeAfterCommit(Runnable task) {

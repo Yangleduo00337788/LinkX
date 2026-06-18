@@ -15,15 +15,12 @@ public class WebSocketConfig implements WebSocketConfigurer {
 
     private final ChatWebSocketHandler chatWebSocketHandler;
     private final ChatHandshakeInterceptor chatHandshakeInterceptor;
+    private final LinkxSecurityProperties linkxSecurityProperties;
 
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(chatWebSocketHandler, "/ws/chat")
                 .addInterceptors(chatHandshakeInterceptor)
-                .setAllowedOriginPatterns(
-                        "http://localhost:*",
-                        "http://127.0.0.1:*",
-                        "null"
-                );
+                .setAllowedOriginPatterns(linkxSecurityProperties.getAllowedOriginPatterns().toArray(String[]::new));
     }
 }

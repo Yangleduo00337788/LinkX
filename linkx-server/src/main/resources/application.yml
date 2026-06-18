@@ -22,10 +22,12 @@ mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 linkx:
   api-base-url: ${LINKX_API_BASE_URL:http://localhost:8080}
+  security:
+    # Default to browser-deployable origins. Narrow this list in production if you have fixed domains.
+    allowed-origin-patterns: ${LINKX_SECURITY_ALLOWED_ORIGIN_PATTERNS:http://*,https://*}
   jwt:
     secret: ${LINKX_JWT_SECRET:PLEASE_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN}  # required: override via env before startup
     expiration: ${LINKX_JWT_EXPIRATION:86400000}  # 24小时
