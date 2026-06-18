@@ -179,12 +179,12 @@
                 <div class="request-time">{{ r.createTime?.substring(0, 16)?.replace('T', ' ') || '' }}</div>
               </div>
               <div class="request-actions">
-                <button class="action-btn accept" @click="handleAcceptGroupRequest(r.id)">
+                <button class="action-btn accept" :disabled="isProcessingGroupRequest(r.id)" @click="handleAcceptGroupRequest(r.id)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
                 </button>
-                <button class="action-btn reject" @click="handleRejectGroupRequest(r.id)">
+                <button class="action-btn reject" :disabled="isProcessingGroupRequest(r.id)" @click="handleRejectGroupRequest(r.id)">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                     <line x1="18" y1="6" x2="6" y2="18"/>
                     <line x1="6" y1="6" x2="18" y2="18"/>
@@ -268,18 +268,25 @@
                   查看资料
                 </button>
                 <button
-                  v-if="g.myRole === null || g.myRole === undefined"
-                  class="group-search-join-btn"
-                  @click="openJoinGroupModal(g)"
-                >
-                  申请加入
-                </button>
-                <button
-                  v-else
+                  v-if="isJoinedGroup(g.id, g.myRole)"
                   class="group-search-enter-btn"
                   @click="startGroupChat(g.id)"
                 >
                   进入群聊
+                </button>
+                <button
+                  v-else-if="hasPendingJoinRequest(g.id)"
+                  class="group-search-pending-btn"
+                  disabled
+                >
+                  申请已提交
+                </button>
+                <button
+                  v-else
+                  class="group-search-join-btn"
+                  @click="openJoinGroupModal(g)"
+                >
+                  申请加入
                 </button>
               </div>
             </div>
@@ -504,11 +511,18 @@
           <div class="group-preview-actions">
             <button class="group-preview-secondary" @click="closeGroupPreview">关闭</button>
             <button
-              v-if="previewGroupDetail.myRole !== null && previewGroupDetail.myRole !== undefined"
+              v-if="isJoinedGroup(previewGroupDetail.id, previewGroupDetail.myRole)"
               class="group-enter-btn solid"
               @click="startGroupChat(previewGroupDetail.id)"
             >
               进入群聊
+            </button>
+            <button
+              v-else-if="hasPendingJoinRequest(previewGroupDetail.id)"
+              class="group-enter-btn solid disabled"
+              disabled
+            >
+              申请已提交
             </button>
             <button
               v-else
@@ -608,6 +622,8 @@ interface GroupListItem {
   createTime?: string
 }
 
+interface GroupSearchResultItem extends GroupListItem {}
+
 interface GroupPreviewMember {
   userId: string | number
   username?: string
@@ -630,7 +646,7 @@ const joinGroupMessage = ref('')
 const joiningGroup = ref(false)
 const groupSearchKeyword = ref('')
 const searchingGroup = ref(false)
-const groupSearchResults = ref<any[]>([])
+const groupSearchResults = ref<GroupSearchResultItem[]>([])
 const friends = ref<any[]>([])
 const requests = ref<FriendRequestItem[]>([])
 const groupRequests = ref<GroupRequestItem[]>([])
@@ -642,6 +658,8 @@ const showGroupPreview = ref(false)
 const previewGroupDetail = ref<GroupPreviewDetail | null>(null)
 const refreshingPanels = ref(false)
 const previewGroupId = ref<string | null>(null)
+const pendingJoinGroupIds = ref<string[]>([])
+const processingGroupRequestIds = ref<string[]>([])
 
 const PANEL_REFRESH_INTERVAL = 10000
 let lastPanelRefreshAt = 0
@@ -673,6 +691,7 @@ async function loadGroupRequests() {
 async function loadMyGroups() {
   const res: any = await groupApi.mine()
   myGroups.value = res.data || []
+  syncGroupAccessState()
 }
 
 async function refreshPanels(force = false) {
@@ -778,23 +797,124 @@ function buildGroupRequestMessage(request: GroupRequestItem) {
   return `${actor} 申请加入群聊${suffix}`
 }
 
+function normalizeGroupId(groupId: string | number) {
+  return String(groupId)
+}
+
+function normalizeRequestId(requestId: string | number) {
+  return String(requestId)
+}
+
+function hasPendingJoinRequest(groupId: string | number) {
+  return pendingJoinGroupIds.value.includes(normalizeGroupId(groupId))
+}
+
+function markJoinRequestPending(groupId: string | number) {
+  const normalizedGroupId = normalizeGroupId(groupId)
+  if (pendingJoinGroupIds.value.includes(normalizedGroupId)) {
+    return
+  }
+  pendingJoinGroupIds.value = [...pendingJoinGroupIds.value, normalizedGroupId]
+}
+
+function clearPendingJoinRequest(groupId: string | number) {
+  const normalizedGroupId = normalizeGroupId(groupId)
+  pendingJoinGroupIds.value = pendingJoinGroupIds.value.filter(id => id !== normalizedGroupId)
+}
+
+function isJoinedGroup(groupId: string | number, role?: number) {
+  if (role !== null && role !== undefined) {
+    return true
+  }
+  const normalizedGroupId = normalizeGroupId(groupId)
+  return myGroups.value.some(group => normalizeGroupId(group.id) === normalizedGroupId)
+}
+
+function syncGroupAccessState() {
+  const membershipRoleMap = new Map<string, number | undefined>(
+    myGroups.value.map(group => [normalizeGroupId(group.id), group.myRole])
+  )
+
+  if (pendingJoinGroupIds.value.length > 0) {
+    pendingJoinGroupIds.value = pendingJoinGroupIds.value.filter(groupId => !membershipRoleMap.has(groupId))
+  }
+
+  if (groupSearchResults.value.length > 0) {
+    groupSearchResults.value = groupSearchResults.value.map(group => ({
+      ...group,
+      myRole: membershipRoleMap.get(normalizeGroupId(group.id))
+    }))
+  }
+
+  if (previewGroupDetail.value) {
+    previewGroupDetail.value = {
+      ...previewGroupDetail.value,
+      myRole: membershipRoleMap.get(normalizeGroupId(previewGroupDetail.value.id))
+    }
+  }
+}
+
+function isProcessingGroupRequest(requestId: string | number) {
+  return processingGroupRequestIds.value.includes(normalizeRequestId(requestId))
+}
+
+function beginProcessingGroupRequest(requestId: string | number) {
+  const normalizedRequestId = normalizeRequestId(requestId)
+  if (processingGroupRequestIds.value.includes(normalizedRequestId)) {
+    return false
+  }
+  processingGroupRequestIds.value = [...processingGroupRequestIds.value, normalizedRequestId]
+  return true
+}
+
+function endProcessingGroupRequest(requestId: string | number) {
+  const normalizedRequestId = normalizeRequestId(requestId)
+  processingGroupRequestIds.value = processingGroupRequestIds.value.filter(id => id !== normalizedRequestId)
+}
+
+function isStaleGroupRequestError(error: any) {
+  const code = Number(error?.response?.data?.code || error?.response?.status || 0)
+  const serverMessage = String(error?.response?.data?.message || '')
+  return code === 404 || /已处理|不存在/.test(serverMessage)
+}
+
 async function handleAcceptGroupRequest(requestId: number) {
+  if (!beginProcessingGroupRequest(requestId)) {
+    return
+  }
   try {
     await groupApi.acceptRequest(requestId)
     message.success('已处理群通知')
     await refreshPanels(true)
   } catch (e: any) {
+    if (isStaleGroupRequestError(e)) {
+      await refreshPanels(true)
+      message.info(e.response?.data?.message || '群通知状态已更新')
+      return
+    }
     message.error(e.response?.data?.message || '操作失败')
+  } finally {
+    endProcessingGroupRequest(requestId)
   }
 }
 
 async function handleRejectGroupRequest(requestId: number) {
+  if (!beginProcessingGroupRequest(requestId)) {
+    return
+  }
   try {
     await groupApi.rejectRequest(requestId)
     message.info('已拒绝')
     await refreshPanels(true)
   } catch (e: any) {
+    if (isStaleGroupRequestError(e)) {
+      await refreshPanels(true)
+      message.info(e.response?.data?.message || '群通知状态已更新')
+      return
+    }
     message.error(e.response?.data?.message || '操作失败')
+  } finally {
+    endProcessingGroupRequest(requestId)
   }
 }
 
@@ -808,10 +928,15 @@ async function handleJoinGroup() {
     message.warning('群 ID 仅支持数字')
     return
   }
+  if (hasPendingJoinRequest(normalizedGroupId)) {
+    message.info('该群申请已提交，请等待处理')
+    return
+  }
 
   joiningGroup.value = true
   try {
     await groupApi.joinRequest(normalizedGroupId, joinGroupMessage.value.trim())
+    markJoinRequestPending(normalizedGroupId)
     joinGroupId.value = ''
     joinGroupMessage.value = ''
     message.success('入群申请已提交')
@@ -832,6 +957,7 @@ async function handleGroupSearch() {
   try {
     const res: any = await groupApi.search(keyword)
     groupSearchResults.value = res.data || []
+    syncGroupAccessState()
   } catch (e: any) {
     message.error(e.response?.data?.message || '搜索群聊失败')
     groupSearchResults.value = []
@@ -919,6 +1045,9 @@ async function refreshGroupPreview(groupId: string | number, options: { silent?:
       return
     }
     previewGroupDetail.value = res.data || null
+    if (res.data?.myRole !== null && res.data?.myRole !== undefined) {
+      clearPendingJoinRequest(normalizedGroupId)
+    }
   } catch (e: any) {
     if (previewGroupId.value !== normalizedGroupId) {
       return
@@ -1383,6 +1512,13 @@ onUnmounted(() => {
   height: 36px;
 }
 
+.request-actions .action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+  box-shadow: none;
+}
+
 .request-actions .action-btn.accept {
   background: rgba(0, 214, 143, 0.1);
   color: var(--linkx-primary);
@@ -1687,6 +1823,20 @@ onUnmounted(() => {
   background: var(--linkx-primary-hover);
   box-shadow: 0 4px 12px var(--linkx-primary-glow);
   transform: translateY(-1px);
+}
+
+.group-search-pending-btn {
+  min-width: 88px;
+  height: 34px;
+  padding: 0 14px;
+  background: rgba(0, 214, 143, 0.12);
+  border: none;
+  border-radius: var(--linkx-radius-sm);
+  color: var(--linkx-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .group-search-enter-btn {
@@ -1998,6 +2148,11 @@ onUnmounted(() => {
   transition: var(--linkx-transition-fast);
 }
 
+.group-enter-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 .group-preview-btn {
   background: rgba(0, 166, 255, 0.1);
   color: #007aff;
@@ -2038,6 +2193,11 @@ onUnmounted(() => {
 
 .group-enter-btn.solid:hover {
   background: var(--linkx-primary-hover);
+}
+
+.group-enter-btn.solid.disabled {
+  background: rgba(0, 214, 143, 0.2);
+  color: var(--linkx-primary);
 }
 
 .group-preview-overlay {
