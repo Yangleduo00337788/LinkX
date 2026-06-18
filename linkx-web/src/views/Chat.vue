@@ -1813,6 +1813,11 @@ function removeSessionByTarget(targetId: string | number, sessionType: number) {
   sessions.value = sessions.value.filter(session => buildSessionKey(session.targetId, session.sessionType) !== sessionKey)
 }
 
+function isUnavailableConversationError(error: any) {
+  const code = Number(error?.response?.data?.code || error?.response?.status || 0)
+  return code === 403 || code === 404
+}
+
 async function closeUnavailableSingleSession(targetId: string | number, options: { notify?: boolean } = {}) {
   const normalizedTargetId = String(targetId)
   removeSessionByTarget(normalizedTargetId, SESSION_TYPE_SINGLE)
@@ -1837,27 +1842,43 @@ async function closeUnavailableSingleSession(targetId: string | number, options:
   }
 }
 
+async function closeUnavailableGroupSession(
+  targetId: string | number,
+  options: { notify?: boolean; messageText?: string } = {}
+) {
+  const normalizedTargetId = String(targetId)
+  removeSessionByTarget(normalizedTargetId, SESSION_TYPE_GROUP)
+
+  const routeTargetId = route.params.targetId ? String(route.params.targetId) : ''
+  const routeSessionType = Number(route.query.sessionType || SESSION_TYPE_SINGLE)
+  const routeMatches = routeTargetId === normalizedTargetId && routeSessionType === SESSION_TYPE_GROUP
+  const currentMatches = Boolean(currentTargetId.value)
+    && currentSessionType.value === SESSION_TYPE_GROUP
+    && String(currentTargetId.value) === normalizedTargetId
+
+  if (currentMatches) {
+    await closeGroupDrawer({ force: true })
+    resetCurrentConversationState()
+  }
+
+  if (routeMatches) {
+    await router.replace('/chat')
+  }
+
+  if ((routeMatches || currentMatches) && options.notify) {
+    message.warning(options.messageText || '当前群聊已不可用')
+  }
+}
+
 async function handleRealtimeGroupRemoved(payload: any) {
   const groupId = payload?.groupId ? String(payload.groupId) : ''
   if (!groupId) {
     return
   }
-
-  removeSessionByTarget(groupId, SESSION_TYPE_GROUP)
-
-  const isCurrentRemovedGroup = currentTargetId.value
-    && currentSessionType.value === SESSION_TYPE_GROUP
-    && String(currentTargetId.value) === groupId
-
-  if (!isCurrentRemovedGroup) {
-    return
-  }
-
-  await closeGroupDrawer({ force: true })
-  resetCurrentConversationState()
-  if (route.path.startsWith('/chat')) {
-    await router.replace('/chat')
-  }
+  await closeUnavailableGroupSession(groupId, {
+    notify: true,
+    messageText: '你已不在该群聊中'
+  })
 }
 
 function handleRealtimeGroupDetail(detail: GroupDetail | null) {
@@ -2212,6 +2233,14 @@ async function loadSessions() {
       await closeUnavailableSingleSession(activeSingleTargetId, { notify: true })
     }
 
+    const activeGroupTargetId = currentSessionType.value === SESSION_TYPE_GROUP ? currentTargetId.value : null
+    if (
+      activeGroupTargetId
+      && !sessions.value.some(session => buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(activeGroupTargetId, SESSION_TYPE_GROUP))
+    ) {
+      await closeUnavailableGroupSession(activeGroupTargetId, { notify: true })
+    }
+
   } catch (error) {
     console.error('loadSessions error:', error)
   }
@@ -2222,9 +2251,15 @@ async function loadGroupDetail(groupId: string | number, syncDraft = true) {
     const response: any = await groupApi.detail(groupId)
     const detail = response.data || null
     applyGroupDetail(detail, syncDraft)
+    return true
   } catch (error) {
     console.error('loadGroupDetail error:', error)
+    if (isUnavailableConversationError(error)) {
+      await closeUnavailableGroupSession(groupId, { notify: true })
+      return false
+    }
     message.error('获取群详情失败')
+    return false
   }
 }
 
@@ -2255,7 +2290,10 @@ async function selectSession(
   clearActiveJumpHighlight()
 
   if (currentSessionType.value === SESSION_TYPE_GROUP) {
-    await loadGroupDetail(session.targetId)
+    const detailLoaded = await loadGroupDetail(session.targetId)
+    if (!detailLoaded) {
+      return
+    }
   } else {
     applyGroupDetail(null)
     showGroupDrawer.value = false
@@ -2328,7 +2366,11 @@ async function initializeRouteSession() {
       }
       sessions.value = [draftSession, ...sessions.value]
       await selectSession(draftSession, false, { targetMessageId: routeMessageId })
-    } catch (error) {
+    } catch (error: any) {
+      if (isUnavailableConversationError(error)) {
+        await closeUnavailableGroupSession(routeTargetId, { notify: true })
+        return
+      }
       message.error('打开群聊失败')
     }
     return
@@ -2379,6 +2421,7 @@ async function loadMessages(
   } = {}
 ) {
   loadingMessages.value = true
+  let skipPostLoadHandling = false
   try {
     const targetMessageId = options.targetMessageId ? String(options.targetMessageId) : ''
     let nextMessages: DisplayMessage[] = []
@@ -2429,13 +2472,21 @@ async function loadMessages(
       clearMentionBannerQueue()
     }
     await markCurrentSessionRead(targetId, sessionType)
-  } catch (error) {
+  } catch (error: any) {
     console.error('loadMessages error:', error)
+    if (sessionType === SESSION_TYPE_GROUP && isUnavailableConversationError(error)) {
+      skipPostLoadHandling = true
+      await closeUnavailableGroupSession(targetId, { notify: true })
+      return
+    }
     cleanupMessageResources(messages.value)
     messages.value = []
     clearMentionBannerQueue()
   } finally {
     loadingMessages.value = false
+    if (skipPostLoadHandling) {
+      return
+    }
     wasAtBottom = true
     await nextTick()
     const targetMessageId = options.targetMessageId ? String(options.targetMessageId) : ''
@@ -2468,7 +2519,10 @@ async function refreshCurrentSession() {
     return
   }
   if (isGroupSession.value) {
-    await loadGroupDetail(currentTargetId.value)
+    const detailLoaded = await loadGroupDetail(currentTargetId.value)
+    if (!detailLoaded || !currentTargetId.value) {
+      return
+    }
   }
   await loadMessages(currentTargetId.value, currentSessionType.value)
   message.success('已刷新')
