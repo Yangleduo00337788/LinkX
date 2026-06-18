@@ -159,6 +159,9 @@ public class ChatServiceImpl implements ChatService {
     @Transactional
     public void markAsRead(Long userId, Long targetId, Integer sessionType) {
         int resolvedSessionType = resolveSessionType(sessionType);
+        if (resolvedSessionType == ChatConstants.SESSION_TYPE_SINGLE && !canAccessSingleChat(userId, targetId)) {
+            return;
+        }
         ImSession session = getSession(userId, targetId, resolvedSessionType);
         if (session != null && session.getUnreadCount() != 0) {
             session.setUnreadCount(0);

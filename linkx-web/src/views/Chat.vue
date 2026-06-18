@@ -1052,14 +1052,16 @@ async function syncSocketState() {
   }
   syncingSocketState.value = true
   try {
-    const syncTasks: Array<Promise<unknown>> = [loadSessions()]
+    await loadFriends()
+    await loadSessions()
     if (currentTargetId.value) {
+      const syncTasks: Array<Promise<unknown>> = []
       syncTasks.push(loadMessages(currentTargetId.value, currentSessionType.value))
       if (currentSessionType.value === SESSION_TYPE_GROUP) {
         syncTasks.push(loadGroupDetail(currentTargetId.value, false))
       }
+      await Promise.all(syncTasks)
     }
-    await Promise.all(syncTasks)
   } finally {
     syncingSocketState.value = false
   }
@@ -1098,6 +1100,17 @@ function sortSessions() {
     }
     return String(right.id || '').localeCompare(String(left.id || ''))
   })
+}
+
+function isFriendTarget(targetId: string | number) {
+  return friends.value.some(friend => String(friend.friendId) === String(targetId))
+}
+
+function shouldPreserveDraftSession(session: ChatSession) {
+  if (Number(session.sessionType || SESSION_TYPE_SINGLE) === SESSION_TYPE_GROUP) {
+    return true
+  }
+  return isFriendTarget(session.targetId)
 }
 
 function upsertSession(nextSession: ChatSession) {
@@ -1799,6 +1812,30 @@ function removeSessionByTarget(targetId: string | number, sessionType: number) {
   sessions.value = sessions.value.filter(session => buildSessionKey(session.targetId, session.sessionType) !== sessionKey)
 }
 
+async function closeUnavailableSingleSession(targetId: string | number, options: { notify?: boolean } = {}) {
+  const normalizedTargetId = String(targetId)
+  removeSessionByTarget(normalizedTargetId, SESSION_TYPE_SINGLE)
+
+  const routeTargetId = route.params.targetId ? String(route.params.targetId) : ''
+  const routeSessionType = Number(route.query.sessionType || SESSION_TYPE_SINGLE)
+  const routeMatches = routeTargetId === normalizedTargetId && routeSessionType === SESSION_TYPE_SINGLE
+  const currentMatches = Boolean(currentTargetId.value)
+    && currentSessionType.value === SESSION_TYPE_SINGLE
+    && String(currentTargetId.value) === normalizedTargetId
+
+  if (currentMatches) {
+    resetCurrentConversationState()
+  }
+
+  if (routeMatches) {
+    await router.replace('/chat')
+  }
+
+  if ((routeMatches || currentMatches) && options.notify) {
+    message.warning('当前单聊已不可用')
+  }
+}
+
 async function handleRealtimeGroupRemoved(payload: any) {
   const groupId = payload?.groupId ? String(payload.groupId) : ''
   if (!groupId) {
@@ -2157,9 +2194,22 @@ async function loadSessions() {
       }
     }
 
-    const draftSessions = sessions.value.filter(existing => existing.isDraft && !nextSessions.some((item: ChatSession) => buildSessionKey(item.targetId, item.sessionType) === buildSessionKey(existing.targetId, existing.sessionType)))
+    const draftSessions = sessions.value.filter(existing =>
+      existing.isDraft
+      && shouldPreserveDraftSession(existing)
+      && !nextSessions.some((item: ChatSession) => buildSessionKey(item.targetId, item.sessionType) === buildSessionKey(existing.targetId, existing.sessionType))
+    )
     sessions.value = [...draftSessions, ...nextSessions]
     sortSessions()
+
+    const activeSingleTargetId = currentSessionType.value === SESSION_TYPE_SINGLE ? currentTargetId.value : null
+    if (
+      activeSingleTargetId
+      && !sessions.value.some(session => buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(activeSingleTargetId, currentSessionType.value))
+      && !isFriendTarget(activeSingleTargetId)
+    ) {
+      await closeUnavailableSingleSession(activeSingleTargetId, { notify: true })
+    }
 
   } catch (error) {
     console.error('loadSessions error:', error)
@@ -2284,6 +2334,10 @@ async function initializeRouteSession() {
   }
 
   try {
+    if (!isFriendTarget(routeTargetId)) {
+      await closeUnavailableSingleSession(routeTargetId, { notify: true })
+      return
+    }
     const response: any = await userApi.getUser(routeTargetId)
     const user = response.data
     if (!user) {
@@ -2407,6 +2461,8 @@ async function loadMessages(
 
 async function refreshCurrentSession() {
   showMenu.value = false
+  await loadFriends()
+  await loadSessions()
   if (!currentTargetId.value) {
     return
   }
@@ -2414,7 +2470,6 @@ async function refreshCurrentSession() {
     await loadGroupDetail(currentTargetId.value)
   }
   await loadMessages(currentTargetId.value, currentSessionType.value)
-  await loadSessions()
   message.success('已刷新')
 }
 
