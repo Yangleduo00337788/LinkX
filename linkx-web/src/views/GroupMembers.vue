@@ -924,7 +924,7 @@ function canToggleAdmin(member: GroupMember) {
 
 async function loadGroupDetail(showSuccess = false) {
   if (!groupId.value) {
-    return
+    return false
   }
   pageLoading.value = true
   try {
@@ -933,6 +933,7 @@ async function loadGroupDetail(showSuccess = false) {
     if (showSuccess) {
       message.success('群成员已刷新')
     }
+    return true
   } catch (error: any) {
     console.error('loadGroupDetail error:', error)
     if (isGroupUnavailableError(error)) {
@@ -940,9 +941,10 @@ async function loadGroupDetail(showSuccess = false) {
         notify: true,
         messageText: '当前群聊已不可访问'
       })
-      return
+      return false
     }
     message.error(error.response?.data?.message || '加载群成员失败')
+    return false
   } finally {
     pageLoading.value = false
   }
@@ -1100,8 +1102,11 @@ async function loadGroupRequests() {
 }
 
 async function refreshPageData() {
+  const detailLoaded = await loadGroupDetail(true)
+  if (!detailLoaded) {
+    return
+  }
   await Promise.all([
-    loadGroupDetail(true),
     loadGroupRequests(),
     loadGroupMedia(),
     messageSearchKeyword.value.trim() ? searchGroupMessages() : Promise.resolve()
@@ -1260,6 +1265,14 @@ async function loadGroupMedia() {
     groupMediaItems.value = await hydrateFileAccessUrls(response.data || [])
   } catch (error: any) {
     console.error('loadGroupMedia error:', error)
+    if (isGroupUnavailableError(error)) {
+      groupMediaItems.value = []
+      await closeUnavailableGroupPage({
+        notify: true,
+        messageText: '当前群聊已不可访问'
+      })
+      return
+    }
     message.error(error.response?.data?.message || '加载群相册/文件库失败')
   } finally {
     groupMediaLoading.value = false
@@ -1278,6 +1291,14 @@ async function searchGroupMessages() {
     groupMessageSearchResults.value = response.data || []
   } catch (error: any) {
     console.error('searchGroupMessages error:', error)
+    if (isGroupUnavailableError(error)) {
+      groupMessageSearchResults.value = []
+      await closeUnavailableGroupPage({
+        notify: true,
+        messageText: '当前群聊已不可访问'
+      })
+      return
+    }
     message.error(error.response?.data?.message || '搜索群消息失败')
   } finally {
     groupMessageSearchLoading.value = false
@@ -1329,7 +1350,16 @@ function formatRequestTime(time?: string) {
   return time?.substring(0, 16)?.replace('T', ' ') || ''
 }
 
+function isStaleGroupRequestError(error: any) {
+  const code = Number(error?.response?.data?.code || error?.response?.status || 0)
+  const serverMessage = String(error?.response?.data?.message || '')
+  return code === 404 || /已处理|不存在/.test(serverMessage)
+}
+
 async function handleAcceptGroupRequest(requestId: number | string) {
+  if (requestActionLoadingId.value === requestId) {
+    return
+  }
   requestActionLoadingId.value = requestId
   try {
     await groupApi.acceptRequest(requestId)
@@ -1337,6 +1367,11 @@ async function handleAcceptGroupRequest(requestId: number | string) {
     await Promise.all([loadGroupRequests(), loadGroupDetail()])
   } catch (error: any) {
     console.error('handleAcceptGroupRequest error:', error)
+    if (isStaleGroupRequestError(error)) {
+      await Promise.all([loadGroupRequests(), loadGroupDetail()])
+      message.info(error.response?.data?.message || '群申请状态已更新')
+      return
+    }
     message.error(error.response?.data?.message || '处理入群申请失败')
   } finally {
     requestActionLoadingId.value = null
@@ -1344,6 +1379,9 @@ async function handleAcceptGroupRequest(requestId: number | string) {
 }
 
 async function handleRejectGroupRequest(requestId: number | string) {
+  if (requestActionLoadingId.value === requestId) {
+    return
+  }
   requestActionLoadingId.value = requestId
   try {
     await groupApi.rejectRequest(requestId)
@@ -1351,6 +1389,11 @@ async function handleRejectGroupRequest(requestId: number | string) {
     await loadGroupRequests()
   } catch (error: any) {
     console.error('handleRejectGroupRequest error:', error)
+    if (isStaleGroupRequestError(error)) {
+      await loadGroupRequests()
+      message.info(error.response?.data?.message || '群申请状态已更新')
+      return
+    }
     message.error(error.response?.data?.message || '处理入群申请失败')
   } finally {
     requestActionLoadingId.value = null
@@ -1704,17 +1747,13 @@ watch(() => route.params.groupId, () => {
   mediaType.value = 'all'
   messageSearchKeyword.value = ''
   groupMessageSearchResults.value = []
-  void loadGroupDetail()
-  void loadGroupRequests()
-  void loadGroupMedia()
+  void refreshPageData()
 })
 
 onMounted(() => {
   void connectChatSocket()
   void loadFriends()
-  void loadGroupDetail()
-  void loadGroupRequests()
-  void loadGroupMedia()
+  void refreshPageData()
 })
 
 onUnmounted(() => {
