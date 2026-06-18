@@ -1,6 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+const AUTH_STORAGE_KEYS = ['token', 'refreshToken', 'userId', 'nickname', 'avatar', 'username'] as const
+
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
   const refreshToken = ref(localStorage.getItem('refreshToken') || '')
@@ -32,7 +34,9 @@ export const useUserStore = defineStore('user', () => {
     nickname.value = ''
     avatar.value = ''
     username.value = ''
-    localStorage.clear()
+    for (const key of AUTH_STORAGE_KEYS) {
+      localStorage.removeItem(key)
+    }
   }
 
   return { token, refreshToken, userId, nickname, avatar, username, setLoginData, logout }

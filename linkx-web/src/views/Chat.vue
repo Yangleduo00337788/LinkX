@@ -211,7 +211,7 @@
                         <span class="file-size">{{ getFileSizeText(msg) || '待发送文件' }}</span>
                       </div>
                     </button>
-                    <a v-else :href="msg.content" target="_blank" class="msg-file" @click.prevent="downloadFile(msg)">
+                    <a v-else href="#" class="msg-file" @click.prevent="downloadFile(msg)">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
@@ -381,45 +381,21 @@
   <input ref="imageInputRef" type="file" accept="image/*" style="display: none" @change="handleImageUpload" />
   <input ref="groupAvatarInputRef" type="file" accept="image/*" style="display: none" @change="handleGroupAvatarSelected" />
 
-  <Teleport to="body">
-    <div v-if="showImagePreview" class="image-preview-overlay" @click.self="closeImagePreview">
-      <button class="image-preview-close" type="button" @click="closeImagePreview">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-      <div class="image-preview-stage">
-        <div class="image-preview-container" @click.stop>
-          <img :src="previewImageUrl" class="image-preview-img" />
-        </div>
-      </div>
-    </div>
-  </Teleport>
+  <ChatMediaPreview
+    :visible="showImagePreview"
+    :image-url="previewImageUrl"
+    @close="closeImagePreview"
+  />
 
-  <div v-if="showDownloadModal" class="download-overlay" @click.self="showDownloadModal = false">
-    <div class="download-dialog">
-      <div class="download-header">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--linkx-primary)" stroke-width="1.5">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-        </svg>
-        <div class="download-filename">{{ downloadFileName }}</div>
-        <div class="download-size">{{ downloadFileSize || '未知大小' }}</div>
-      </div>
-      <div v-if="downloadProgress < 100" class="download-progress">
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: downloadProgress + '%' }"></div>
-        </div>
-        <div class="progress-text">{{ downloadProgress }}%</div>
-      </div>
-      <div v-if="downloadProgress >= 100" class="download-actions">
-        <button class="download-btn open" @click="openDownloadedFile">打开</button>
-        <button class="download-btn save" @click="saveDownloadedFile">保存</button>
-      </div>
-      <button class="download-cancel" @click="showDownloadModal = false">取消</button>
-    </div>
-  </div>
+  <ChatDownloadDialog
+    :visible="showDownloadModal"
+    :file-name="downloadFileName"
+    :file-size="downloadFileSize"
+    :progress="downloadProgress"
+    @close="showDownloadModal = false"
+    @open="openDownloadedFile"
+    @save="saveDownloadedFile"
+  />
 
   <div v-if="showCreateGroupModal" class="overlay-panel" @click.self="closeCreateGroupModal">
     <div class="modal-card create-group-modal">
@@ -767,116 +743,47 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 import GroupNoticeDialog from '../components/GroupNoticeDialog.vue'
 import { useChatSocket } from '../hooks/useChatSocket'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
+import { openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload } from '../utils/url'
 import { useUserStore } from '../stores/user'
-import { getDateTimeTimestamp, parseDateTime } from '../utils/datetime'
+import { getDateTimeTimestamp } from '../utils/datetime'
 import { playNotificationSound, showNotification } from '../utils/notify'
-
-const SESSION_TYPE_SINGLE = 1
-const SESSION_TYPE_GROUP = 2
-const MESSAGE_TYPE_TEXT = 0
-const MESSAGE_TYPE_IMAGE = 1
-const MESSAGE_TYPE_FILE = 2
-const MESSAGE_TYPE_SYSTEM = 3
-const MESSAGE_STATUS_RECALLED = 1
-const GROUP_ROLE_MEMBER = 0
-const GROUP_ROLE_ADMIN = 1
-const GROUP_ROLE_OWNER = 2
-
-interface FriendItem {
-  friendId: string | number
-  friendNickname: string
-  friendAvatar?: string
-  friendUsername: string
-}
-
-interface ChatSession {
-  id?: string | number
-  userId?: string | number
-  targetId: string | number
-  sessionType: number
-  targetNickname: string
-  targetUsername?: string
-  targetAvatar?: string
-  lastMessage?: string
-  lastMessageTime?: string
-  unreadCount: number
-  memberCount?: number
-  myRole?: number
-  groupRemark?: string
-  notice?: string
-  noticeUnread?: boolean
-  muted?: boolean
-  muteTime?: string
-  notificationMuted?: boolean
-  targetOnline?: boolean
-  isDraft?: boolean
-}
-
-interface GroupMember {
-  userId: string | number
-  username: string
-  nickname: string
-  avatar?: string
-  role: number
-  muted?: boolean
-  muteTime?: string
-}
-
-interface GroupDetail {
-  id: string | number
-  groupName: string
-  groupAvatar?: string
-  groupRemark?: string
-  notice?: string
-  noticeUpdateTime?: string
-  noticeReadTime?: string
-  noticeUnread?: boolean
-  ownerId: string | number
-  maxMembers: number
-  memberCount: number
-  myRole: number
-  muted?: boolean
-  muteTime?: string
-  notificationMuted?: boolean
-  members: GroupMember[]
-}
-
-interface DisplayMessage {
-  id: string | number
-  localId: string
-  clientMessageId?: string
-  isMe: boolean
-  isSystem: boolean
-  name: string
-  fromAvatar?: string
-  content: string
-  msgType: number
-  status: number
-  readTime?: string
-  createTime: string
-  time: string
-  readStatus: string
-  deliveryStatus: 'sending' | 'sent' | 'failed'
-  fileName?: string
-  fileSize?: number
-  sessionType: number
-  targetId: string
-  mentionAll: boolean
-  mentionUserIds: string[]
-  mentionDisplayNames: string[]
-  mentionedMe: boolean
-  retryFile?: File
-  uploadedFileId?: string | number
-}
-
-interface MentionCandidate {
-  key: string
-  label: string
-  meta: string
-  insertToken: string
-  mentionUserId?: string
-  isAll: boolean
-}
+import ChatDownloadDialog from './chat/ChatDownloadDialog.vue'
+import ChatMediaPreview from './chat/ChatMediaPreview.vue'
+import {
+  GROUP_ROLE_ADMIN,
+  GROUP_ROLE_MEMBER,
+  GROUP_ROLE_OWNER,
+  MESSAGE_STATUS_RECALLED,
+  MESSAGE_TYPE_FILE,
+  MESSAGE_TYPE_IMAGE,
+  MESSAGE_TYPE_SYSTEM,
+  MESSAGE_TYPE_TEXT,
+  SESSION_TYPE_GROUP,
+  SESSION_TYPE_SINGLE,
+  type ChatSession,
+  type DisplayMessage,
+  type FriendItem,
+  type GroupDetail,
+  type GroupMember,
+  type MentionCandidate
+} from './chat/chat-types'
+import {
+  buildSessionKey,
+  compareDisplayMessages,
+  createLocalMessageId,
+  escapeAttributeSelector,
+  escapeRegExp,
+  formatDateTime,
+  formatSize,
+  formatTime,
+  getFileName,
+  getMessageAnchorKey,
+  getMessagePreview,
+  normalizeSession,
+  resolveMessageTargetId,
+  roleClass,
+  roleText
+} from './chat/chat-utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -1180,24 +1087,6 @@ function sendChatCommand(action: string, data: Record<string, unknown> = {}) {
 
 const emojis = ['😀', '😂', '🤣', '😍', '🥰', '😘', '😎', '🤔', '😏', '😢', '😭', '😡', '🥳', '😱', '🥺', '😴', '🤗', '😈', '👻', '💀', '🤡', '👽', '🤖', '💩', '❤️', '🔥', '👍', '👎', '👏', '🙏', '💪', '🎉', '🎊', '☕', '🌹', '🍀', '🌈', '☀️', '🌙', '⭐']
 
-function buildSessionKey(targetId: string | number, sessionType: number) {
-  return `${sessionType}-${String(targetId)}`
-}
-
-function normalizeSession(session: any): ChatSession {
-  return {
-    ...session,
-    sessionType: Number(session.sessionType || SESSION_TYPE_SINGLE),
-    unreadCount: Number(session.unreadCount || 0),
-    memberCount: session.memberCount != null ? Number(session.memberCount) : undefined,
-    myRole: session.myRole != null ? Number(session.myRole) : undefined,
-    noticeUnread: Boolean(session.noticeUnread),
-    muted: Boolean(session.muted),
-    notificationMuted: Boolean(session.notificationMuted),
-    targetOnline: Boolean(session.targetOnline)
-  }
-}
-
 function sortSessions() {
   sessions.value = [...sessions.value].sort((left, right) => {
     const leftTime = getDateTimeTimestamp(left.lastMessageTime)
@@ -1263,23 +1152,6 @@ function isCurrentSession(session: ChatSession) {
     return false
   }
   return buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(currentTargetId.value, currentSessionType.value)
-}
-
-function createLocalMessageId(prefix = 'local') {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function getMessageAnchorKey(messageItem: Pick<DisplayMessage, 'id' | 'localId' | 'clientMessageId'>) {
-  return String(messageItem.clientMessageId || messageItem.id || messageItem.localId)
-}
-
-function compareDisplayMessages(left: DisplayMessage, right: DisplayMessage) {
-  const leftTime = getDateTimeTimestamp(left.createTime)
-  const rightTime = getDateTimeTimestamp(right.createTime)
-  if (leftTime !== rightTime) {
-    return leftTime - rightTime
-  }
-  return String(left.id).localeCompare(String(right.id))
 }
 
 function getRouteMessageId() {
@@ -1351,17 +1223,6 @@ function getMessageTextSegments(content: string) {
   return segments
 }
 
-function resolveMessageTargetId(item: any, isMe: boolean, sessionType: number) {
-  if (sessionType === SESSION_TYPE_GROUP) {
-    return String(item.toUserId)
-  }
-  return String(isMe ? item.toUserId : item.fromUserId)
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 function getMemberMentionToken(member: GroupMember) {
   const nickname = member.nickname?.trim()
   if (nickname) {
@@ -1408,13 +1269,6 @@ function consumeMentionBanner(messageItem: DisplayMessage | null | undefined = a
 
 function dismissMentionBanner() {
   consumeMentionBanner()
-}
-
-function escapeAttributeSelector(value: string) {
-  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
-    return CSS.escape(value)
-  }
-  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }
 
 function scrollToMessage(messageItem: DisplayMessage | null | undefined, behavior: ScrollBehavior = 'smooth') {
@@ -1670,6 +1524,20 @@ function cleanupMessageResources(messageList = messages.value) {
   }
 }
 
+function revokeBlobUrl(url?: string) {
+  if (url?.startsWith('blob:')) {
+    URL.revokeObjectURL(url)
+  }
+}
+
+function resetCurrentConversationState() {
+  currentTargetId.value = null
+  currentSessionType.value = SESSION_TYPE_SINGLE
+  applyGroupDetail(null)
+  cleanupMessageResources()
+  messages.value = []
+}
+
 function toDisplayMessage(item: any): DisplayMessage {
   const readTime = item.readTime || ''
   const isRecalled = Number(item.status ?? 0) === MESSAGE_STATUS_RECALLED
@@ -1874,11 +1742,7 @@ async function handleRealtimeGroupRemoved(payload: any) {
   }
 
   await closeGroupDrawer({ force: true })
-  currentTargetId.value = null
-  currentSessionType.value = SESSION_TYPE_SINGLE
-  applyGroupDetail(null)
-  cleanupMessageResources()
-  messages.value = []
+  resetCurrentConversationState()
   if (route.path.startsWith('/chat')) {
     await router.replace('/chat')
   }
@@ -1913,80 +1777,6 @@ function handleRealtimeGroupDetail(detail: GroupDetail | null) {
   if (currentTargetId.value && currentSessionType.value === SESSION_TYPE_GROUP && String(currentTargetId.value) === String(detail.id)) {
     applyGroupDetail(detail, false)
   }
-}
-
-function formatTime(time?: string) {
-  if (!time) {
-    return ''
-  }
-  const date = parseDateTime(time)
-  if (!date) {
-    return ''
-  }
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-  if (days === 0) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-  }
-  if (days === 1) {
-    return '昨天'
-  }
-  if (days < 7) {
-    const weekdays = ['日', '一', '二', '三', '四', '五', '六']
-    return `周${weekdays[date.getDay()]}`
-  }
-  return date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' })
-}
-
-function formatDateTime(time?: string) {
-  if (!time) {
-    return ''
-  }
-  const date = parseDateTime(time)
-  if (!date) {
-    return ''
-  }
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).replace(/\//g, '-')
-}
-
-function formatSize(bytes?: number) {
-  if (!bytes) {
-    return ''
-  }
-  if (bytes < 1024) {
-    return `${bytes} B`
-  }
-  if (bytes < 1024 * 1024) {
-    return `${(bytes / 1024).toFixed(1)} KB`
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-function roleText(role?: number) {
-  if (role === GROUP_ROLE_OWNER) {
-    return '群主'
-  }
-  if (role === GROUP_ROLE_ADMIN) {
-    return '管理员'
-  }
-  return '成员'
-}
-
-function roleClass(role?: number) {
-  if (role === GROUP_ROLE_OWNER) {
-    return 'owner'
-  }
-  if (role === GROUP_ROLE_ADMIN) {
-    return 'admin'
-  }
-  return 'member'
 }
 
 function autoResize() {
@@ -2028,34 +1818,8 @@ function handleWindowKeydown(event: KeyboardEvent) {
   }
 }
 
-function getFileName(url: string) {
-  if (!url) {
-    return '文件'
-  }
-  const segments = url.split('/')
-  const name = segments[segments.length - 1]
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
-  return uuidPattern.test(name) ? '文件' : name
-}
-
 function getFileSizeText(msg: DisplayMessage) {
   return formatSize(msg.fileSize)
-}
-
-function getMessagePreview(msg: Pick<DisplayMessage, 'content' | 'msgType' | 'status' | 'isSystem'>) {
-  if (msg.status === MESSAGE_STATUS_RECALLED) {
-    return '[消息已撤回]'
-  }
-  if (msg.isSystem || msg.msgType === MESSAGE_TYPE_TEXT) {
-    return msg.content
-  }
-  if (msg.msgType === MESSAGE_TYPE_IMAGE) {
-    return '[图片]'
-  }
-  if (msg.msgType === MESSAGE_TYPE_FILE) {
-    return '[文件]'
-  }
-  return '[消息]'
 }
 
 function createPendingMessage(options: {
@@ -2213,24 +1977,34 @@ async function retryFailedMessage(messageItem: DisplayMessage) {
 }
 
 function downloadFile(msg: DisplayMessage) {
+  const safeDownloadUrl = resolveSafeDownloadUrl(msg.content)
+  if (!safeDownloadUrl) {
+    message.error('文件链接无效或协议不受支持')
+    return
+  }
   downloadFileName.value = msg.fileName || getFileName(msg.content)
   downloadFileSize.value = getFileSizeText(msg)
-  downloadFileUrl.value = msg.content
+  downloadFileUrl.value = safeDownloadUrl
   downloadProgress.value = 100
   showDownloadModal.value = true
 }
 
-function openDownloadedFile() {
-  window.open(downloadFileUrl.value, '_blank')
-  showDownloadModal.value = false
+async function openDownloadedFile() {
+  try {
+    await openSafeExternalUrl(downloadFileUrl.value)
+    showDownloadModal.value = false
+  } catch (error: any) {
+    message.error(error.message || '打开文件失败')
+  }
 }
 
 function saveDownloadedFile() {
-  const anchor = document.createElement('a')
-  anchor.href = downloadFileUrl.value
-  anchor.download = downloadFileName.value
-  anchor.click()
-  showDownloadModal.value = false
+  try {
+    triggerSafeDownload(downloadFileUrl.value, downloadFileName.value)
+    showDownloadModal.value = false
+  } catch (error: any) {
+    message.error(error.message || '保存文件失败')
+  }
 }
 
 function insertEmoji(emoji: string) {
@@ -2722,9 +2496,7 @@ function closeCreateGroupModal() {
 }
 
 function resetCreateGroupForm() {
-  if (createGroupForm.avatarPreview.startsWith('blob:')) {
-    URL.revokeObjectURL(createGroupForm.avatarPreview)
-  }
+  revokeBlobUrl(createGroupForm.avatarPreview)
   createGroupForm.groupName = ''
   createGroupForm.notice = ''
   createGroupForm.memberIds = []
@@ -2736,9 +2508,7 @@ function resetCreateGroupForm() {
 }
 
 function resetGroupProfileDraft() {
-  if (groupProfileDraft.avatarPreview.startsWith('blob:')) {
-    URL.revokeObjectURL(groupProfileDraft.avatarPreview)
-  }
+  revokeBlobUrl(groupProfileDraft.avatarPreview)
   groupProfileDraft.groupName = ''
   groupProfileDraft.avatarPreview = ''
   groupProfileDraft.avatarFile = null
@@ -2748,9 +2518,7 @@ function resetGroupProfileDraft() {
 }
 
 function syncGroupProfileDraft(detail?: GroupDetail | null) {
-  if (groupProfileDraft.avatarPreview.startsWith('blob:')) {
-    URL.revokeObjectURL(groupProfileDraft.avatarPreview)
-  }
+  revokeBlobUrl(groupProfileDraft.avatarPreview)
   groupProfileDraft.groupName = detail?.groupName || ''
   groupProfileDraft.avatarPreview = detail?.groupAvatar || ''
   groupProfileDraft.avatarFile = null
@@ -2772,22 +2540,18 @@ function handleGroupAvatarSelected(event: Event) {
   }
   const previewUrl = URL.createObjectURL(file)
   if (showCreateGroupModal.value) {
-    if (createGroupForm.avatarPreview.startsWith('blob:')) {
-      URL.revokeObjectURL(createGroupForm.avatarPreview)
-    }
+    revokeBlobUrl(createGroupForm.avatarPreview)
     createGroupForm.avatarFile = file
     createGroupForm.avatarPreview = previewUrl
     return
   }
   if (showGroupDrawer.value && canEditGroupProfile.value) {
-    if (groupProfileDraft.avatarPreview.startsWith('blob:')) {
-      URL.revokeObjectURL(groupProfileDraft.avatarPreview)
-    }
+    revokeBlobUrl(groupProfileDraft.avatarPreview)
     groupProfileDraft.avatarFile = file
     groupProfileDraft.avatarPreview = previewUrl
     return
   }
-  URL.revokeObjectURL(previewUrl)
+  revokeBlobUrl(previewUrl)
 }
 
 async function submitCreateGroup() {
@@ -3158,11 +2922,7 @@ async function handleDissolveGroup() {
     await groupApi.dissolve(currentTargetId.value)
     await closeGroupDrawer({ force: true })
     removeSessionByTarget(currentTargetId.value, SESSION_TYPE_GROUP)
-    currentTargetId.value = null
-    currentSessionType.value = SESSION_TYPE_SINGLE
-    applyGroupDetail(null)
-    cleanupMessageResources()
-    messages.value = []
+    resetCurrentConversationState()
     await router.replace('/chat')
     message.success('群聊已解散')
   } catch (error: any) {
@@ -3189,11 +2949,7 @@ async function handleLeaveGroup() {
     await groupApi.leaveGroup(currentTargetId.value)
     await closeGroupDrawer({ force: true })
     removeSessionByTarget(currentTargetId.value, SESSION_TYPE_GROUP)
-    currentTargetId.value = null
-    currentSessionType.value = SESSION_TYPE_SINGLE
-    applyGroupDetail(null)
-    cleanupMessageResources()
-    messages.value = []
+    resetCurrentConversationState()
     await router.replace('/chat')
     message.success('已退出群聊')
   } catch (error: any) {
@@ -3305,8 +3061,7 @@ onUnmounted(() => {
 .secondary-btn,
 .text-btn,
 .mini-btn,
-.danger-action-btn,
-.download-btn {
+.danger-action-btn {
   transition: var(--linkx-transition-fast);
 }
 
@@ -3325,7 +3080,7 @@ onUnmounted(() => {
 
 .create-group-btn:hover,
 .primary-btn:hover,
-.download-btn.open:hover {
+.primary-btn:hover {
   background: var(--linkx-primary-hover);
 }
 
@@ -3367,7 +3122,6 @@ onUnmounted(() => {
 .chat-subtitle,
 .msg-time,
 .msg-status,
-.download-size,
 .modal-subtitle,
 .drawer-subtitle,
 .member-meta,
@@ -3556,8 +3310,7 @@ onUnmounted(() => {
 .chat-header,
 .chat-name-row,
 .modal-header,
-.modal-actions,
-.download-actions {
+.modal-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3727,7 +3480,6 @@ onUnmounted(() => {
 .header-action-btn,
 .toolbar-btn,
 .modal-close,
-.download-cancel,
 .secondary-btn,
 .text-btn,
 .mini-btn {
@@ -4266,8 +4018,6 @@ onUnmounted(() => {
   font-size: 24px;
 }
 
-.image-preview-overlay,
-.download-overlay,
 .overlay-panel,
 .drawer-overlay {
   position: fixed;
@@ -4278,38 +4028,6 @@ onUnmounted(() => {
   z-index: 1000;
 }
 
-.image-preview-overlay {
-  background: rgba(0, 0, 0, 0.9);
-  z-index: 3000;
-  flex-direction: column;
-}
-
-.image-preview-stage {
-  display: flex;
-  width: 100%;
-  height: 100%;
-  align-items: center;
-  justify-content: center;
-  padding: 32px;
-}
-
-.image-preview-container {
-  display: flex;
-  max-width: 100%;
-  max-height: 100%;
-  align-items: center;
-  justify-content: center;
-}
-
-.image-preview-img {
-  display: block;
-  max-width: min(100%, 1600px);
-  max-height: calc(100vh - 64px);
-  object-fit: contain;
-  border-radius: var(--linkx-radius-sm);
-}
-
-.image-preview-close,
 .modal-close {
   width: 32px;
   height: 32px;
@@ -4318,23 +4036,12 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.image-preview-close {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-  z-index: 3001;
-}
-
-.download-overlay,
 .overlay-panel,
 .drawer-overlay {
   background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
 }
 
-.download-dialog,
 .modal-card,
 .group-drawer {
   background: var(--linkx-bg-card);
@@ -4342,57 +4049,11 @@ onUnmounted(() => {
   box-shadow: var(--linkx-shadow-lg);
 }
 
-.download-dialog,
 .modal-card {
   border-radius: var(--linkx-radius-lg);
   max-width: calc(100vw - 24px);
   max-height: calc(100vh - 24px);
 }
-
-.download-dialog {
-  width: 360px;
-  padding: 32px;
-  text-align: center;
-}
-
-.download-header {
-  margin-bottom: 24px;
-}
-
-.download-filename {
-  margin-top: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--linkx-text);
-  word-break: break-all;
-}
-
-.download-progress {
-  margin-bottom: 24px;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 6px;
-  background: var(--linkx-bg);
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--linkx-text-secondary);
-}
-
-.download-btn,
 .secondary-btn,
 .danger-action-btn {
   border-radius: var(--linkx-radius);
@@ -4401,18 +4062,6 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-.download-btn {
-  flex: 1;
-  padding: 12px;
-}
-
-.download-btn.open {
-  border: none;
-  background: var(--linkx-primary);
-  color: white;
-}
-
-.download-btn.save,
 .secondary-btn {
   background: transparent;
   border: 1px solid var(--linkx-border);
@@ -5005,21 +4654,18 @@ onUnmounted(() => {
     gap: 8px;
   }
 
-  .download-dialog,
   .modal-card {
     width: calc(100vw - 20px);
     padding: 20px 16px;
   }
 
   .modal-actions,
-  .download-actions,
   .danger-actions {
     flex-wrap: wrap;
   }
 
   .secondary-btn,
   .primary-btn,
-  .download-btn,
   .danger-action-btn {
     width: 100%;
   }

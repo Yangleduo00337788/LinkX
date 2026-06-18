@@ -658,6 +658,7 @@ import { useConfirmDialog } from '../hooks/useConfirmDialog'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import GroupNoticeDialog from '../components/GroupNoticeDialog.vue'
 import { parseDateTime } from '../utils/datetime'
+import { openSafeExternalUrl } from '../utils/url'
 
 const GROUP_ROLE_MEMBER = 0
 const GROUP_ROLE_ADMIN = 1
@@ -1108,11 +1109,15 @@ async function copyMediaLink(url?: string) {
   }
 }
 
-function openMediaResource(url?: string) {
+async function openMediaResource(url?: string) {
   if (!url) {
     return
   }
-  window.open(url, '_blank', 'noopener')
+  try {
+    await openSafeExternalUrl(url)
+  } catch (error: any) {
+    message.error(error.message || '打开资源失败')
+  }
 }
 
 async function submitGroupPreferences() {

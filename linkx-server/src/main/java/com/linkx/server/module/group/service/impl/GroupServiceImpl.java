@@ -28,6 +28,7 @@ import com.linkx.server.module.group.dto.GroupMemberDTO;
 import com.linkx.server.module.group.dto.GroupRequestDTO;
 import com.linkx.server.module.group.service.GroupService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -51,6 +52,7 @@ import java.util.stream.Collectors;
 public class GroupServiceImpl implements GroupService {
 
     private static final int DEFAULT_MAX_MEMBERS = 500;
+    private static final int SESSION_PREVIEW_MAX_LENGTH = 500;
 
     private final ImGroupInfoMapper groupInfoMapper;
     private final ImGroupMemberMapper groupMemberMapper;
@@ -1087,7 +1089,7 @@ public class GroupServiceImpl implements GroupService {
 
         for (ImGroupMember member : members) {
             ImSession session = getOrCreateGroupSession(member.getUserId(), groupId);
-            session.setLastMessage(content);
+            session.setLastMessage(truncateSessionPreview(content));
             session.setLastMessageTime(now);
             if (!member.getUserId().equals(operatorId)) {
                 session.setUnreadCount((session.getUnreadCount() == null ? 0 : session.getUnreadCount()) + 1);
@@ -1112,8 +1114,16 @@ public class GroupServiceImpl implements GroupService {
         session.setTargetId(groupId);
         session.setSessionType(ChatConstants.SESSION_TYPE_GROUP);
         session.setUnreadCount(0);
-        sessionMapper.insert(session);
-        return session;
+        try {
+            sessionMapper.insert(session);
+            return session;
+        } catch (DuplicateKeyException exception) {
+            ImSession existingSession = sessionMapper.selectOne(wrapper);
+            if (existingSession != null) {
+                return existingSession;
+            }
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "群会话初始化失败");
+        }
     }
 
     private String getUserDisplayName(Long userId, Map<Long, SysUser> userMap) {
@@ -1304,6 +1314,16 @@ public class GroupServiceImpl implements GroupService {
             return operatorName + " 将群名称修改为“" + newGroupName + "”";
         }
         return operatorName + " 更新了群头像";
+    }
+
+    private String truncateSessionPreview(String preview) {
+        if (!StringUtils.hasText(preview)) {
+            return preview;
+        }
+        if (preview.length() <= SESSION_PREVIEW_MAX_LENGTH) {
+            return preview;
+        }
+        return preview.substring(0, SESSION_PREVIEW_MAX_LENGTH);
     }
 
     private void executeAfterCommit(Runnable task) {

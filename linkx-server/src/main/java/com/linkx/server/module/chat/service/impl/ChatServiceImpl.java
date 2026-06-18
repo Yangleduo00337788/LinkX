@@ -1,6 +1,7 @@
 package com.linkx.server.module.chat.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.entity.ImGroupInfo;
@@ -20,6 +21,7 @@ import com.linkx.server.module.chat.constant.ChatConstants;
 import com.linkx.server.module.chat.dto.ChatSessionDTO;
 import com.linkx.server.module.chat.dto.MessageDTO;
 import com.linkx.server.module.chat.service.ChatService;
+import com.linkx.server.module.chat.helper.ChatMessageHelper;
 import com.linkx.server.module.chat.ws.ChatEventPushService;
 import com.linkx.server.module.chat.ws.ChatEventType;
 import com.linkx.server.module.chat.ws.ChatMessagePayload;
@@ -28,6 +30,7 @@ import com.linkx.server.module.chat.ws.ChatReadReceiptPayload;
 import com.linkx.server.module.chat.ws.ChatSessionPayload;
 import com.linkx.server.module.group.constant.GroupConstants;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -50,6 +53,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
+
+    private static final int SESSION_PREVIEW_MAX_LENGTH = 500;
 
     private record MentionContext(boolean mentionAll, List<Long> mentionUserIds) {
         private static final MentionContext EMPTY = new MentionContext(false, List.of());
@@ -141,8 +146,8 @@ public class ChatServiceImpl implements ChatService {
         return sessions.stream()
                 .map(session -> buildSessionDTO(userId, session, userMap, blacklistCache, groupMap, myGroupMemberMap, groupMemberCountMap))
                 .filter(dto -> dto != null)
-                .sorted(Comparator.comparing(ChatSessionDTO::getLastMessageTime, Comparator.nullsLast(LocalDateTime::compareTo)).reversed()
-                        .thenComparing(ChatSessionDTO::getId, Comparator.nullsLast(Long::compareTo)).reversed())
+                .sorted(Comparator.comparing(ChatSessionDTO::getLastMessageTime, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(ChatSessionDTO::getId, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());
     }
 
@@ -156,15 +161,11 @@ public class ChatServiceImpl implements ChatService {
             sessionMapper.updateById(session);
         }
 
+        LocalDateTime readTime = LocalDateTime.now();
+
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_SINGLE) {
-            LocalDateTime readTime = LocalDateTime.now();
             List<ImMessage> unreadMessages = listUnreadSingleMessages(targetId, userId);
-            List<Long> messageIds = new ArrayList<>(unreadMessages.size());
-            for (ImMessage unreadMessage : unreadMessages) {
-                unreadMessage.setReadTime(readTime);
-                messageMapper.updateById(unreadMessage);
-                messageIds.add(unreadMessage.getId());
-            }
+            List<Long> messageIds = batchMarkAsRead(unreadMessages, readTime);
 
             executeAfterCommit(() -> {
                 pushSessionUpdate(userId, targetId, ChatConstants.SESSION_TYPE_SINGLE);
@@ -175,6 +176,13 @@ public class ChatServiceImpl implements ChatService {
                             new ChatReadReceiptPayload(userId, ChatConstants.SESSION_TYPE_SINGLE, userId, readTime, messageIds)
                     );
                 }
+            });
+            return;
+        }
+
+        if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
+            executeAfterCommit(() -> {
+                pushSessionUpdate(userId, targetId, ChatConstants.SESSION_TYPE_GROUP);
             });
             return;
         }
@@ -232,14 +240,15 @@ public class ChatServiceImpl implements ChatService {
 
         LocalDateTime now = LocalDateTime.now();
         String preview = buildPreview(content, msgType);
+        String sessionPreview = truncateSessionPreview(preview);
 
         ImSession selfSession = getOrCreateSession(fromUserId, toUserId, ChatConstants.SESSION_TYPE_SINGLE);
-        selfSession.setLastMessage(preview);
+        selfSession.setLastMessage(sessionPreview);
         selfSession.setLastMessageTime(now);
         sessionMapper.updateById(selfSession);
 
         ImSession peerSession = getOrCreateSession(toUserId, fromUserId, ChatConstants.SESSION_TYPE_SINGLE);
-        peerSession.setLastMessage(preview);
+        peerSession.setLastMessage(sessionPreview);
         peerSession.setLastMessageTime(now);
         peerSession.setUnreadCount(peerSession.getUnreadCount() + 1);
         sessionMapper.updateById(peerSession);
@@ -287,7 +296,7 @@ public class ChatServiceImpl implements ChatService {
         for (ImGroupMember member : members) {
             memberUserIds.add(member.getUserId());
             ImSession session = getOrCreateSession(member.getUserId(), groupId, ChatConstants.SESSION_TYPE_GROUP);
-            session.setLastMessage(buildGroupPreview(preview, mentionContext, fromUserId, member.getUserId()));
+            session.setLastMessage(truncateSessionPreview(buildGroupPreview(preview, mentionContext, fromUserId, member.getUserId())));
             session.setLastMessageTime(now);
             if (!member.getUserId().equals(fromUserId)) {
                 session.setUnreadCount(session.getUnreadCount() + 1);
@@ -511,7 +520,11 @@ public class ChatServiceImpl implements ChatService {
             session.setTargetId(targetId);
             session.setSessionType(sessionType);
             session.setUnreadCount(0);
-            sessionMapper.insert(session);
+            try {
+                sessionMapper.insert(session);
+            } catch (DuplicateKeyException exception) {
+                return requireSession(userId, targetId, sessionType);
+            }
         }
         return session;
     }
@@ -524,6 +537,14 @@ public class ChatServiceImpl implements ChatService {
         return sessionMapper.selectOne(wrapper);
     }
 
+    private ImSession requireSession(Long userId, Long targetId, Integer sessionType) {
+        ImSession session = getSession(userId, targetId, sessionType);
+        if (session == null) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "会话初始化失败");
+        }
+        return session;
+    }
+
     private List<ImMessage> listUnreadSingleMessages(Long fromUserId, Long toUserId) {
         LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ImMessage::getFromUserId, fromUserId)
@@ -532,6 +553,18 @@ public class ChatServiceImpl implements ChatService {
                 .isNull(ImMessage::getReadTime)
                 .orderByAsc(ImMessage::getCreateTime, ImMessage::getId);
         return messageMapper.selectList(wrapper);
+    }
+
+    private List<Long> batchMarkAsRead(List<ImMessage> unreadMessages, LocalDateTime readTime) {
+        if (unreadMessages.isEmpty()) {
+            return List.of();
+        }
+        List<Long> messageIds = unreadMessages.stream().map(ImMessage::getId).toList();
+        LambdaUpdateWrapper<ImMessage> updateWrapper = new LambdaUpdateWrapper<>();
+        updateWrapper.in(ImMessage::getId, messageIds)
+                .set(ImMessage::getReadTime, readTime);
+        messageMapper.update(null, updateWrapper);
+        return messageIds;
     }
 
     private void refreshSingleSessionPreviews(Long userA, Long userB) {
@@ -586,7 +619,7 @@ public class ChatServiceImpl implements ChatService {
             session.setLastMessage("");
             session.setLastMessageTime(null);
         } else {
-            session.setLastMessage(buildPreview(latestMessage.getContent(), latestMessage.getMsgType(), latestMessage.getStatus()));
+            session.setLastMessage(truncateSessionPreview(buildPreview(latestMessage.getContent(), latestMessage.getMsgType(), latestMessage.getStatus())));
             session.setLastMessageTime(latestMessage.getCreateTime());
         }
         sessionMapper.updateById(session);
@@ -816,6 +849,16 @@ public class ChatServiceImpl implements ChatService {
         return normalized;
     }
 
+    private String truncateSessionPreview(String preview) {
+        if (!StringUtils.hasText(preview)) {
+            return preview;
+        }
+        if (preview.length() <= SESSION_PREVIEW_MAX_LENGTH) {
+            return preview;
+        }
+        return preview.substring(0, SESSION_PREVIEW_MAX_LENGTH);
+    }
+
     private MentionContext resolveGroupMentionContext(
             ImGroupMember senderMember,
             List<ImGroupMember> members,
@@ -825,9 +868,11 @@ public class ChatServiceImpl implements ChatService {
     ) {
         boolean normalizedMentionAll = Boolean.TRUE.equals(mentionAll);
         List<Long> normalizedMentionUserIds = normalizeMentionUserIds(mentionUserIds, senderMember.getUserId());
+
         if (!normalizedMentionAll && normalizedMentionUserIds.isEmpty()) {
             return MentionContext.EMPTY;
         }
+
         if (msgType != ChatConstants.MESSAGE_TYPE_TEXT) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "只有文本消息支持@提醒");
         }

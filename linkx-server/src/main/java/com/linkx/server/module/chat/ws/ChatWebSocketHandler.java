@@ -30,6 +30,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private static final int MAX_TEXT_PAYLOAD_LENGTH = 16 * 1024;
     private static final int COMMAND_RATE_WINDOW_MILLIS = 10_000;
     private static final int COMMAND_RATE_LIMIT = 120;
+    private static final int MAX_HISTORY_PAGE_SIZE = 200;
     private static final String ATTR_COMMAND_WINDOW_START = "chat:commandWindowStart";
     private static final String ATTR_COMMAND_WINDOW_COUNT = "chat:commandWindowCount";
 
@@ -144,8 +145,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     userId,
                     readRequiredLong(dataNode, "targetId"),
                     readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE),
-                    readInt(dataNode, "page", 1),
-                    readInt(dataNode, "size", 50)
+                    readPositiveInt(dataNode, "page", 1, Integer.MAX_VALUE),
+                    readPositiveInt(dataNode, "size", 50, MAX_HISTORY_PAGE_SIZE)
             );
             case ChatSocketAction.SEND_MESSAGE -> chatService.sendMessage(
                     userId,
@@ -223,6 +224,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             }
         }
         throw new BusinessException(ErrorCode.BAD_REQUEST, fieldName + " 格式错误");
+    }
+
+    private int readPositiveInt(JsonNode dataNode, String fieldName, int defaultValue, int maxValue) {
+        int value = readInt(dataNode, fieldName, defaultValue);
+        if (value < 1) {
+            return defaultValue;
+        }
+        return Math.min(value, maxValue);
     }
 
     private String readRequiredText(JsonNode dataNode, String fieldName) {

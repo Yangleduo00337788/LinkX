@@ -132,7 +132,7 @@ import { ref, watch, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { userApi } from '../api/client'
-import { NIcon } from 'naive-ui'
+import { NIcon, useMessage } from 'naive-ui'
 import { ChatbubblesOutline, PeopleOutline, FolderOpenOutline, BanOutline, LogOutOutline } from '@vicons/ionicons5'
 import TitleBar from '../components/TitleBar.vue'
 import { useTheme } from '../utils/theme'
@@ -140,6 +140,7 @@ import { useTheme } from '../utils/theme'
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const message = useMessage()
 const currentTab = ref('chat')
 const showProfile = ref(false)
 const { mode: themeMode, setMode: setThemeMode } = useTheme()
@@ -170,7 +171,10 @@ watch(showProfile, async (val) => {
       profile.gender = d.gender || 0
       profile.createTime = d.createTime
       profile.avatar = d.avatar || ''
-    } catch (e) {}
+    } catch (e: any) {
+      console.error('loadProfilePreview error:', e)
+      message.error(e.response?.data?.message || '获取资料失败')
+    }
   }
 })
 

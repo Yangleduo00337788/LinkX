@@ -576,6 +576,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { friendApi, userApi, blacklistApi, groupApi } from '../api/client'
 import { useMessage } from 'naive-ui'
+import { useUserStore } from '../stores/user'
 
 interface FriendRequestItem {
   id: number
@@ -621,6 +622,7 @@ interface GroupPreviewDetail extends GroupListItem {
 
 const router = useRouter()
 const message = useMessage()
+const userStore = useUserStore()
 const activeTab = ref('requests')
 const searchKeyword = ref('')
 const joinGroupId = ref('')
@@ -644,25 +646,23 @@ const PANEL_REFRESH_INTERVAL = 10000
 let lastPanelRefreshAt = 0
 
 async function loadFriends() {
-  try { const res: any = await friendApi.getList(); friends.value = res.data || [] } catch (e) {}
+  const res: any = await friendApi.getList()
+  friends.value = res.data || []
 }
 
 async function loadRequests() {
-  try { const res: any = await friendApi.getRequests(); requests.value = res.data || [] } catch (e) {}
+  const res: any = await friendApi.getRequests()
+  requests.value = res.data || []
 }
 
 async function loadGroupRequests() {
-  try {
-    const res: any = await groupApi.getRequests()
-    groupRequests.value = res.data || []
-  } catch (e) {}
+  const res: any = await groupApi.getRequests()
+  groupRequests.value = res.data || []
 }
 
 async function loadMyGroups() {
-  try {
-    const res: any = await groupApi.mine()
-    myGroups.value = res.data || []
-  } catch (e) {}
+  const res: any = await groupApi.mine()
+  myGroups.value = res.data || []
 }
 
 async function refreshPanels(force = false) {
@@ -680,6 +680,12 @@ async function refreshPanels(force = false) {
   } finally {
     refreshingPanels.value = false
   }
+}
+
+function queueRefreshPanels(force = false) {
+  void refreshPanels(force).catch((error: any) => {
+    console.error('refreshPanels error:', error)
+  })
 }
 
 async function loadAll() {
@@ -713,7 +719,8 @@ async function handleSearch() {
 
 async function handleAddFriend(userId: string | number) {
   try {
-    await friendApi.sendRequest(userId, '我是' + localStorage.getItem('nickname'))
+    const currentNickname = userStore.nickname?.trim() || '新朋友'
+    await friendApi.sendRequest(userId, `我是${currentNickname}`)
     message.success('已发送好友申请')
   } catch (e: any) {
     message.error(e.response?.data?.message || '发送失败')
@@ -726,8 +733,9 @@ async function handleAccept(requestId: number) {
     message.success('已接受好友申请')
     await loadRequests()
     await loadFriends()
-  } catch (e) {
-    message.error('操作失败')
+  } catch (e: any) {
+    console.error('handleAccept error:', e)
+    message.error(e.response?.data?.message || '操作失败')
   }
 }
 
@@ -736,8 +744,9 @@ async function handleReject(requestId: number) {
     await friendApi.reject(requestId)
     message.info('已拒绝')
     await loadRequests()
-  } catch (e) {
-    message.error('操作失败')
+  } catch (e: any) {
+    console.error('handleReject error:', e)
+    message.error(e.response?.data?.message || '操作失败')
   }
 }
 
@@ -928,18 +937,23 @@ function handleEscape(e: KeyboardEvent) {
 }
 
 function handleWindowFocus() {
-  void refreshPanels(false)
+  queueRefreshPanels(false)
 }
 
 function handleVisibilityChange() {
   if (document.visibilityState === 'visible') {
-    void refreshPanels(false)
+    queueRefreshPanels(false)
   }
 }
 
 onMounted(async () => {
-  await loadFriends()
-  await refreshPanels(true)
+  try {
+    await loadFriends()
+    await refreshPanels(true)
+  } catch (error: any) {
+    console.error('initFriendsPage error:', error)
+    message.error(error.response?.data?.message || '初始化联系人页失败')
+  }
   document.addEventListener('keydown', handleEscape)
   window.addEventListener('focus', handleWindowFocus)
   document.addEventListener('visibilitychange', handleVisibilityChange)

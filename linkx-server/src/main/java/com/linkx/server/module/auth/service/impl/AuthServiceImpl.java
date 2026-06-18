@@ -9,8 +9,10 @@ import com.linkx.server.module.auth.dto.AuthResponse;
 import com.linkx.server.module.auth.dto.LoginRequest;
 import com.linkx.server.module.auth.dto.RegisterRequest;
 import com.linkx.server.module.auth.service.AuthService;
+import com.linkx.server.module.auth.service.RefreshTokenSessionService;
 import com.linkx.server.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,7 @@ public class AuthServiceImpl implements AuthService {
     private final SysUserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenSessionService refreshTokenSessionService;
 
     @Override
     @Transactional
@@ -56,10 +59,15 @@ public class AuthServiceImpl implements AuthService {
         user.setEmail(request.getEmail());
         user.setStatus(1);
         user.setDeleted(0);
-        userMapper.insert(user);
+        try {
+            userMapper.insert(user);
+        } catch (DuplicateKeyException exception) {
+            throw resolveRegisterConflict(request);
+        }
 
         String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+        refreshTokenSessionService.issueToken(user.getId(), refreshToken);
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -91,6 +99,7 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+        refreshTokenSessionService.issueToken(user.getId(), refreshToken);
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -112,18 +121,24 @@ public class AuthServiceImpl implements AuthService {
         }
 
         Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+        if (!refreshTokenSessionService.matchesActiveToken(userId, refreshToken)) {
+            throw new BusinessException(ErrorCode.TOKEN_BLACKLISTED, "刷新令牌已失效，请重新登录");
+        }
         SysUser user = userMapper.selectById(userId);
 
         if (user == null) {
+            refreshTokenSessionService.revokeToken(userId);
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         if (user.getStatus() == 0) {
+            refreshTokenSessionService.revokeToken(userId);
             throw new BusinessException(ErrorCode.USER_DISABLED);
         }
 
         String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+        refreshTokenSessionService.issueToken(user.getId(), newRefreshToken);
 
         return AuthResponse.builder()
                 .accessToken(newAccessToken)
@@ -133,5 +148,36 @@ public class AuthServiceImpl implements AuthService {
                 .nickname(user.getNickname())
                 .avatar(user.getAvatar())
                 .build();
+    }
+
+    private BusinessException resolveRegisterConflict(RegisterRequest request) {
+        if (existsByUsername(request.getUsername())) {
+            return new BusinessException(ErrorCode.USERNAME_EXISTS);
+        }
+        if (request.getPhone() != null && existsByPhone(request.getPhone())) {
+            return new BusinessException(ErrorCode.PHONE_EXISTS);
+        }
+        if (request.getEmail() != null && existsByEmail(request.getEmail())) {
+            return new BusinessException(ErrorCode.EMAIL_EXISTS);
+        }
+        return new BusinessException(ErrorCode.BAD_REQUEST, "注册信息已存在，请检查后重试");
+    }
+
+    private boolean existsByUsername(String username) {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getUsername, username);
+        return userMapper.selectCount(wrapper) > 0;
+    }
+
+    private boolean existsByPhone(String phone) {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getPhone, phone);
+        return userMapper.selectCount(wrapper) > 0;
+    }
+
+    private boolean existsByEmail(String email) {
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getEmail, email);
+        return userMapper.selectCount(wrapper) > 0;
     }
 }

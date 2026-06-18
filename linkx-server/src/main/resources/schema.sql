@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS sys_user (
     update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     deleted TINYINT DEFAULT 0 COMMENT '逻辑删除 0未删除 1已删除',
     UNIQUE INDEX uk_username (username),
-    UNIQUE INDEX uk_mobile (mobile)
+    UNIQUE INDEX uk_mobile (mobile),
+    UNIQUE INDEX uk_email (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统用户表';
 
 -- 登录日志表

@@ -3,10 +3,15 @@ import { ref, watch } from 'vue'
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 const THEME_KEY = 'linkx-theme'
+const themeMode = ref<ThemeMode>((localStorage.getItem(THEME_KEY) as ThemeMode) || 'light')
+const mediaQuery = typeof window !== 'undefined' && window.matchMedia
+  ? window.matchMedia('(prefers-color-scheme: dark)')
+  : null
+let initialized = false
 
 function getSystemTheme(): 'light' | 'dark' {
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  if (mediaQuery) {
+    return mediaQuery.matches ? 'dark' : 'light'
   }
   return 'light'
 }
@@ -17,24 +22,25 @@ function applyTheme(mode: ThemeMode) {
 }
 
 export function useTheme() {
-  const mode = ref<ThemeMode>((localStorage.getItem(THEME_KEY) as ThemeMode) || 'light')
+  if (!initialized) {
+    initialized = true
+    applyTheme(themeMode.value)
 
-  applyTheme(mode.value)
+    watch(themeMode, (val) => {
+      localStorage.setItem(THEME_KEY, val)
+      applyTheme(val)
+    })
 
-  watch(mode, (val) => {
-    localStorage.setItem(THEME_KEY, val)
-    applyTheme(val)
-  })
-
-  if (mode.value === 'system' && typeof window !== 'undefined' && window.matchMedia) {
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      applyTheme(mode.value)
+    mediaQuery?.addEventListener('change', () => {
+      if (themeMode.value === 'system') {
+        applyTheme(themeMode.value)
+      }
     })
   }
 
   function setMode(val: ThemeMode) {
-    mode.value = val
+    themeMode.value = val
   }
 
-  return { mode, setMode }
+  return { mode: themeMode, setMode }
 }

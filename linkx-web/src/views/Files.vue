@@ -186,6 +186,7 @@ import { ref, onMounted } from 'vue'
 import { fileApi } from '../api/client'
 import { useMessage } from 'naive-ui'
 import { parseDateTime } from '../utils/datetime'
+import { triggerSafeDownload } from '../utils/url'
 
 const message = useMessage()
 const fileInputRef = ref<HTMLInputElement>()
@@ -267,10 +268,11 @@ function copyLink(url: string) {
 }
 
 function downloadFile(file: any) {
-  const a = document.createElement('a')
-  a.href = file.fileUrl
-  a.download = file.originalName
-  a.click()
+  try {
+    triggerSafeDownload(file.fileUrl, file.originalName)
+  } catch (error: any) {
+    message.error(error.message || '下载失败')
+  }
 }
 
 function previewFile(file: any) {

@@ -187,7 +187,10 @@ onMounted(async () => {
     profile.gender = d.gender || 0
     profile.createTime = d.createTime
     profile.avatar = d.avatar || ''
-  } catch (e) {}
+  } catch (e: any) {
+    console.error('loadProfile error:', e)
+    message.error(e.response?.data?.message || '获取个人资料失败')
+  }
 })
 
 async function handleSave() {

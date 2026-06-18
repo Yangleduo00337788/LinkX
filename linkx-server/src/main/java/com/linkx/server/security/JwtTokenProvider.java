@@ -2,6 +2,7 @@ package com.linkx.server.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -17,6 +18,8 @@ public class JwtTokenProvider {
 
     public static final String TOKEN_TYPE_ACCESS = "access";
     public static final String TOKEN_TYPE_REFRESH = "refresh";
+    private static final String DEFAULT_JWT_SECRET_PLACEHOLDER = "PLEASE_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN";
+    private static final int MIN_SECRET_LENGTH = 32;
 
     @Value("${linkx.jwt.secret}")
     private String jwtSecret;
@@ -26,6 +29,21 @@ public class JwtTokenProvider {
 
     @Value("${linkx.jwt.refresh-expiration}")
     private long refreshExpiration;
+
+    @PostConstruct
+    public void validateConfiguration() {
+        if (!StringUtils.hasText(jwtSecret)) {
+            throw new IllegalStateException("linkx.jwt.secret 未配置");
+        }
+        String normalizedSecret = jwtSecret.trim();
+        if (DEFAULT_JWT_SECRET_PLACEHOLDER.equals(normalizedSecret)) {
+            throw new IllegalStateException("linkx.jwt.secret 仍在使用默认占位值，请通过环境变量配置生产密钥");
+        }
+        if (normalizedSecret.length() < MIN_SECRET_LENGTH) {
+            throw new IllegalStateException("linkx.jwt.secret 长度不能少于 " + MIN_SECRET_LENGTH + " 个字符");
+        }
+        jwtSecret = normalizedSecret;
+    }
 
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
@@ -119,5 +137,15 @@ public class JwtTokenProvider {
         } catch (ExpiredJwtException e) {
             return true;
         }
+    }
+
+    public long getRemainingValidityMillis(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        long remaining = claims.getExpiration().getTime() - System.currentTimeMillis();
+        return Math.max(remaining, 0L);
     }
 }

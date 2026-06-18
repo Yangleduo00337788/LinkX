@@ -4,6 +4,7 @@ import { useUserStore } from '../stores/user'
 
 export const API_BASE_URL = 'http://localhost:8080'
 export const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws')
+const AUTH_STORAGE_KEYS = ['token', 'refreshToken', 'userId', 'nickname', 'avatar', 'username'] as const
 
 let globalErrorHandler: ((message: string) => void) | null = null
 let refreshTokenPromise: Promise<string> | null = null
@@ -20,7 +21,9 @@ function clearAuthState() {
   try {
     useUserStore().logout()
   } catch {
-    localStorage.clear()
+    for (const key of AUTH_STORAGE_KEYS) {
+      localStorage.removeItem(key)
+    }
   }
 }
 
@@ -124,7 +127,7 @@ export const chatApi = {
 export const userApi = {
   getProfile: () => api.get('/api/user/me'),
   updateProfile: (data: any) => api.put('/api/user/me', data),
-  search: (keyword: string) => api.get(`/api/user/search?keyword=${keyword}`),
+  search: (keyword: string) => api.get(`/api/user/search?keyword=${encodeURIComponent(keyword)}`),
   getUser: (id: string | number) => api.get(`/api/user/${id}`)
 }
 
@@ -222,7 +225,7 @@ export const fileApi = {
     })
   },
   list: (keyword?: string) => {
-    const params = keyword ? `?keyword=${keyword}` : ''
+    const params = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
     return api.get(`/api/file/list${params}`)
   },
   delete: (id: number) => api.delete(`/api/file/${id}`)

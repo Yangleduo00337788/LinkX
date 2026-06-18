@@ -16,4 +16,6 @@ public class SendFileMessageRequest {
     private Integer msgType;
 
     private Integer sessionType = ChatConstants.SESSION_TYPE_SINGLE;
+
+    private String clientMessageId;
 }

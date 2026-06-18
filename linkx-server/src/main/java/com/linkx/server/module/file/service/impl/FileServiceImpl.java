@@ -355,8 +355,8 @@ public class FileServiceImpl implements FileService {
         }
 
         File file = new File(sysFile.getFilePath());
-        if (file.exists()) {
-            file.delete();
+        if (file.exists() && !file.delete()) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "文件删除失败，请稍后重试");
         }
 
         fileMapper.deleteById(fileId);

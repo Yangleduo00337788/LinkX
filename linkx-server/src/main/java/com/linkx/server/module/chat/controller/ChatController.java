@@ -85,7 +85,7 @@ public class ChatController {
             @AuthenticationPrincipal UserDetails userDetails,
             @Valid @RequestBody SendFileMessageRequest request) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        return Result.success(chatService.sendFileMessage(userId, request.getToUserId(), request.getFileId(), request.getMsgType(), request.getSessionType(), null));
+        return Result.success(chatService.sendFileMessage(userId, request.getToUserId(), request.getFileId(), request.getMsgType(), request.getSessionType(), request.getClientMessageId()));
     }
 
     @PostMapping("/ws-ticket")
