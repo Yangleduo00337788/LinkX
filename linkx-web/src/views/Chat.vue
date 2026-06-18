@@ -747,7 +747,7 @@ import { getCachedFileAccessUrl, resolveFileAccessUrl } from '../utils/file-acce
 import { openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload } from '../utils/url'
 import { useUserStore } from '../stores/user'
 import { getDateTimeTimestamp } from '../utils/datetime'
-import { playNotificationSound, showNotification } from '../utils/notify'
+import { playNotificationSound, removeInAppNotificationsByMessageIds, showNotification } from '../utils/notify'
 import ChatDownloadDialog from './chat/ChatDownloadDialog.vue'
 import ChatMediaPreview from './chat/ChatMediaPreview.vue'
 import {
@@ -1724,6 +1724,7 @@ function handleRealtimeMessageRecalled(rawMessage: any) {
   const messageItem = toDisplayMessage(rawMessage)
   upsertMessage(messageItem)
   consumeMentionBanner(messageItem)
+  removeInAppNotificationsByMessageIds([messageItem.id])
 }
 
 function handleRealtimeSession(rawSession: any) {

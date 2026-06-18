@@ -652,9 +652,10 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
-import { fileApi, friendApi, groupApi } from '../api/client'
+import { chatApi, fileApi, friendApi, groupApi } from '../api/client'
 import { useUserStore } from '../stores/user'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
+import { useChatSocket } from '../hooks/useChatSocket'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import GroupNoticeDialog from '../components/GroupNoticeDialog.vue'
 import { parseDateTime } from '../utils/datetime'
@@ -772,6 +773,7 @@ const groupMediaLoading = ref(false)
 const messageSearchKeyword = ref('')
 const groupMessageSearchResults = ref<GroupMediaItem[]>([])
 const groupMessageSearchLoading = ref(false)
+const closingUnavailableGroupPage = ref(false)
 
 const groupProfileDraft = reactive({
   groupName: '',
@@ -933,6 +935,13 @@ async function loadGroupDetail(showSuccess = false) {
     }
   } catch (error: any) {
     console.error('loadGroupDetail error:', error)
+    if (isGroupUnavailableError(error)) {
+      await closeUnavailableGroupPage({
+        notify: true,
+        messageText: '当前群聊已不可访问'
+      })
+      return
+    }
     message.error(error.response?.data?.message || '加载群成员失败')
   } finally {
     pageLoading.value = false
@@ -994,6 +1003,80 @@ function applyGroupDetail(detail: GroupDetail | null, syncDraft = true) {
   }
   syncNoticeReminder(detail)
 }
+
+function isGroupUnavailableError(error: any) {
+  const code = Number(error?.response?.data?.code || error?.response?.status || 0)
+  return code === 403 || code === 404
+}
+
+async function closeUnavailableGroupPage(options: { notify?: boolean; messageText?: string } = {}) {
+  if (closingUnavailableGroupPage.value) {
+    return
+  }
+  closingUnavailableGroupPage.value = true
+  applyGroupDetail(null)
+  groupMediaItems.value = []
+  groupMessageSearchResults.value = []
+  showNoticeReminder.value = false
+  showAddMembersModal.value = false
+  showTransferOwnerModal.value = false
+  showMuteMemberModal.value = false
+  muteTargetMember.value = null
+  muteMinutesInput.value = '10'
+  try {
+    if (options.notify) {
+      message.warning(options.messageText || '当前群聊已不可访问')
+    }
+    await router.replace('/chat')
+  } finally {
+    closingUnavailableGroupPage.value = false
+  }
+}
+
+function handleRealtimeGroupDetail(detail: GroupDetail | null) {
+  if (!detail?.id || String(detail.id) !== groupId.value || closingUnavailableGroupPage.value) {
+    return
+  }
+  applyGroupDetail(detail, false)
+}
+
+async function handleRealtimeGroupRemoved(payload: any) {
+  const removedGroupId = payload?.groupId ? String(payload.groupId) : ''
+  if (!removedGroupId || removedGroupId !== groupId.value) {
+    return
+  }
+  await closeUnavailableGroupPage({
+    notify: true,
+    messageText: '你已不在该群聊中'
+  })
+}
+
+function handleRealtimeEvent(payload: any) {
+  if (!payload?.type) {
+    return
+  }
+  if (payload.type === 'GROUP_DETAIL') {
+    handleRealtimeGroupDetail(payload.data?.detail || null)
+    return
+  }
+  if (payload.type === 'GROUP_REMOVED') {
+    void handleRealtimeGroupRemoved(payload.data)
+  }
+}
+
+const { connect: connectChatSocket } = useChatSocket({
+  token: () => userStore.token,
+  createTicket: async () => {
+    const response: any = await chatApi.createWsTicket()
+    return String(response.data?.ticket || '')
+  },
+  onMessage: handleRealtimeEvent,
+  onOpen: () => {
+    if (groupId.value && !closingUnavailableGroupPage.value) {
+      void loadGroupDetail()
+    }
+  }
+})
 
 async function loadFriends() {
   try {
@@ -1627,6 +1710,7 @@ watch(() => route.params.groupId, () => {
 })
 
 onMounted(() => {
+  void connectChatSocket()
   void loadFriends()
   void loadGroupDetail()
   void loadGroupRequests()

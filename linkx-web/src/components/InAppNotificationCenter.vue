@@ -62,6 +62,15 @@ function removeItem(id: string) {
   items.value = items.value.filter(item => item.id !== id)
 }
 
+function removeItemsByMessageIds(messageIds: string[]) {
+  const targetIds = new Set(messageIds)
+  const removableItems = items.value.filter(item => item.messageId && targetIds.has(item.messageId))
+  for (const item of removableItems) {
+    clearTimer(item.id)
+  }
+  items.value = items.value.filter(item => !item.messageId || !targetIds.has(item.messageId))
+}
+
 function scheduleDismiss(id: string) {
   clearTimer(id)
   const timer = window.setTimeout(() => {
@@ -100,7 +109,13 @@ function pushItem(payload: InAppNotificationPayload) {
 }
 
 onMounted(() => {
-  stopListening = onInAppNotification(pushItem)
+  stopListening = onInAppNotification(event => {
+    if (event.type === 'removeByMessageIds') {
+      removeItemsByMessageIds(event.messageIds)
+      return
+    }
+    pushItem(event.payload)
+  })
 })
 
 onBeforeUnmount(() => {

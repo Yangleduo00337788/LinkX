@@ -17,12 +17,22 @@ export interface InAppNotificationPayload {
   attention?: boolean
 }
 
-function emitInAppNotification(payload: InAppNotificationPayload) {
+type InAppNotificationEvent =
+  | {
+    type: 'push'
+    payload: InAppNotificationPayload
+  }
+  | {
+    type: 'removeByMessageIds'
+    messageIds: string[]
+  }
+
+function emitInAppNotification(event: InAppNotificationEvent) {
   if (typeof window === 'undefined') {
     return
   }
   window.dispatchEvent(new CustomEvent(IN_APP_NOTIFICATION_EVENT, {
-    detail: payload
+    detail: event
   }))
 }
 
@@ -37,11 +47,14 @@ export async function showNotification(
   payload: Omit<InAppNotificationPayload, 'id' | 'title' | 'body' | 'icon'> = {}
 ): Promise<boolean> {
   emitInAppNotification({
-    id: buildNotificationId(),
-    title,
-    body,
-    icon,
-    ...payload
+    type: 'push',
+    payload: {
+      id: buildNotificationId(),
+      title,
+      body,
+      icon,
+      ...payload
+    }
   })
   const api = getElectronAPI()
   if (api) {
@@ -153,9 +166,24 @@ export function emitNewMessage(senderName: string, content: string): void {
   }))
 }
 
-export function onInAppNotification(callback: (payload: InAppNotificationPayload) => void): () => void {
+export function removeInAppNotificationsByMessageIds(messageIds: Array<string | number | null | undefined>) {
+  const normalizedIds = messageIds
+    .map(messageId => messageId == null ? '' : String(messageId))
+    .filter(messageId => messageId.length > 0)
+
+  if (normalizedIds.length === 0) {
+    return
+  }
+
+  emitInAppNotification({
+    type: 'removeByMessageIds',
+    messageIds: normalizedIds
+  })
+}
+
+export function onInAppNotification(callback: (event: InAppNotificationEvent) => void): () => void {
   const handler = (event: Event) => {
-    const customEvent = event as CustomEvent<InAppNotificationPayload>
+    const customEvent = event as CustomEvent<InAppNotificationEvent>
     callback(customEvent.detail)
   }
   window.addEventListener(IN_APP_NOTIFICATION_EVENT, handler)
