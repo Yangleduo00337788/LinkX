@@ -4,10 +4,15 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.entity.ImMessage;
+import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.SysFile;
 import com.linkx.server.mapper.ImMessageMapper;
+import com.linkx.server.mapper.ImGroupMemberMapper;
 import com.linkx.server.mapper.SysFileMapper;
+import com.linkx.server.module.chat.constant.ChatConstants;
+import com.linkx.server.module.file.dto.FileAccessDTO;
 import com.linkx.server.module.file.dto.FileDTO;
+import com.linkx.server.module.file.service.FileAccessTicketService;
 import com.linkx.server.module.file.service.FileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +28,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Service
 @RequiredArgsConstructor
@@ -40,16 +47,13 @@ public class FileServiceImpl implements FileService {
             "image/bmp"
     );
     private static final Set<String> FILE_EXTENSIONS = Set.of(
-            ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+            ".pdf", ".docx", ".xlsx", ".pptx",
             ".txt", ".zip", ".rar", ".7z", ".mp3", ".wav", ".mp4", ".avi"
     );
     private static final Set<String> FILE_CONTENT_TYPES = Set.of(
             "application/pdf",
-            "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.ms-excel",
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.ms-powerpoint",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "text/plain",
             "application/zip",
@@ -63,16 +67,20 @@ public class FileServiceImpl implements FileService {
             "video/x-msvideo"
     );
     private static final Set<String> OOXML_EXTENSIONS = Set.of(".docx", ".xlsx", ".pptx");
-    private static final Set<String> LEGACY_OFFICE_EXTENSIONS = Set.of(".doc", ".xls", ".ppt");
 
     private final SysFileMapper fileMapper;
     private final ImMessageMapper messageMapper;
+    private final ImGroupMemberMapper groupMemberMapper;
+    private final FileAccessTicketService fileAccessTicketService;
 
     @Value("${linkx.upload.path:uploads/}")
     private String uploadPath;
 
     @Value("${linkx.upload.url:http://localhost:8080/uploads/}")
     private String uploadUrl;
+
+    @Value("${linkx.api-base-url:http://localhost:8080}")
+    private String apiBaseUrl;
 
     @Override
     public FileDTO uploadImage(Long userId, MultipartFile file) {
@@ -140,7 +148,7 @@ public class FileServiceImpl implements FileService {
 
     private void validateFileContent(MultipartFile file, String extension, String invalidTypeMessage) {
         DetectedFileType detectedFileType = detectFileType(file);
-        if (!matchesExtension(extension, detectedFileType)) {
+        if (!matchesExtension(extension, detectedFileType) || !matchesStructuredFile(file, extension, detectedFileType)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, invalidTypeMessage);
         }
     }
@@ -218,10 +226,46 @@ public class FileServiceImpl implements FileService {
             case ".mp4" -> detectedFileType == DetectedFileType.MP4;
             case ".avi" -> detectedFileType == DetectedFileType.AVI;
             case ".txt" -> detectedFileType == DetectedFileType.TEXT;
-            default -> OOXML_EXTENSIONS.contains(extension)
-                    ? detectedFileType == DetectedFileType.ZIP
-                    : LEGACY_OFFICE_EXTENSIONS.contains(extension) && detectedFileType == DetectedFileType.OLE;
+            default -> OOXML_EXTENSIONS.contains(extension) && detectedFileType == DetectedFileType.ZIP;
         };
+    }
+
+    private boolean matchesStructuredFile(MultipartFile file, String extension, DetectedFileType detectedFileType) {
+        if (!OOXML_EXTENSIONS.contains(extension)) {
+            return true;
+        }
+        if (detectedFileType != DetectedFileType.ZIP) {
+            return false;
+        }
+        return switch (extension) {
+            case ".docx" -> zipContains(file, "word/");
+            case ".xlsx" -> zipContains(file, "xl/");
+            case ".pptx" -> zipContains(file, "ppt/");
+            default -> false;
+        };
+    }
+
+    private boolean zipContains(MultipartFile file, String requiredPrefix) {
+        try (ZipInputStream zipInputStream = new ZipInputStream(file.getInputStream())) {
+            boolean hasContentTypes = false;
+            boolean hasRequiredPrefix = false;
+            ZipEntry entry;
+            while ((entry = zipInputStream.getNextEntry()) != null) {
+                String entryName = entry.getName();
+                if ("[Content_Types].xml".equals(entryName)) {
+                    hasContentTypes = true;
+                }
+                if (entryName != null && entryName.startsWith(requiredPrefix)) {
+                    hasRequiredPrefix = true;
+                }
+                if (hasContentTypes && hasRequiredPrefix) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (IOException exception) {
+            throw new BusinessException(ErrorCode.INTERNAL_ERROR, "文件校验失败");
+        }
     }
 
     private String buildDirPath(String type) {
@@ -342,6 +386,19 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
+    public FileAccessDTO createAccessUrl(Long userId, String fileUrl) {
+        SysFile sysFile = findFileByUrl(fileUrl);
+        if (sysFile == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "文件不存在");
+        }
+        if (!canAccessFile(userId, sysFile)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该文件");
+        }
+        String ticket = fileAccessTicketService.createTicket(sysFile.getId());
+        return new FileAccessDTO(buildAccessUrl(ticket));
+    }
+
+    @Override
     public void deleteFile(Long userId, Long fileId) {
         SysFile sysFile = fileMapper.selectById(fileId);
         if (sysFile == null || !sysFile.getUserId().equals(userId)) {
@@ -360,6 +417,81 @@ public class FileServiceImpl implements FileService {
         }
 
         fileMapper.deleteById(fileId);
+    }
+
+    private SysFile findFileByUrl(String fileUrl) {
+        if (!StringUtils.hasText(fileUrl)) {
+            return null;
+        }
+        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysFile::getFileUrl, fileUrl.trim()).last("LIMIT 1");
+        return fileMapper.selectOne(wrapper);
+    }
+
+    private boolean canAccessFile(Long userId, SysFile sysFile) {
+        if (sysFile == null) {
+            return false;
+        }
+        if (userId != null && userId.equals(sysFile.getUserId())) {
+            return true;
+        }
+        if (isAvatarUrl(sysFile.getFileUrl())) {
+            return true;
+        }
+        if (userId == null) {
+            return false;
+        }
+
+        LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImMessage::getContent, sysFile.getFileUrl())
+                .in(ImMessage::getMsgType, List.of(ChatConstants.MESSAGE_TYPE_IMAGE, ChatConstants.MESSAGE_TYPE_FILE))
+                .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED)
+                .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                .last("LIMIT 100");
+        List<ImMessage> relatedMessages = messageMapper.selectList(wrapper);
+        if (relatedMessages.isEmpty()) {
+            return false;
+        }
+        for (ImMessage message : relatedMessages) {
+            if (message == null) {
+                continue;
+            }
+            if (!isGroupMessage(message)) {
+                if (userId.equals(message.getFromUserId()) || userId.equals(message.getToUserId())) {
+                    return true;
+                }
+                continue;
+            }
+            if (isGroupMember(message.getToUserId(), userId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isGroupMessage(ImMessage message) {
+        return message != null
+                && message.getSessionId() != null
+                && message.getSessionId().equals(message.getToUserId());
+    }
+
+    private boolean isGroupMember(Long groupId, Long userId) {
+        if (groupId == null || userId == null) {
+            return false;
+        }
+        LambdaQueryWrapper<ImGroupMember> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImGroupMember::getGroupId, groupId)
+                .eq(ImGroupMember::getUserId, userId);
+        return groupMemberMapper.selectCount(wrapper) > 0;
+    }
+
+    private boolean isAvatarUrl(String fileUrl) {
+        return StringUtils.hasText(fileUrl) && fileUrl.contains("/avatar/");
+    }
+
+    private String buildAccessUrl(String ticket) {
+        String normalizedApiBaseUrl = apiBaseUrl.endsWith("/") ? apiBaseUrl.substring(0, apiBaseUrl.length() - 1) : apiBaseUrl;
+        return normalizedApiBaseUrl + "/api/file/access/" + ticket;
     }
 
     private FileDTO toFileDTO(SysFile sysFile) {

@@ -1,9 +1,8 @@
 package com.linkx.server.module.chat.ws;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.linkx.server.entity.ImSession;
-import com.linkx.server.mapper.ImSessionMapper;
-import com.linkx.server.module.chat.constant.ChatConstants;
+import com.linkx.server.entity.SysFriend;
+import com.linkx.server.mapper.SysFriendMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketSession;
@@ -18,7 +17,7 @@ public class ChatPresenceService {
 
     private final ChatSocketSessionRegistry sessionRegistry;
     private final ChatEventPushService pushService;
-    private final ImSessionMapper sessionMapper;
+    private final SysFriendMapper friendMapper;
 
     public void onConnected(Long userId, WebSocketSession session) {
         boolean firstConnection = sessionRegistry.register(userId, session);
@@ -56,11 +55,10 @@ public class ChatPresenceService {
     }
 
     private Set<Long> findWatcherUserIds(Long targetUserId) {
-        LambdaQueryWrapper<ImSession> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_SINGLE)
-                .eq(ImSession::getTargetId, targetUserId);
-        return sessionMapper.selectList(wrapper).stream()
-                .map(ImSession::getUserId)
+        LambdaQueryWrapper<SysFriend> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysFriend::getFriendId, targetUserId);
+        return friendMapper.selectList(wrapper).stream()
+                .map(SysFriend::getUserId)
                 .filter(userId -> !userId.equals(targetUserId))
                 .collect(Collectors.toSet());
     }

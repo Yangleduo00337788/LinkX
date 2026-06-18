@@ -31,6 +31,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private static final int COMMAND_RATE_WINDOW_MILLIS = 10_000;
     private static final int COMMAND_RATE_LIMIT = 120;
     private static final int MAX_HISTORY_PAGE_SIZE = 200;
+    private static final int MAX_HISTORY_PAGE_NUMBER = 100;
     private static final String ATTR_COMMAND_WINDOW_START = "chat:commandWindowStart";
     private static final String ATTR_COMMAND_WINDOW_COUNT = "chat:commandWindowCount";
 
@@ -145,7 +146,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     userId,
                     readRequiredLong(dataNode, "targetId"),
                     readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE),
-                    readPositiveInt(dataNode, "page", 1, Integer.MAX_VALUE),
+                    readPositiveInt(dataNode, "page", 1, MAX_HISTORY_PAGE_NUMBER),
                     readPositiveInt(dataNode, "size", 50, MAX_HISTORY_PAGE_SIZE)
             );
             case ChatSocketAction.SEND_MESSAGE -> chatService.sendMessage(

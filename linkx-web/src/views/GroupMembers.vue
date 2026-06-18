@@ -435,7 +435,7 @@
                 </div>
                 <div class="result-actions">
                   <button v-if="item.content" class="mini-btn" @click="() => openGroupChat(item)">去群聊查看</button>
-                  <button v-if="item.fileName && item.content" class="mini-btn" @click="openMediaResource(item.content)">打开附件</button>
+                  <button v-if="item.fileName && item.content" class="mini-btn" @click="openMediaResource(item)">打开附件</button>
                 </div>
               </article>
             </div>
@@ -480,7 +480,7 @@
             <div v-if="groupMediaItems.length > 0" class="media-list">
               <article v-for="item in groupMediaItems" :key="item.id" class="media-card">
                 <div class="media-cover" :class="{ image: isImageMedia(item) }">
-                  <img v-if="isImageMedia(item) && item.content" :src="item.content" :alt="item.fileName || '群图片'" />
+                  <img v-if="isImageMedia(item) && item.accessUrl" :src="item.accessUrl" :alt="item.fileName || '群图片'" />
                   <svg v-else width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
@@ -494,8 +494,8 @@
                     <span>{{ formatFileSize(item.fileSize) }}</span>
                   </div>
                   <div class="media-actions">
-                    <button class="mini-btn" @click="openMediaResource(item.content)">打开</button>
-                    <button class="mini-btn" @click="copyMediaLink(item.content)">复制链接</button>
+                    <button class="mini-btn" @click="openMediaResource(item)">打开</button>
+                    <button class="mini-btn" @click="copyMediaLink(item)">复制链接</button>
                   </div>
                 </div>
               </article>
@@ -658,6 +658,7 @@ import { useConfirmDialog } from '../hooks/useConfirmDialog'
 import ConfirmDialog from '../components/ConfirmDialog.vue'
 import GroupNoticeDialog from '../components/GroupNoticeDialog.vue'
 import { parseDateTime } from '../utils/datetime'
+import { hydrateFileAccessUrls, resolveFileAccessUrl } from '../utils/file-access'
 import { openSafeExternalUrl } from '../utils/url'
 
 const GROUP_ROLE_MEMBER = 0
@@ -706,6 +707,7 @@ interface GroupMediaItem {
   fromNickname?: string
   fromAvatar?: string
   content: string
+  accessUrl?: string
   msgType: number
   fileName?: string
   fileSize?: number
@@ -1097,24 +1099,38 @@ function getMessageSearchPreview(item: GroupMediaItem) {
   return item.content
 }
 
-async function copyMediaLink(url?: string) {
-  if (!url) {
+async function resolveMediaAccessUrl(item?: GroupMediaItem | null) {
+  if (!item?.content) {
+    return ''
+  }
+  if (item.accessUrl) {
+    return item.accessUrl
+  }
+  return resolveFileAccessUrl(item.content)
+}
+
+async function copyMediaLink(item?: GroupMediaItem | null) {
+  const accessUrl = await resolveMediaAccessUrl(item)
+  if (!accessUrl) {
+    message.error('无法生成访问链接')
     return
   }
   try {
-    await navigator.clipboard.writeText(url)
+    await navigator.clipboard.writeText(accessUrl)
     message.success('链接已复制')
   } catch (error) {
     message.error('复制链接失败')
   }
 }
 
-async function openMediaResource(url?: string) {
-  if (!url) {
+async function openMediaResource(item?: GroupMediaItem | null) {
+  const accessUrl = await resolveMediaAccessUrl(item)
+  if (!accessUrl) {
+    message.error('资源访问链接不可用')
     return
   }
   try {
-    await openSafeExternalUrl(url)
+    await openSafeExternalUrl(accessUrl)
   } catch (error: any) {
     message.error(error.message || '打开资源失败')
   }
@@ -1158,7 +1174,7 @@ async function loadGroupMedia() {
       keyword: mediaKeyword.value.trim() || undefined,
       size: 200
     })
-    groupMediaItems.value = response.data || []
+    groupMediaItems.value = await hydrateFileAccessUrls(response.data || [])
   } catch (error: any) {
     console.error('loadGroupMedia error:', error)
     message.error(error.response?.data?.message || '加载群相册/文件库失败')
@@ -1311,7 +1327,7 @@ async function submitUpdateGroupProfile() {
   try {
     let groupAvatar = groupDetail.value.groupAvatar || ''
     if (groupProfileDraft.avatarFile) {
-      const uploadResponse: any = await fileApi.uploadImage(groupProfileDraft.avatarFile)
+      const uploadResponse: any = await fileApi.uploadAvatar(groupProfileDraft.avatarFile)
       groupAvatar = uploadResponse.data?.fileUrl || ''
     }
     await groupApi.updateProfile(groupId.value, {

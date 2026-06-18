@@ -25,6 +25,7 @@ mybatis-plus:
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
 
 linkx:
+  api-base-url: ${LINKX_API_BASE_URL:http://localhost:8080}
   jwt:
     secret: ${LINKX_JWT_SECRET:PLEASE_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN}  # required: override via env before startup
     expiration: ${LINKX_JWT_EXPIRATION:86400000}  # 24小时

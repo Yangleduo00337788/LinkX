@@ -69,7 +69,7 @@
               </div>
             </div>
             <div class="file-actions">
-              <button class="action-btn" @click.stop="copyLink(file.fileUrl)" title="复制链接">
+              <button class="action-btn" @click.stop="copyLink(file)" title="复制链接">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -111,7 +111,7 @@
         </div>
         <div class="preview-content">
           <div v-if="isImage(selectedFile.originalName)" class="preview-image">
-            <img :src="selectedFile.fileUrl" :alt="selectedFile.originalName" />
+            <img :src="selectedFile.accessUrl || ''" :alt="selectedFile.originalName" />
           </div>
           <div v-else class="preview-placeholder">
             <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
@@ -138,11 +138,11 @@
             </div>
             <div class="preview-info-item">
               <span class="info-label">链接</span>
-              <span class="info-value link">{{ selectedFile.fileUrl }}</span>
+              <span class="info-value link">{{ selectedFile.accessUrl || '-' }}</span>
             </div>
           </div>
           <div class="preview-actions">
-            <button class="preview-action-btn" @click="copyLink(selectedFile.fileUrl)">
+            <button class="preview-action-btn" @click="copyLink(selectedFile)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
@@ -182,10 +182,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
 import { fileApi } from '../api/client'
 import { useMessage } from 'naive-ui'
 import { parseDateTime } from '../utils/datetime'
+import { hydrateFileAccessUrl, hydrateFileAccessUrls, resolveFileAccessUrl } from '../utils/file-access'
 import { triggerSafeDownload } from '../utils/url'
 
 const message = useMessage()
@@ -205,7 +206,10 @@ async function loadFiles(keyword?: string) {
   loading.value = true
   try {
     const res: any = await fileApi.list(keyword)
-    files.value = res.data || []
+    files.value = await hydrateFileAccessUrls(res.data || [])
+    if (selectedFile.value?.id) {
+      selectedFile.value = files.value.find(item => item.id === selectedFile.value.id) || null
+    }
   } catch (e) {
     console.error('loadFiles error:', e)
   } finally {
@@ -240,7 +244,7 @@ async function handleFileChange(e: Event) {
     const res: any = await uploadApi(file)
     message.success('上传成功')
     await loadFiles(searchKeyword.value || undefined)
-    selectedFile.value = res.data
+    selectedFile.value = await hydrateFileAccessUrl(res.data)
   } catch (e: any) {
     message.error(e.response?.data?.message || '上传失败')
   } finally {
@@ -262,21 +266,30 @@ async function deleteFile(id: number) {
   }
 }
 
-function copyLink(url: string) {
-  navigator.clipboard.writeText(url)
+async function copyLink(file: any) {
+  const accessUrl = await resolveFileAccessUrl(file?.fileUrl)
+  if (!accessUrl) {
+    message.error('无法生成访问链接')
+    return
+  }
+  await navigator.clipboard.writeText(accessUrl)
   message.success('链接已复制')
 }
 
-function downloadFile(file: any) {
+async function downloadFile(file: any) {
   try {
-    triggerSafeDownload(file.fileUrl, file.originalName)
+    const accessUrl = await resolveFileAccessUrl(file?.fileUrl)
+    if (!accessUrl) {
+      throw new Error('文件访问链接不可用')
+    }
+    triggerSafeDownload(accessUrl, file.originalName)
   } catch (error: any) {
     message.error(error.message || '下载失败')
   }
 }
 
-function previewFile(file: any) {
-  selectedFile.value = file
+async function previewFile(file: any) {
+  selectedFile.value = await hydrateFileAccessUrl(file)
 }
 
 function isImage(name: string) {

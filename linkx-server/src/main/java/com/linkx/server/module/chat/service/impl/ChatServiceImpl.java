@@ -8,12 +8,14 @@ import com.linkx.server.entity.ImGroupInfo;
 import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.ImSession;
+import com.linkx.server.entity.SysFriend;
 import com.linkx.server.entity.SysFile;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.ImGroupInfoMapper;
 import com.linkx.server.mapper.ImGroupMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.ImSessionMapper;
+import com.linkx.server.mapper.SysFriendMapper;
 import com.linkx.server.mapper.SysFileMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.blacklist.service.BlacklistService;
@@ -67,6 +69,7 @@ public class ChatServiceImpl implements ChatService {
     private final ImSessionMapper sessionMapper;
     private final ImMessageMapper messageMapper;
     private final SysUserMapper userMapper;
+    private final SysFriendMapper friendMapper;
     private final SysFileMapper fileMapper;
     private final ImGroupInfoMapper groupInfoMapper;
     private final ImGroupMemberMapper groupMemberMapper;
@@ -137,6 +140,7 @@ public class ChatServiceImpl implements ChatService {
 
         Map<Long, SysUser> userMap = loadUserMap(singleSessions.stream().map(ImSession::getTargetId).collect(Collectors.toSet()));
         Map<Long, Boolean> blacklistCache = new HashMap<>();
+        Map<Long, Boolean> friendshipCache = new HashMap<>();
 
         Set<Long> groupIds = groupSessions.stream().map(ImSession::getTargetId).collect(Collectors.toSet());
         Map<Long, ImGroupInfo> groupMap = loadActiveGroupMap(groupIds);
@@ -144,7 +148,7 @@ public class ChatServiceImpl implements ChatService {
         Map<Long, Integer> groupMemberCountMap = loadGroupMemberCount(groupIds);
 
         return sessions.stream()
-                .map(session -> buildSessionDTO(userId, session, userMap, blacklistCache, groupMap, myGroupMemberMap, groupMemberCountMap))
+                .map(session -> buildSessionDTO(userId, session, userMap, blacklistCache, friendshipCache, groupMap, myGroupMemberMap, groupMemberCountMap))
                 .filter(dto -> dto != null)
                 .sorted(Comparator.comparing(ChatSessionDTO::getLastMessageTime, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(ChatSessionDTO::getId, Comparator.nullsLast(Comparator.reverseOrder())))
@@ -234,9 +238,7 @@ public class ChatServiceImpl implements ChatService {
         if (toUser == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
-        if (blacklistService.isBlacklisted(toUserId, fromUserId)) {
-            throw new BusinessException(ErrorCode.FORBIDDEN, "你已被对方拉黑");
-        }
+        assertSingleChatAllowed(fromUserId, toUserId);
 
         LocalDateTime now = LocalDateTime.now();
         String preview = buildPreview(content, msgType);
@@ -325,7 +327,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private List<MessageDTO> getSingleHistory(Long userId, Long targetId, int page, int size) {
-        if (blacklistService.isBlacklisted(userId, targetId) || blacklistService.isBlacklisted(targetId, userId)) {
+        if (!canAccessSingleChat(userId, targetId)) {
             return List.of();
         }
 
@@ -429,6 +431,7 @@ public class ChatServiceImpl implements ChatService {
                     session,
                     loadUserMap(Set.of(targetId)),
                     new HashMap<>(),
+                    new HashMap<>(),
                     Map.of(),
                     Map.of(),
                     Map.of()
@@ -438,6 +441,7 @@ public class ChatServiceImpl implements ChatService {
                 userId,
                 session,
                 Map.of(),
+                new HashMap<>(),
                 new HashMap<>(),
                 loadActiveGroupMap(Set.of(targetId)),
                 loadGroupMembersByUser(userId, Set.of(targetId)),
@@ -450,11 +454,20 @@ public class ChatServiceImpl implements ChatService {
             ImSession session,
             Map<Long, SysUser> userMap,
             Map<Long, Boolean> blacklistCache,
+            Map<Long, Boolean> friendshipCache,
             Map<Long, ImGroupInfo> groupMap,
             Map<Long, ImGroupMember> myGroupMemberMap,
             Map<Long, Integer> groupMemberCountMap
     ) {
         if (session.getSessionType() == ChatConstants.SESSION_TYPE_SINGLE) {
+            Boolean friendshipAllowed = friendshipCache.get(session.getTargetId());
+            if (friendshipAllowed == null) {
+                friendshipAllowed = hasFriendRelation(userId, session.getTargetId());
+                friendshipCache.put(session.getTargetId(), friendshipAllowed);
+            }
+            if (!Boolean.TRUE.equals(friendshipAllowed)) {
+                return null;
+            }
             Boolean cached = blacklistCache.get(session.getTargetId());
             if (cached == null) {
                 cached = blacklistService.isBlacklisted(userId, session.getTargetId())
@@ -734,6 +747,32 @@ public class ChatServiceImpl implements ChatService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "群聊不存在");
         }
         return groupInfo;
+    }
+
+    private void assertSingleChatAllowed(Long fromUserId, Long toUserId) {
+        if (blacklistService.isBlacklisted(toUserId, fromUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "你已被对方拉黑");
+        }
+        if (blacklistService.isBlacklisted(fromUserId, toUserId)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "你已将对方拉黑");
+        }
+        if (!hasFriendRelation(fromUserId, toUserId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "仅支持与好友发起单聊");
+        }
+    }
+
+    private boolean canAccessSingleChat(Long userId, Long targetUserId) {
+        if (blacklistService.isBlacklisted(userId, targetUserId) || blacklistService.isBlacklisted(targetUserId, userId)) {
+            return false;
+        }
+        return hasFriendRelation(userId, targetUserId);
+    }
+
+    private boolean hasFriendRelation(Long userId, Long targetUserId) {
+        LambdaQueryWrapper<SysFriend> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysFriend::getUserId, userId)
+                .eq(SysFriend::getFriendId, targetUserId);
+        return friendMapper.selectCount(wrapper) > 0;
     }
 
     private ImGroupMember requireGroupMember(Long groupId, Long userId) {

@@ -1,19 +1,24 @@
 package com.linkx.server.module.friend.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.entity.SysFriend;
 import com.linkx.server.entity.SysFriendRequest;
+import com.linkx.server.entity.ImSession;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.mapper.ImSessionMapper;
 import com.linkx.server.mapper.SysFriendMapper;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.blacklist.service.BlacklistService;
+import com.linkx.server.module.chat.constant.ChatConstants;
 import com.linkx.server.module.friend.dto.FriendDTO;
 import com.linkx.server.module.friend.dto.FriendRequestDTO;
 import com.linkx.server.module.friend.service.FriendService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +34,7 @@ public class FriendServiceImpl implements FriendService {
     private final SysFriendMapper friendMapper;
     private final SysFriendRequestMapper requestMapper;
     private final SysUserMapper userMapper;
+    private final ImSessionMapper sessionMapper;
     private final BlacklistService blacklistService;
 
     @Override
@@ -127,22 +133,19 @@ public class FriendServiceImpl implements FriendService {
         if (request == null || !request.getToUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
-        if (request.getStatus() != 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        if (!claimPendingRequest(requestId, userId, 1)) {
+            return;
         }
-
-        request.setStatus(1);
-        requestMapper.updateById(request);
 
         SysFriend friend1 = new SysFriend();
         friend1.setUserId(request.getFromUserId());
         friend1.setFriendId(request.getToUserId());
-        friendMapper.insert(friend1);
+        insertFriendIfAbsent(friend1);
 
         SysFriend friend2 = new SysFriend();
         friend2.setUserId(request.getToUserId());
         friend2.setFriendId(request.getFromUserId());
-        friendMapper.insert(friend2);
+        insertFriendIfAbsent(friend2);
     }
 
     @Override
@@ -152,12 +155,9 @@ public class FriendServiceImpl implements FriendService {
         if (request == null || !request.getToUserId().equals(userId)) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
-        if (request.getStatus() != 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST);
+        if (!claimPendingRequest(requestId, userId, 2)) {
+            return;
         }
-
-        request.setStatus(2);
-        requestMapper.updateById(request);
     }
 
     @Override
@@ -207,5 +207,33 @@ public class FriendServiceImpl implements FriendService {
         reverseWrapper.eq(SysFriend::getUserId, friendId)
                 .eq(SysFriend::getFriendId, userId);
         friendMapper.delete(reverseWrapper);
+
+        deleteSingleSessions(userId, friendId);
+    }
+
+    private void deleteSingleSessions(Long userId, Long friendId) {
+        LambdaQueryWrapper<ImSession> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_SINGLE)
+                .and(w -> w.eq(ImSession::getUserId, userId).eq(ImSession::getTargetId, friendId)
+                        .or()
+                        .eq(ImSession::getUserId, friendId).eq(ImSession::getTargetId, userId));
+        sessionMapper.delete(wrapper);
+    }
+
+    private boolean claimPendingRequest(Long requestId, Long userId, int targetStatus) {
+        LambdaUpdateWrapper<SysFriendRequest> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(SysFriendRequest::getId, requestId)
+                .eq(SysFriendRequest::getToUserId, userId)
+                .eq(SysFriendRequest::getStatus, 0)
+                .set(SysFriendRequest::getStatus, targetStatus);
+        return requestMapper.update(null, wrapper) > 0;
+    }
+
+    private void insertFriendIfAbsent(SysFriend friend) {
+        try {
+            friendMapper.insert(friend);
+        } catch (DuplicateKeyException ignored) {
+            // Treat duplicate acceptance as idempotent to avoid surfacing a 500 on retries.
+        }
     }
 }

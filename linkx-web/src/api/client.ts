@@ -228,6 +228,8 @@ export const fileApi = {
     const params = keyword ? `?keyword=${encodeURIComponent(keyword)}` : ''
     return api.get(`/api/file/list${params}`)
   },
+  getAccessUrl: (fileUrl: string) =>
+    api.get(`/api/file/access-url?fileUrl=${encodeURIComponent(fileUrl)}`),
   delete: (id: number) => api.delete(`/api/file/${id}`)
 }
 

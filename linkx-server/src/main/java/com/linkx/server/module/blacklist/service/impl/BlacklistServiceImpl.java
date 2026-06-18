@@ -3,14 +3,17 @@ package com.linkx.server.module.blacklist.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.entity.ImSession;
 import com.linkx.server.entity.SysBlacklist;
 import com.linkx.server.entity.SysFriend;
 import com.linkx.server.entity.SysUser;
+import com.linkx.server.mapper.ImSessionMapper;
 import com.linkx.server.mapper.SysBlacklistMapper;
 import com.linkx.server.mapper.SysFriendMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.blacklist.dto.BlacklistUserDTO;
 import com.linkx.server.module.blacklist.service.BlacklistService;
+import com.linkx.server.module.chat.constant.ChatConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +28,7 @@ public class BlacklistServiceImpl implements BlacklistService {
     private final SysBlacklistMapper blacklistMapper;
     private final SysUserMapper userMapper;
     private final SysFriendMapper friendMapper;
+    private final ImSessionMapper sessionMapper;
 
     @Override
     @Transactional
@@ -56,6 +60,8 @@ public class BlacklistServiceImpl implements BlacklistService {
                 .or()
                 .eq(SysFriend::getUserId, targetUserId).eq(SysFriend::getFriendId, userId));
         friendMapper.delete(deleteWrapper);
+
+        deleteSingleSessions(userId, targetUserId);
     }
 
     @Override
@@ -104,5 +110,14 @@ public class BlacklistServiceImpl implements BlacklistService {
         dto.setNickname(user.getNickname());
         dto.setAvatar(user.getAvatar());
         return dto;
+    }
+
+    private void deleteSingleSessions(Long userId, Long targetUserId) {
+        LambdaQueryWrapper<ImSession> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_SINGLE)
+                .and(w -> w.eq(ImSession::getUserId, userId).eq(ImSession::getTargetId, targetUserId)
+                        .or()
+                        .eq(ImSession::getUserId, targetUserId).eq(ImSession::getTargetId, userId));
+        sessionMapper.delete(wrapper);
     }
 }

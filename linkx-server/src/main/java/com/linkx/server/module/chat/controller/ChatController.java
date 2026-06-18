@@ -21,6 +21,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ChatController {
 
+    private static final int MAX_HISTORY_PAGE_NUMBER = 100;
+
     private final ChatService chatService;
     private final ChatWebSocketTicketService chatWebSocketTicketService;
 
@@ -51,7 +53,7 @@ public class ChatController {
             @RequestParam(value = "size", defaultValue = "50") int size) {
         Long userId = Long.parseLong(userDetails.getUsername());
         int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.max(page, 1);
+        int safePage = Math.min(Math.max(page, 1), MAX_HISTORY_PAGE_NUMBER);
         return Result.success(chatService.getChatHistory(userId, targetId, sessionType, safePage, safeSize));
     }
 

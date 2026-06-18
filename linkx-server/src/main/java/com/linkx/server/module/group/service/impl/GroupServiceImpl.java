@@ -264,47 +264,48 @@ public class GroupServiceImpl implements GroupService {
     @Transactional
     public void acceptRequest(Long userId, Long requestId) {
         ImGroupRequest request = requirePendingRequest(userId, requestId);
-        ImGroupInfo groupInfo = requireActiveGroup(request.getGroupId());
+        ImGroupInfo groupInfo = lockActiveGroup(request.getGroupId());
+        if (!claimPendingRequest(requestId, userId, GroupConstants.REQUEST_STATUS_ACCEPTED)) {
+            return;
+        }
 
         if (request.getRequestType() == GroupConstants.REQUEST_TYPE_JOIN) {
             ImGroupMember approverMember = requireMember(groupInfo.getId(), userId);
             assertCanManageMembers(approverMember);
-            ensureJoinableMember(groupInfo, request.getFromUserId());
-            insertMember(groupInfo.getId(), request.getFromUserId(), GroupConstants.ROLE_MEMBER);
-            ensureGroupSessions(groupInfo, List.of(request.getFromUserId()));
-
-            Map<Long, SysUser> userMap = loadUserMap(Set.of(userId, request.getFromUserId()));
-            appendGroupSystemMessage(
-                    groupInfo.getId(),
-                    userId,
-                    getUserDisplayName(userId, userMap) + " 同意 " + getUserDisplayName(request.getFromUserId(), userMap) + " 加入了群聊"
-            );
+            boolean joined = addMemberIfAbsent(groupInfo, request.getFromUserId());
+            if (joined) {
+                ensureGroupSessions(groupInfo, List.of(request.getFromUserId()));
+                Map<Long, SysUser> userMap = loadUserMap(Set.of(userId, request.getFromUserId()));
+                appendGroupSystemMessage(
+                        groupInfo.getId(),
+                        userId,
+                        getUserDisplayName(userId, userMap) + " 同意 " + getUserDisplayName(request.getFromUserId(), userMap) + " 加入了群聊"
+                );
+            }
 
             completePendingJoinRequests(groupInfo.getId(), request.getFromUserId(), GroupConstants.REQUEST_STATUS_REJECTED);
         } else if (request.getRequestType() == GroupConstants.REQUEST_TYPE_INVITE) {
-            ensureJoinableMember(groupInfo, userId);
-            insertMember(groupInfo.getId(), userId, GroupConstants.ROLE_MEMBER);
-            ensureGroupSessions(groupInfo, List.of(userId));
-
-            Map<Long, SysUser> userMap = loadUserMap(Set.of(userId, request.getFromUserId()));
-            appendGroupSystemMessage(
-                    groupInfo.getId(),
-                    userId,
-                    getUserDisplayName(userId, userMap) + " 接受邀请加入了群聊"
-            );
+            boolean joined = addMemberIfAbsent(groupInfo, userId);
+            if (joined) {
+                ensureGroupSessions(groupInfo, List.of(userId));
+                Map<Long, SysUser> userMap = loadUserMap(Set.of(userId, request.getFromUserId()));
+                appendGroupSystemMessage(
+                        groupInfo.getId(),
+                        userId,
+                        getUserDisplayName(userId, userMap) + " 接受邀请加入了群聊"
+                );
+            }
             completePendingInviteRequests(groupInfo.getId(), userId, GroupConstants.REQUEST_STATUS_ACCEPTED);
         } else {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的群申请类型");
         }
-
-        markGroupRequestHandled(request, GroupConstants.REQUEST_STATUS_ACCEPTED);
     }
 
     @Override
     @Transactional
     public void rejectRequest(Long userId, Long requestId) {
-        ImGroupRequest request = requirePendingRequest(userId, requestId);
-        markGroupRequestHandled(request, GroupConstants.REQUEST_STATUS_REJECTED);
+        requirePendingRequest(userId, requestId);
+        claimPendingRequest(requestId, userId, GroupConstants.REQUEST_STATUS_REJECTED);
     }
 
     @Override
@@ -342,7 +343,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void addMembers(Long operatorId, Long groupId, List<Long> memberIds) {
-        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        ImGroupInfo groupInfo = lockActiveGroup(groupId);
         ImGroupMember operatorMember = requireMember(groupId, operatorId);
         assertCanManageMembers(operatorMember);
 
@@ -383,7 +384,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void removeMember(Long operatorId, Long groupId, Long memberUserId) {
-        requireActiveGroup(groupId);
+        lockActiveGroup(groupId);
         ImGroupMember operatorMember = requireMember(groupId, operatorId);
         ImGroupMember targetMember = requireMember(groupId, memberUserId);
 
@@ -423,7 +424,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void setAdmin(Long operatorId, Long groupId, Long memberUserId) {
-        requireActiveGroup(groupId);
+        lockActiveGroup(groupId);
         ImGroupMember operatorMember = requireMember(groupId, operatorId);
         ImGroupMember targetMember = requireMember(groupId, memberUserId);
 
@@ -445,7 +446,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void removeAdmin(Long operatorId, Long groupId, Long memberUserId) {
-        requireActiveGroup(groupId);
+        lockActiveGroup(groupId);
         ImGroupMember operatorMember = requireMember(groupId, operatorId);
         ImGroupMember targetMember = requireMember(groupId, memberUserId);
 
@@ -467,7 +468,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void dissolveGroup(Long operatorId, Long groupId) {
-        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        ImGroupInfo groupInfo = lockActiveGroup(groupId);
         if (!groupInfo.getOwnerId().equals(operatorId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只有群主可以解散群聊");
         }
@@ -489,7 +490,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void muteMember(Long operatorId, Long groupId, Long memberUserId, Integer muteMinutes) {
-        requireActiveGroup(groupId);
+        lockActiveGroup(groupId);
         ImGroupMember operatorMember = requireMember(groupId, operatorId);
         ImGroupMember targetMember = requireMember(groupId, memberUserId);
 
@@ -507,7 +508,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void unmuteMember(Long operatorId, Long groupId, Long memberUserId) {
-        requireActiveGroup(groupId);
+        lockActiveGroup(groupId);
         ImGroupMember operatorMember = requireMember(groupId, operatorId);
         ImGroupMember targetMember = requireMember(groupId, memberUserId);
 
@@ -527,7 +528,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void updateProfile(Long operatorId, Long groupId, String groupName, String groupAvatar) {
-        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        ImGroupInfo groupInfo = lockActiveGroup(groupId);
         ImGroupMember operatorMember = requireMember(groupId, operatorId);
         if (operatorMember.getRole() == GroupConstants.ROLE_MEMBER) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只有群主或管理员可以修改群资料");
@@ -851,12 +852,18 @@ public class GroupServiceImpl implements GroupService {
         }
     }
 
-    private void ensureJoinableMember(ImGroupInfo groupInfo, Long userId) {
+    private boolean addMemberIfAbsent(ImGroupInfo groupInfo, Long userId) {
         if (isGroupMember(groupInfo.getId(), userId)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "该用户已在群聊中");
+            return false;
         }
         if (listMembersByGroupId(groupInfo.getId()).size() >= groupInfo.getMaxMembers()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "群成员数量已达到上限");
+        }
+        try {
+            insertMember(groupInfo.getId(), userId, GroupConstants.ROLE_MEMBER);
+            return true;
+        } catch (DuplicateKeyException ignored) {
+            return false;
         }
     }
 
@@ -947,6 +954,18 @@ public class GroupServiceImpl implements GroupService {
         return groupInfo;
     }
 
+    private ImGroupInfo lockActiveGroup(Long groupId) {
+        LambdaQueryWrapper<ImGroupInfo> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImGroupInfo::getId, groupId)
+                .eq(ImGroupInfo::getDeleted, 0)
+                .last("LIMIT 1 FOR UPDATE");
+        ImGroupInfo groupInfo = groupInfoMapper.selectOne(wrapper);
+        if (groupInfo == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "群聊不存在");
+        }
+        return groupInfo;
+    }
+
     private ImGroupMember requireMember(Long groupId, Long userId) {
         LambdaQueryWrapper<ImGroupMember> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(ImGroupMember::getGroupId, groupId)
@@ -1004,7 +1023,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void leaveGroup(Long userId, Long groupId) {
-        requireActiveGroup(groupId);
+        lockActiveGroup(groupId);
         ImGroupMember member = requireMember(groupId, userId);
 
         if (member.getRole() == GroupConstants.ROLE_OWNER) {
@@ -1033,7 +1052,7 @@ public class GroupServiceImpl implements GroupService {
     @Override
     @Transactional
     public void transferOwner(Long operatorId, Long groupId, Long newOwnerId) {
-        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        ImGroupInfo groupInfo = lockActiveGroup(groupId);
         ImGroupMember operatorMember = requireMember(groupId, operatorId);
 
         if (operatorMember.getRole() != GroupConstants.ROLE_OWNER) {
@@ -1183,11 +1202,20 @@ public class GroupServiceImpl implements GroupService {
         LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
         wrapper.like(SysFile::getOriginalName, normalizedKeyword)
                 .or()
-                .like(SysFile::getFileType, normalizedKeyword)
-                .last("LIMIT 500");
+                .like(SysFile::getFileType, normalizedKeyword);
         return fileMapper.selectList(wrapper).stream()
                 .filter(file -> StringUtils.hasText(file.getFileUrl()))
                 .collect(Collectors.toMap(SysFile::getFileUrl, file -> file, (left, right) -> left));
+    }
+
+    private boolean claimPendingRequest(Long requestId, Long userId, int targetStatus) {
+        LambdaUpdateWrapper<ImGroupRequest> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(ImGroupRequest::getId, requestId)
+                .eq(ImGroupRequest::getToUserId, userId)
+                .eq(ImGroupRequest::getStatus, GroupConstants.REQUEST_STATUS_PENDING)
+                .set(ImGroupRequest::getStatus, targetStatus)
+                .set(ImGroupRequest::getHandleTime, LocalDateTime.now());
+        return groupRequestMapper.update(null, wrapper) > 0;
     }
 
     private Map<String, SysFile> loadFileMap(List<ImMessage> messages) {

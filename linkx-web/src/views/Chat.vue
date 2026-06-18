@@ -193,7 +193,7 @@
                     <span class="recalled-text">[消息已撤回]</span>
                   </template>
                   <template v-else-if="msg.msgType === MESSAGE_TYPE_IMAGE">
-                    <img :src="msg.content" class="msg-image" @load="handleMessageMediaLoad" @click="previewImage(msg.content)" />
+                    <img :src="getResolvedMessageFileUrl(msg)" class="msg-image" @load="handleMessageMediaLoad" @click="previewImage(msg)" />
                   </template>
                   <template v-else-if="msg.msgType === MESSAGE_TYPE_FILE">
                     <button
@@ -743,6 +743,7 @@ import ConfirmDialog from '../components/ConfirmDialog.vue'
 import GroupNoticeDialog from '../components/GroupNoticeDialog.vue'
 import { useChatSocket } from '../hooks/useChatSocket'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
+import { getCachedFileAccessUrl, resolveFileAccessUrl } from '../utils/file-access'
 import { openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload } from '../utils/url'
 import { useUserStore } from '../stores/user'
 import { getDateTimeTimestamp } from '../utils/datetime'
@@ -839,6 +840,7 @@ const downloadFileName = ref('')
 const downloadFileSize = ref('')
 const downloadProgress = ref(0)
 const downloadFileUrl = ref('')
+const resolvedMessageFileUrls = ref<Record<string, string>>({})
 const noticeDraft = ref('')
 const updatingGroupProfile = ref(false)
 const showTransferOwnerModal = ref(false)
@@ -1040,7 +1042,7 @@ function handleRealtimeEvent(payload: any) {
     return
   }
   if (payload.type === 'MESSAGE_RECALLED') {
-    handleRealtimeMessage(payload.data?.message)
+    handleRealtimeMessageRecalled(payload.data?.message)
   }
 }
 
@@ -1524,6 +1526,65 @@ function cleanupMessageResources(messageList = messages.value) {
   }
 }
 
+function shouldResolveRemoteMessageFile(messageItem?: DisplayMessage | null) {
+  if (!messageItem) {
+    return false
+  }
+  if (messageItem.msgType !== MESSAGE_TYPE_IMAGE && messageItem.msgType !== MESSAGE_TYPE_FILE) {
+    return false
+  }
+  return Boolean(messageItem.content) && !messageItem.content.startsWith('blob:')
+}
+
+async function ensureMessageFileAccessUrl(rawUrl: string) {
+  if (!rawUrl || rawUrl.startsWith('blob:')) {
+    return rawUrl
+  }
+  const cachedAccessUrl = getCachedFileAccessUrl(rawUrl)
+  if (cachedAccessUrl) {
+    if (resolvedMessageFileUrls.value[rawUrl] !== cachedAccessUrl) {
+      resolvedMessageFileUrls.value = {
+        ...resolvedMessageFileUrls.value,
+        [rawUrl]: cachedAccessUrl
+      }
+    }
+    return cachedAccessUrl
+  }
+  const accessUrl = await resolveFileAccessUrl(rawUrl)
+  if (accessUrl) {
+    resolvedMessageFileUrls.value = {
+      ...resolvedMessageFileUrls.value,
+      [rawUrl]: accessUrl
+    }
+  }
+  return accessUrl
+}
+
+async function preloadMessageFileUrls(messageList: DisplayMessage[]) {
+  const targets = Array.from(new Set(
+    messageList
+      .filter(shouldResolveRemoteMessageFile)
+      .map(messageItem => messageItem.content)
+      .filter(Boolean)
+  ))
+  await Promise.all(targets.map(rawUrl => ensureMessageFileAccessUrl(rawUrl).catch(() => '')))
+}
+
+function getResolvedMessageFileUrl(messageItem: DisplayMessage) {
+  if (!shouldResolveRemoteMessageFile(messageItem)) {
+    return messageItem.content
+  }
+  const rawUrl = messageItem.content
+  const cachedAccessUrl = getCachedFileAccessUrl(rawUrl)
+  if (cachedAccessUrl && resolvedMessageFileUrls.value[rawUrl] !== cachedAccessUrl) {
+    resolvedMessageFileUrls.value = {
+      ...resolvedMessageFileUrls.value,
+      [rawUrl]: cachedAccessUrl
+    }
+  }
+  return cachedAccessUrl || ''
+}
+
 function revokeBlobUrl(url?: string) {
   if (url?.startsWith('blob:')) {
     URL.revokeObjectURL(url)
@@ -1535,6 +1596,7 @@ function resetCurrentConversationState() {
   currentSessionType.value = SESSION_TYPE_SINGLE
   applyGroupDetail(null)
   cleanupMessageResources()
+  resolvedMessageFileUrls.value = {}
   messages.value = []
 }
 
@@ -1601,6 +1663,9 @@ function upsertMessage(nextMessage: DisplayMessage) {
     })
   }
   messages.value.sort(compareDisplayMessages)
+  if (shouldResolveRemoteMessageFile(nextMessage)) {
+    void ensureMessageFileAccessUrl(nextMessage.content)
+  }
 }
 
 function handleRealtimeMessage(rawMessage: any) {
@@ -1637,6 +1702,15 @@ function handleRealtimeMessage(rawMessage: any) {
     notifyIncomingMessage(messageItem)
     flashSession(messageTargetId, messageSessionType)
   }
+}
+
+function handleRealtimeMessageRecalled(rawMessage: any) {
+  if (!rawMessage) {
+    return
+  }
+  const messageItem = toDisplayMessage(rawMessage)
+  upsertMessage(messageItem)
+  consumeMentionBanner(messageItem)
 }
 
 function handleRealtimeSession(rawSession: any) {
@@ -1802,8 +1876,13 @@ function handleMessageMediaLoad() {
   scrollMessagesToBottom(true)
 }
 
-function previewImage(url: string) {
-  previewImageUrl.value = url
+async function previewImage(messageItem: DisplayMessage) {
+  const resolvedUrl = getResolvedMessageFileUrl(messageItem) || await ensureMessageFileAccessUrl(messageItem.content)
+  if (!resolvedUrl) {
+    message.error('图片访问链接已失效，请稍后重试')
+    return
+  }
+  previewImageUrl.value = resolvedUrl
   showImagePreview.value = true
 }
 
@@ -1976,8 +2055,9 @@ async function retryFailedMessage(messageItem: DisplayMessage) {
   }
 }
 
-function downloadFile(msg: DisplayMessage) {
-  const safeDownloadUrl = resolveSafeDownloadUrl(msg.content)
+async function downloadFile(msg: DisplayMessage) {
+  const resolvedUrl = getResolvedMessageFileUrl(msg) || await ensureMessageFileAccessUrl(msg.content)
+  const safeDownloadUrl = resolveSafeDownloadUrl(resolvedUrl)
   if (!safeDownloadUrl) {
     message.error('文件链接无效或协议不受支持')
     return
@@ -2286,6 +2366,8 @@ async function loadMessages(
 
     cleanupMessageResources(messages.value)
     messages.value = nextMessages
+    resolvedMessageFileUrls.value = {}
+    await preloadMessageFileUrls(nextMessages)
     if (mentionTargets.length > 0) {
       setMentionBannerQueue(mentionTargets)
     } else {
@@ -2472,8 +2554,27 @@ async function handleCopyMessage() {
   if (!selectedMsg.value?.content) {
     return
   }
-  await navigator.clipboard.writeText(selectedMsg.value.content)
-  message.success('已复制')
+  const messageItem = selectedMsg.value
+  try {
+    if (messageItem.msgType === MESSAGE_TYPE_IMAGE || messageItem.msgType === MESSAGE_TYPE_FILE) {
+      if (messageItem.content.startsWith('blob:')) {
+        message.warning('文件上传完成后才能复制链接')
+        return
+      }
+      const accessUrl = await resolveFileAccessUrl(messageItem.content, true)
+      if (!accessUrl) {
+        message.error('无法生成访问链接')
+        return
+      }
+      await navigator.clipboard.writeText(accessUrl)
+      message.success('访问链接已复制')
+      return
+    }
+    await navigator.clipboard.writeText(messageItem.content)
+    message.success('已复制')
+  } catch (error) {
+    message.error('复制失败')
+  }
 }
 
 async function copyGroupId(groupId: string | number) {
@@ -2571,7 +2672,7 @@ async function submitCreateGroup() {
     const requestedMemberCount = createGroupForm.memberIds.length + 1
     let groupAvatar = ''
     if (createGroupForm.avatarFile) {
-      const uploadResponse: any = await fileApi.uploadImage(createGroupForm.avatarFile)
+      const uploadResponse: any = await fileApi.uploadAvatar(createGroupForm.avatarFile)
       groupAvatar = uploadResponse.data?.fileUrl || ''
     }
 
@@ -2751,7 +2852,7 @@ async function submitUpdateGroupProfile() {
   try {
     let groupAvatar = groupDetail.value.groupAvatar || ''
     if (groupProfileDraft.avatarFile) {
-      const uploadResponse: any = await fileApi.uploadImage(groupProfileDraft.avatarFile)
+      const uploadResponse: any = await fileApi.uploadAvatar(groupProfileDraft.avatarFile)
       groupAvatar = uploadResponse.data?.fileUrl || ''
     }
     await groupApi.updateProfile(currentTargetId.value, {
