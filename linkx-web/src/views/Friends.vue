@@ -641,6 +641,7 @@ const selectedFriend = ref<any>(null)
 const showGroupPreview = ref(false)
 const previewGroupDetail = ref<GroupPreviewDetail | null>(null)
 const refreshingPanels = ref(false)
+const previewGroupId = ref<string | null>(null)
 
 const PANEL_REFRESH_INTERVAL = 10000
 let lastPanelRefreshAt = 0
@@ -648,6 +649,15 @@ let lastPanelRefreshAt = 0
 async function loadFriends() {
   const res: any = await friendApi.getList()
   friends.value = res.data || []
+  if (!selectedFriend.value) {
+    return
+  }
+  const latestFriend = friends.value.find(friend => String(friend.friendId) === String(selectedFriend.value.friendId)) || null
+  if (!latestFriend) {
+    closeUserInfo()
+    return
+  }
+  selectedFriend.value = latestFriend
 }
 
 async function loadRequests() {
@@ -675,7 +685,8 @@ async function refreshPanels(force = false) {
   }
   refreshingPanels.value = true
   try {
-    await Promise.all([loadRequests(), loadGroupRequests(), loadMyGroups()])
+    await Promise.all([loadFriends(), loadRequests(), loadGroupRequests(), loadMyGroups()])
+    await refreshOpenGroupPreview()
     lastPanelRefreshAt = Date.now()
   } finally {
     refreshingPanels.value = false
@@ -690,7 +701,7 @@ function queueRefreshPanels(force = false) {
 
 async function loadAll() {
   try {
-    await Promise.all([loadFriends(), refreshPanels(true)])
+    await refreshPanels(true)
     message.success('已刷新')
   } catch (e) {
     message.error('刷新失败')
@@ -839,6 +850,7 @@ function openJoinGroupModal(group: any) {
   joinGroupId.value = String(group.id)
   joinGroupMessage.value = ''
   showGroupPreview.value = false
+  previewGroupId.value = null
   message.info(`申请加入「${group.groupName}」，请填写申请说明后发送`)
 }
 
@@ -878,6 +890,11 @@ function startGroupChat(groupId: string | number) {
   })
 }
 
+function isUnavailableGroupError(error: any) {
+  const code = Number(error?.response?.data?.code || error?.response?.status || 0)
+  return code === 403 || code === 404
+}
+
 async function copyGroupId(groupId: string | number) {
   try {
     await navigator.clipboard.writeText(String(groupId))
@@ -890,18 +907,49 @@ async function copyGroupId(groupId: string | number) {
 async function openGroupPreview(group: GroupListItem) {
   showGroupPreview.value = true
   previewGroupDetail.value = null
+  await refreshGroupPreview(group.id)
+}
+
+async function refreshGroupPreview(groupId: string | number, options: { silent?: boolean } = {}) {
+  const normalizedGroupId = String(groupId)
+  previewGroupId.value = normalizedGroupId
   try {
-    const res: any = await groupApi.detail(group.id)
+    const res: any = await groupApi.detail(normalizedGroupId)
+    if (previewGroupId.value !== normalizedGroupId) {
+      return
+    }
     previewGroupDetail.value = res.data || null
   } catch (e: any) {
-    showGroupPreview.value = false
+    if (previewGroupId.value !== normalizedGroupId) {
+      return
+    }
+    if (isUnavailableGroupError(e)) {
+      closeGroupPreview()
+      if (options.silent) {
+        return
+      }
+      message.warning(e.response?.data?.message || '当前群聊资料已失效')
+      return
+    }
+    if (options.silent) {
+      return
+    }
+    closeGroupPreview()
     message.error(e.response?.data?.message || '获取群资料失败')
   }
+}
+
+async function refreshOpenGroupPreview() {
+  if (!showGroupPreview.value || !previewGroupId.value) {
+    return
+  }
+  await refreshGroupPreview(previewGroupId.value, { silent: true })
 }
 
 function closeGroupPreview() {
   showGroupPreview.value = false
   previewGroupDetail.value = null
+  previewGroupId.value = null
 }
 
 async function handleBlacklist(targetUserId: string | number) {
@@ -948,7 +996,6 @@ function handleVisibilityChange() {
 
 onMounted(async () => {
   try {
-    await loadFriends()
     await refreshPanels(true)
   } catch (error: any) {
     console.error('initFriendsPage error:', error)
