@@ -1,5 +1,5 @@
 import { onUnmounted, ref } from 'vue'
-import { WS_BASE_URL } from '../api/client'
+import { WS_BASE_URL } from '../config/env'
 
 interface SocketOptions {
   token: () => string

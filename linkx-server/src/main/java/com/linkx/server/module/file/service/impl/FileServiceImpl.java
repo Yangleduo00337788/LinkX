@@ -3,6 +3,7 @@ package com.linkx.server.module.file.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.config.LinkxAppProperties;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.SysFile;
@@ -15,7 +16,6 @@ import com.linkx.server.module.file.dto.FileDTO;
 import com.linkx.server.module.file.service.FileAccessTicketService;
 import com.linkx.server.module.file.service.FileService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -72,15 +72,7 @@ public class FileServiceImpl implements FileService {
     private final ImMessageMapper messageMapper;
     private final ImGroupMemberMapper groupMemberMapper;
     private final FileAccessTicketService fileAccessTicketService;
-
-    @Value("${linkx.upload.path:uploads/}")
-    private String uploadPath;
-
-    @Value("${linkx.upload.url:http://localhost:8080/uploads/}")
-    private String uploadUrl;
-
-    @Value("${linkx.api-base-url:http://localhost:8080}")
-    private String apiBaseUrl;
+    private final LinkxAppProperties linkxAppProperties;
 
     @Override
     public FileDTO uploadImage(Long userId, MultipartFile file) {
@@ -269,11 +261,13 @@ public class FileServiceImpl implements FileService {
     }
 
     private String buildDirPath(String type) {
+        String uploadPath = linkxAppProperties.getUpload().getPath();
         File baseDir = new File(uploadPath);
         return new File(baseDir, type).getAbsolutePath() + File.separator;
     }
 
     private String buildFileUrl(String type, String storedName) {
+        String uploadUrl = linkxAppProperties.getUpload().getUrl();
         String normalizedBaseUrl = uploadUrl.endsWith("/") ? uploadUrl : uploadUrl + "/";
         return normalizedBaseUrl + type + "/" + storedName;
     }
@@ -490,6 +484,7 @@ public class FileServiceImpl implements FileService {
     }
 
     private String buildAccessUrl(String ticket) {
+        String apiBaseUrl = linkxAppProperties.getApiBaseUrl();
         String normalizedApiBaseUrl = apiBaseUrl.endsWith("/") ? apiBaseUrl.substring(0, apiBaseUrl.length() - 1) : apiBaseUrl;
         return normalizedApiBaseUrl + "/api/file/access/" + ticket;
     }

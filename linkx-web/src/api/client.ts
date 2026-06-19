@@ -1,9 +1,10 @@
 import axios from 'axios'
+import { API_BASE_URL } from '../config/env'
 import router from '../router'
 import { useUserStore } from '../stores/user'
 
-export const API_BASE_URL = 'http://localhost:8080'
-export const WS_BASE_URL = API_BASE_URL.replace(/^http/, 'ws')
+export { API_BASE_URL, WS_BASE_URL } from '../config/env'
+
 const AUTH_STORAGE_KEYS = ['token', 'refreshToken', 'userId', 'nickname', 'avatar', 'username'] as const
 
 let globalErrorHandler: ((message: string) => void) | null = null

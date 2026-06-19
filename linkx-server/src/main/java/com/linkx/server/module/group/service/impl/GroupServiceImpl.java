@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.common.UploadAssetUrlUtils;
+import com.linkx.server.config.LinkxAppProperties;
 import com.linkx.server.entity.ImGroupInfo;
 import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.ImGroupRequest;
@@ -30,7 +31,6 @@ import com.linkx.server.module.group.dto.GroupRequestDTO;
 import com.linkx.server.module.group.service.GroupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -64,9 +64,7 @@ public class GroupServiceImpl implements GroupService {
     private final SysFileMapper fileMapper;
     private final SysUserMapper userMapper;
     private final ChatGroupRealtimeService chatGroupRealtimeService;
-
-    @Value("${linkx.upload.url:http://localhost:8080/uploads/}")
-    private String uploadUrl;
+    private final LinkxAppProperties linkxAppProperties;
 
     @Override
     @Transactional
@@ -908,7 +906,7 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private String normalizeAvatarUrl(String rawAvatarUrl) {
-        return UploadAssetUrlUtils.normalizeAvatarUrl(rawAvatarUrl, uploadUrl, "群头像");
+        return UploadAssetUrlUtils.normalizeAvatarUrl(rawAvatarUrl, linkxAppProperties.getUpload().getUrl(), "群头像");
     }
 
     private String normalizeGroupRemark(String groupRemark) {

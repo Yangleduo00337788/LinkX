@@ -4,13 +4,13 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.common.UploadAssetUrlUtils;
+import com.linkx.server.config.LinkxAppProperties;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.user.dto.UpdateProfileRequest;
 import com.linkx.server.module.user.dto.UserProfileDTO;
 import com.linkx.server.module.user.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,9 +21,7 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService {
 
     private final SysUserMapper userMapper;
-
-    @Value("${linkx.upload.url:http://localhost:8080/uploads/}")
-    private String uploadUrl;
+    private final LinkxAppProperties linkxAppProperties;
 
     @Override
     public UserProfileDTO getProfile(Long userId) {
@@ -54,7 +52,7 @@ public class UserServiceImpl implements UserService {
             user.setNickname(trimmedNickname);
         }
         if (request.getAvatar() != null) {
-            user.setAvatar(UploadAssetUrlUtils.normalizeAvatarUrl(request.getAvatar(), uploadUrl, "头像"));
+            user.setAvatar(UploadAssetUrlUtils.normalizeAvatarUrl(request.getAvatar(), linkxAppProperties.getUpload().getUrl(), "头像"));
         }
         if (request.getGender() != null) {
             user.setGender(request.getGender());
