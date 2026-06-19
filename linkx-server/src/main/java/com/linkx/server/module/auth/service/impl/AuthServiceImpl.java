@@ -12,11 +12,14 @@ import com.linkx.server.module.auth.service.AuthService;
 import com.linkx.server.module.auth.service.RefreshTokenSessionService;
 import com.linkx.server.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -29,34 +32,42 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
+        String username = normalizeText(request.getUsername());
+        String nickname = normalizeText(request.getNickname());
+        String phone = normalizeOptionalText(request.getPhone());
+        String email = normalizeOptionalText(request.getEmail());
+
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysUser::getUsername, request.getUsername());
+        wrapper.eq(SysUser::getUsername, username);
         if (userMapper.selectCount(wrapper) > 0) {
+            log.warn("Auth register rejected, reason=username_exists, username={}", username);
             throw new BusinessException(ErrorCode.USERNAME_EXISTS);
         }
 
-        if (request.getPhone() != null) {
+        if (phone != null) {
             wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(SysUser::getPhone, request.getPhone());
+            wrapper.eq(SysUser::getPhone, phone);
             if (userMapper.selectCount(wrapper) > 0) {
+                log.warn("Auth register rejected, reason=phone_exists, username={}, phone={}", username, phone);
                 throw new BusinessException(ErrorCode.PHONE_EXISTS);
             }
         }
 
-        if (request.getEmail() != null) {
+        if (email != null) {
             wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(SysUser::getEmail, request.getEmail());
+            wrapper.eq(SysUser::getEmail, email);
             if (userMapper.selectCount(wrapper) > 0) {
+                log.warn("Auth register rejected, reason=email_exists, username={}, email={}", username, email);
                 throw new BusinessException(ErrorCode.EMAIL_EXISTS);
             }
         }
 
         SysUser user = new SysUser();
-        user.setUsername(request.getUsername());
-        user.setNickname(request.getNickname());
+        user.setUsername(username);
+        user.setNickname(nickname);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setPhone(request.getPhone());
-        user.setEmail(request.getEmail());
+        user.setPhone(phone);
+        user.setEmail(email);
         user.setStatus(1);
         user.setDeleted(0);
         try {
@@ -68,6 +79,7 @@ public class AuthServiceImpl implements AuthService {
         String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
         refreshTokenSessionService.issueToken(user.getId(), refreshToken);
+        log.info("Auth register issued tokens, userId={}, username={}", user.getId(), user.getUsername());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -81,25 +93,30 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(LoginRequest request) {
+        String username = normalizeText(request.getUsername());
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysUser::getUsername, request.getUsername());
+        wrapper.eq(SysUser::getUsername, username);
         SysUser user = userMapper.selectOne(wrapper);
 
         if (user == null) {
+            log.warn("Auth login rejected, reason=user_not_found, username={}", username);
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            log.warn("Auth login rejected, reason=password_error, userId={}, username={}", user.getId(), user.getUsername());
             throw new BusinessException(ErrorCode.PASSWORD_ERROR);
         }
 
         if (user.getStatus() == 0) {
+            log.warn("Auth login rejected, reason=user_disabled, userId={}, username={}", user.getId(), user.getUsername());
             throw new BusinessException(ErrorCode.USER_DISABLED);
         }
 
         String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
         String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
         refreshTokenSessionService.issueToken(user.getId(), refreshToken);
+        log.info("Auth login issued tokens, userId={}, username={}", user.getId(), user.getUsername());
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -114,31 +131,37 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse refreshToken(String refreshToken) {
         if (!jwtTokenProvider.validateToken(refreshToken)) {
+            log.warn("Auth refresh rejected, reason=token_invalid");
             throw new BusinessException(ErrorCode.TOKEN_INVALID);
         }
         if (!jwtTokenProvider.isRefreshToken(refreshToken)) {
+            log.warn("Auth refresh rejected, reason=not_refresh_token");
             throw new BusinessException(ErrorCode.TOKEN_INVALID, "刷新令牌无效");
         }
 
         Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
         if (!refreshTokenSessionService.matchesActiveToken(userId, refreshToken)) {
+            log.warn("Auth refresh rejected, reason=token_revoked, userId={}", userId);
             throw new BusinessException(ErrorCode.TOKEN_BLACKLISTED, "刷新令牌已失效，请重新登录");
         }
         SysUser user = userMapper.selectById(userId);
 
         if (user == null) {
             refreshTokenSessionService.revokeToken(userId);
+            log.warn("Auth refresh rejected, reason=user_not_found, userId={}", userId);
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
 
         if (user.getStatus() == 0) {
             refreshTokenSessionService.revokeToken(userId);
+            log.warn("Auth refresh rejected, reason=user_disabled, userId={}, username={}", user.getId(), user.getUsername());
             throw new BusinessException(ErrorCode.USER_DISABLED);
         }
 
         String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
         String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
         refreshTokenSessionService.issueToken(user.getId(), newRefreshToken);
+        log.info("Auth refresh issued tokens, userId={}, username={}", user.getId(), user.getUsername());
 
         return AuthResponse.builder()
                 .accessToken(newAccessToken)
@@ -151,13 +174,16 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private BusinessException resolveRegisterConflict(RegisterRequest request) {
-        if (existsByUsername(request.getUsername())) {
+        String username = normalizeText(request.getUsername());
+        String phone = normalizeOptionalText(request.getPhone());
+        String email = normalizeOptionalText(request.getEmail());
+        if (existsByUsername(username)) {
             return new BusinessException(ErrorCode.USERNAME_EXISTS);
         }
-        if (request.getPhone() != null && existsByPhone(request.getPhone())) {
+        if (phone != null && existsByPhone(phone)) {
             return new BusinessException(ErrorCode.PHONE_EXISTS);
         }
-        if (request.getEmail() != null && existsByEmail(request.getEmail())) {
+        if (email != null && existsByEmail(email)) {
             return new BusinessException(ErrorCode.EMAIL_EXISTS);
         }
         return new BusinessException(ErrorCode.BAD_REQUEST, "注册信息已存在，请检查后重试");
@@ -179,5 +205,17 @@ public class AuthServiceImpl implements AuthService {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysUser::getEmail, email);
         return userMapper.selectCount(wrapper) > 0;
+    }
+
+    private String normalizeText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        return value.trim();
+    }
+
+    private String normalizeOptionalText(String value) {
+        String normalized = normalizeText(value);
+        return normalized.isEmpty() ? null : normalized;
     }
 }

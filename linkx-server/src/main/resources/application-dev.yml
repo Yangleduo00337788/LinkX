@@ -1,0 +1,5 @@
+linkx:
+  security:
+    allowed-origin-patterns:
+      - http://*
+      - https://*

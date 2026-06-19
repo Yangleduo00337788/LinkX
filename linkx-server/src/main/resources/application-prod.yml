@@ -1,0 +1,3 @@
+linkx:
+  security:
+    allowed-origin-patterns: ${LINKX_SECURITY_ALLOWED_ORIGIN_PATTERNS:}

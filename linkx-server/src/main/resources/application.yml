@@ -30,8 +30,14 @@ mybatis-plus:
 linkx:
   api-base-url: ${LINKX_API_BASE_URL:http://localhost:8080}
   security:
-    # Default to browser-deployable origins. Narrow this list in production if you have fixed domains.
-    allowed-origin-patterns: ${LINKX_SECURITY_ALLOWED_ORIGIN_PATTERNS:http://*,https://*}
+    auth-rate-limit:
+      enabled: ${LINKX_SECURITY_AUTH_RATE_LIMIT_ENABLED:true}
+      window-seconds: ${LINKX_SECURITY_AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
+      login-max-requests: ${LINKX_SECURITY_AUTH_LOGIN_MAX_REQUESTS:10}
+      register-max-requests: ${LINKX_SECURITY_AUTH_REGISTER_MAX_REQUESTS:5}
+      refresh-max-requests: ${LINKX_SECURITY_AUTH_REFRESH_MAX_REQUESTS:20}
+    captcha:
+      enabled: ${LINKX_SECURITY_CAPTCHA_ENABLED:false}
   jwt:
     secret: ${LINKX_JWT_SECRET:PLEASE_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN}  # required: override via env before startup
     expiration: ${LINKX_JWT_EXPIRATION:86400000}  # 24小时
