@@ -2,6 +2,7 @@ package com.linkx.server.module.auth.controller;
 
 import com.linkx.server.common.Result;
 import com.linkx.server.module.auth.dto.AuthResponse;
+import com.linkx.server.module.auth.dto.CaptchaMetaDTO;
 import com.linkx.server.module.auth.dto.LoginRequest;
 import com.linkx.server.module.auth.dto.RefreshTokenRequest;
 import com.linkx.server.module.auth.dto.RegisterRequest;
@@ -21,6 +22,11 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthSecurityGuard authSecurityGuard;
+
+    @GetMapping("/captcha/meta")
+    public Result<CaptchaMetaDTO> getCaptchaMeta() {
+        return Result.success(authSecurityGuard.getCaptchaMeta());
+    }
 
     @PostMapping("/register")
     public Result<AuthResponse> register(@Valid @RequestBody RegisterRequest requestBody, HttpServletRequest request) {

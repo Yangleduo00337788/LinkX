@@ -2,8 +2,10 @@ package com.linkx.server.module.group.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.linkx.server.common.AuditLogService;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.common.TextNormalizer;
 import com.linkx.server.common.UploadAssetUrlUtils;
 import com.linkx.server.config.LinkxAppProperties;
 import com.linkx.server.entity.ImGroupInfo;
@@ -30,6 +32,7 @@ import com.linkx.server.module.group.dto.GroupMemberDTO;
 import com.linkx.server.module.group.dto.GroupRequestDTO;
 import com.linkx.server.module.group.service.GroupService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +52,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GroupServiceImpl implements GroupService {
@@ -65,6 +69,7 @@ public class GroupServiceImpl implements GroupService {
     private final SysUserMapper userMapper;
     private final ChatGroupRealtimeService chatGroupRealtimeService;
     private final LinkxAppProperties linkxAppProperties;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
@@ -100,6 +105,8 @@ public class GroupServiceImpl implements GroupService {
                 operatorId,
                 getUserDisplayName(operatorId, userMap) + " 创建了群聊“" + normalizedName + "”"
         );
+        log.info("Group created, groupId={}, operatorId={}, memberCount={}, groupName={}",
+                groupInfo.getId(), operatorId, allMembers.size(), normalizedName);
 
         return buildGroupDTO(groupInfo, requireMember(groupInfo.getId(), operatorId), allMembers.size());
     }
@@ -319,6 +326,8 @@ public class GroupServiceImpl implements GroupService {
         } else {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的群申请类型");
         }
+        log.info("Group request accepted, requestId={}, groupId={}, operatorId={}, requestType={}",
+                requestId, groupInfo.getId(), userId, request.getRequestType());
     }
 
     @Override
@@ -514,6 +523,10 @@ public class GroupServiceImpl implements GroupService {
                 operatorId,
                 getUserDisplayName(operatorId, userMap) + " 禁言了 " + getUserDisplayName(memberUserId, userMap) + " " + muteMinutes + " 分钟"
         );
+        auditLogService.recordSuccess("GROUP_MUTE_MEMBER", operatorId, "GROUP_MEMBER", memberUserId,
+                "groupId=" + groupId + ", muteMinutes=" + muteMinutes);
+        log.info("Group member muted, groupId={}, operatorId={}, memberUserId={}, muteMinutes={}",
+                groupId, operatorId, memberUserId, muteMinutes);
     }
 
     @Override
@@ -534,6 +547,9 @@ public class GroupServiceImpl implements GroupService {
                 operatorId,
                 getUserDisplayName(operatorId, userMap) + " 解除禁言 " + getUserDisplayName(memberUserId, userMap)
         );
+        auditLogService.recordSuccess("GROUP_UNMUTE_MEMBER", operatorId, "GROUP_MEMBER", memberUserId, "groupId=" + groupId);
+        log.info("Group member unmuted, groupId={}, operatorId={}, memberUserId={}",
+                groupId, operatorId, memberUserId);
     }
 
     @Override
@@ -562,6 +578,8 @@ public class GroupServiceImpl implements GroupService {
                 operatorId,
                 buildProfileUpdatedSystemMessage(getUserDisplayName(operatorId, userMap), oldGroupName, normalizedGroupName, oldGroupAvatar, normalizedGroupAvatar)
         );
+        log.info("Group profile updated, groupId={}, operatorId={}, oldGroupName={}, newGroupName={}",
+                groupId, operatorId, oldGroupName, normalizedGroupName);
     }
 
     @Override
@@ -573,7 +591,10 @@ public class GroupServiceImpl implements GroupService {
             throw new BusinessException(ErrorCode.FORBIDDEN, "只有群主或管理员可以修改群公告");
         }
 
-        String normalizedNotice = notice == null ? "" : notice.trim();
+        String normalizedNotice = TextNormalizer.normalizeOptionalMultiline(notice, 1000, "群公告");
+        if (normalizedNotice == null) {
+            normalizedNotice = "";
+        }
         String previousNotice = normalizeNullableText(groupInfo.getNotice());
         String nextNotice = normalizeNullableText(normalizedNotice);
         if (equalsNullableText(previousNotice, nextNotice)) {
@@ -592,6 +613,8 @@ public class GroupServiceImpl implements GroupService {
                 operatorId,
                 getUserDisplayName(operatorId, userMap) + (StringUtils.hasText(nextNotice) ? " 更新了群公告" : " 清空了群公告")
         );
+        log.info("Group notice updated, groupId={}, operatorId={}, noticeLength={}",
+                groupId, operatorId, nextNotice == null ? 0 : nextNotice.length());
     }
 
     @Override
@@ -891,14 +914,7 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private String normalizeGroupName(String groupName) {
-        if (!StringUtils.hasText(groupName)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "群名称不能为空");
-        }
-        String normalizedName = groupName.trim();
-        if (normalizedName.length() > 100) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "群名称长度不能超过100个字符");
-        }
-        return normalizedName;
+        return TextNormalizer.normalizeRequiredSingleLine(groupName, 100, "群名称");
     }
 
     private String normalizeNullableText(String value) {
@@ -910,30 +926,15 @@ public class GroupServiceImpl implements GroupService {
     }
 
     private String normalizeGroupRemark(String groupRemark) {
-        String normalizedRemark = normalizeNullableText(groupRemark);
-        if (normalizedRemark != null && normalizedRemark.length() > 100) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "群备注长度不能超过100个字符");
-        }
-        return normalizedRemark;
+        return TextNormalizer.normalizeOptionalSingleLine(groupRemark, 100, "群备注");
     }
 
     private String normalizeSearchKeyword(String keyword) {
-        String normalizedKeyword = normalizeNullableText(keyword);
-        if (normalizedKeyword == null) {
-            return null;
-        }
-        if (normalizedKeyword.length() > 100) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "搜索关键词长度不能超过100个字符");
-        }
-        return normalizedKeyword;
+        return TextNormalizer.normalizeOptionalSingleLine(keyword, 100, "搜索关键词");
     }
 
     private String normalizeRequestMessage(String message) {
-        String normalizedMessage = normalizeNullableText(message);
-        if (normalizedMessage != null && normalizedMessage.length() > 255) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "申请说明长度不能超过255个字符");
-        }
-        return normalizedMessage;
+        return TextNormalizer.normalizeOptionalMultiline(message, 255, "申请说明");
     }
 
     private ImGroupInfo requireActiveGroup(Long groupId) {
@@ -1027,6 +1028,8 @@ public class GroupServiceImpl implements GroupService {
                 userId,
                 getUserDisplayName(userId, userMap) + " 退出了群聊"
         );
+        auditLogService.recordSuccess("GROUP_LEAVE", userId, "GROUP", groupId, "");
+        log.info("Group left, groupId={}, userId={}", groupId, userId);
         executeAfterCommit(() -> chatGroupRealtimeService.pushGroupRemoved(groupId, List.of(userId), "LEFT"));
     }
 
@@ -1059,6 +1062,8 @@ public class GroupServiceImpl implements GroupService {
                 operatorId,
                 getUserDisplayName(operatorId, userMap) + " 将群主转让给了 " + getUserDisplayName(newOwnerId, userMap)
         );
+        auditLogService.recordSuccess("GROUP_TRANSFER_OWNER", operatorId, "GROUP", groupId, "newOwnerId=" + newOwnerId);
+        log.info("Group owner transferred, groupId={}, operatorId={}, newOwnerId={}", groupId, operatorId, newOwnerId);
     }
 
     private boolean isMuted(ImGroupMember member) {

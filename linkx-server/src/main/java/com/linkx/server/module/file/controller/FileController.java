@@ -1,5 +1,6 @@
 package com.linkx.server.module.file.controller;
 
+import com.linkx.server.common.AuditLogService;
 import com.linkx.server.common.Result;
 import com.linkx.server.entity.SysFile;
 import com.linkx.server.module.file.dto.FileAccessDTO;
@@ -30,6 +31,7 @@ public class FileController {
 
     private final FileService fileService;
     private final FileAccessTicketService fileAccessTicketService;
+    private final AuditLogService auditLogService;
 
     @PostMapping("/upload/avatar")
     public Result<FileDTO> uploadAvatar(
@@ -38,6 +40,7 @@ public class FileController {
         Long userId = Long.parseLong(userDetails.getUsername());
         FileDTO response = fileService.uploadAvatar(userId, file);
         log.info("File avatar upload success, userId={}, fileId={}, originalName={}", userId, response.getId(), response.getOriginalName());
+        auditLogService.recordSuccess("FILE_UPLOAD_AVATAR", userId, "FILE", response.getId(), response.getOriginalName());
         return Result.success(response);
     }
 
@@ -48,6 +51,7 @@ public class FileController {
         Long userId = Long.parseLong(userDetails.getUsername());
         FileDTO response = fileService.uploadImage(userId, file);
         log.info("File image upload success, userId={}, fileId={}, originalName={}", userId, response.getId(), response.getOriginalName());
+        auditLogService.recordSuccess("FILE_UPLOAD_IMAGE", userId, "FILE", response.getId(), response.getOriginalName());
         return Result.success(response);
     }
 
@@ -58,6 +62,7 @@ public class FileController {
         Long userId = Long.parseLong(userDetails.getUsername());
         FileDTO response = fileService.uploadFile(userId, file);
         log.info("File upload success, userId={}, fileId={}, originalName={}", userId, response.getId(), response.getOriginalName());
+        auditLogService.recordSuccess("FILE_UPLOAD_FILE", userId, "FILE", response.getId(), response.getOriginalName());
         return Result.success(response);
     }
 
@@ -76,6 +81,7 @@ public class FileController {
         Long userId = Long.parseLong(userDetails.getUsername());
         FileAccessDTO response = fileService.createAccessUrl(userId, fileUrl);
         log.info("File access url created, userId={}, fileUrl={}", userId, fileUrl);
+        auditLogService.recordSuccess("FILE_ACCESS_TICKET_CREATE", userId, "FILE_URL", fileUrl, fileUrl);
         return Result.success(response);
     }
 
@@ -84,6 +90,7 @@ public class FileController {
         SysFile sysFile = fileAccessTicketService.resolveFile(ticket);
         if (sysFile == null) {
             log.warn("File access rejected, reason=invalid_ticket, ticket={}", ticket);
+            auditLogService.recordFailure("FILE_ACCESS_BY_TICKET", null, "FILE_TICKET", ticket, "invalid_ticket");
             return ResponseEntity.notFound().build();
         }
         Path filePath = Path.of(sysFile.getFilePath());
@@ -91,6 +98,7 @@ public class FileController {
         if (!resource.exists() || !resource.isReadable()) {
             log.warn("File access rejected, reason=file_unavailable, ticket={}, fileId={}, path={}",
                     ticket, sysFile.getId(), sysFile.getFilePath());
+            auditLogService.recordFailure("FILE_ACCESS_BY_TICKET", null, "FILE", sysFile.getId(), "file_unavailable");
             return ResponseEntity.notFound().build();
         }
         MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
@@ -99,6 +107,7 @@ public class FileController {
         }
         String disposition = mediaType.getType().equalsIgnoreCase("image") ? "inline" : "attachment";
         log.info("File access granted, ticket={}, fileId={}, originalName={}", ticket, sysFile.getId(), sysFile.getOriginalName());
+        auditLogService.recordSuccess("FILE_ACCESS_BY_TICKET", sysFile.getUserId(), "FILE", sysFile.getId(), sysFile.getOriginalName());
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"" + resource.getFilename() + "\"")
                 .contentType(mediaType)
@@ -112,6 +121,7 @@ public class FileController {
         Long userId = Long.parseLong(userDetails.getUsername());
         fileService.deleteFile(userId, id);
         log.info("File delete success, userId={}, fileId={}", userId, id);
+        auditLogService.recordSuccess("FILE_DELETE", userId, "FILE", id, "");
         return Result.success();
     }
 }

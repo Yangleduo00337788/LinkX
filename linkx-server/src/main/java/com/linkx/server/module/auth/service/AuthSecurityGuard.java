@@ -3,6 +3,7 @@ package com.linkx.server.module.auth.service;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.config.LinkxSecurityProperties;
+import com.linkx.server.module.auth.dto.CaptchaMetaDTO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 
 @Slf4j
@@ -79,11 +81,16 @@ public class AuthSecurityGuard {
         return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : UNKNOWN_CLIENT_IP;
     }
 
+    public CaptchaMetaDTO getCaptchaMeta() {
+        return new CaptchaMetaDTO(linkxSecurityProperties.getCaptcha().isEnabled(), List.of("login", "register"));
+    }
+
     private void validateCaptcha(String scene, String captchaId, String captchaCode) {
         if (!linkxSecurityProperties.getCaptcha().isEnabled()) {
             return;
         }
         if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
+            log.warn("Captcha validation rejected, scene={}, reason=missing_captcha_payload", scene);
             throw new BusinessException(ErrorCode.BAD_REQUEST, "请先完成验证码校验");
         }
         log.info("Captcha validation reserved for scene={}, captchaId={}", scene, captchaId.trim());

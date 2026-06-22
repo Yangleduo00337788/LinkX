@@ -1,4 +1,4 @@
-import { getDateTimeTimestamp, parseDateTime } from '../../utils/datetime'
+import { getDateTimeTimestamp, parseDateTime } from './datetime'
 import {
   GROUP_ROLE_ADMIN,
   GROUP_ROLE_OWNER,
@@ -11,7 +11,7 @@ import {
   SESSION_TYPE_SINGLE,
   type ChatSession,
   type DisplayMessage
-} from './chat-types'
+} from '../types/chat'
 
 export function buildSessionKey(targetId: string | number, sessionType: number) {
   return `${sessionType}-${String(targetId)}`

@@ -3,6 +3,7 @@ package com.linkx.server.module.file.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.common.TextNormalizer;
 import com.linkx.server.config.LinkxAppProperties;
 import com.linkx.server.entity.ImMessage;
 import com.linkx.server.entity.ImGroupMember;
@@ -16,6 +17,7 @@ import com.linkx.server.module.file.dto.FileDTO;
 import com.linkx.server.module.file.service.FileAccessTicketService;
 import com.linkx.server.module.file.service.FileService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -31,6 +33,7 @@ import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FileServiceImpl implements FileService {
@@ -105,6 +108,8 @@ public class FileServiceImpl implements FileService {
         String ext = extractExtension(originalFilename);
         String contentType = normalizeContentType(file.getContentType());
         if (!allowedExtensions.contains(ext) || !allowedContentTypes.contains(contentType)) {
+            log.warn("File upload rejected, userId={}, type={}, originalName={}, extension={}, contentType={}, reason=invalid_type",
+                    userId, type, originalFilename, ext, contentType);
             throw new BusinessException(ErrorCode.BAD_REQUEST, invalidTypeMessage);
         }
         validateFileContent(file, ext, invalidTypeMessage);
@@ -127,13 +132,16 @@ public class FileServiceImpl implements FileService {
 
         SysFile sysFile = new SysFile();
         sysFile.setUserId(userId);
-        sysFile.setOriginalName(StringUtils.hasText(originalFilename) ? originalFilename : storedName);
+        String normalizedOriginalName = TextNormalizer.normalizeOptionalSingleLine(originalFilename, 255, "文件名");
+        sysFile.setOriginalName(StringUtils.hasText(normalizedOriginalName) ? normalizedOriginalName : storedName);
         sysFile.setStoredName(storedName);
         sysFile.setFilePath(new File(dir, storedName).getAbsolutePath());
         sysFile.setFileUrl(fileUrl);
         sysFile.setFileSize(file.getSize());
         sysFile.setFileType(contentType);
         fileMapper.insert(sysFile);
+        log.info("File stored, userId={}, fileId={}, type={}, originalName={}, storedName={}, size={}, contentType={}",
+                userId, sysFile.getId(), type, sysFile.getOriginalName(), storedName, file.getSize(), contentType);
 
         return toFileDTO(sysFile);
     }
@@ -383,12 +391,15 @@ public class FileServiceImpl implements FileService {
     public FileAccessDTO createAccessUrl(Long userId, String fileUrl) {
         SysFile sysFile = findFileByUrl(fileUrl);
         if (sysFile == null) {
+            log.warn("File access url rejected, userId={}, fileUrl={}, reason=file_not_found", userId, fileUrl);
             throw new BusinessException(ErrorCode.NOT_FOUND, "文件不存在");
         }
         if (!canAccessFile(userId, sysFile)) {
+            log.warn("File access url rejected, userId={}, fileId={}, fileUrl={}, reason=forbidden", userId, sysFile.getId(), fileUrl);
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该文件");
         }
         String ticket = fileAccessTicketService.createTicket(sysFile.getId());
+        log.info("File access ticket created, userId={}, fileId={}, ticket={}", userId, sysFile.getId(), ticket);
         return new FileAccessDTO(buildAccessUrl(ticket));
     }
 
@@ -396,21 +407,25 @@ public class FileServiceImpl implements FileService {
     public void deleteFile(Long userId, Long fileId) {
         SysFile sysFile = fileMapper.selectById(fileId);
         if (sysFile == null || !sysFile.getUserId().equals(userId)) {
+            log.warn("File delete rejected, userId={}, fileId={}, reason=file_not_found_or_not_owner", userId, fileId);
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
 
         LambdaQueryWrapper<ImMessage> msgWrapper = new LambdaQueryWrapper<>();
         msgWrapper.eq(ImMessage::getContent, sysFile.getFileUrl());
         if (messageMapper.selectCount(msgWrapper) > 0) {
+            log.warn("File delete rejected, userId={}, fileId={}, reason=message_referenced", userId, fileId);
             throw new BusinessException(ErrorCode.BAD_REQUEST, "该文件已被聊天消息引用，无法删除");
         }
 
         File file = new File(sysFile.getFilePath());
         if (file.exists() && !file.delete()) {
+            log.warn("File delete rejected, userId={}, fileId={}, reason=file_delete_failed, path={}", userId, fileId, sysFile.getFilePath());
             throw new BusinessException(ErrorCode.INTERNAL_ERROR, "文件删除失败，请稍后重试");
         }
 
         fileMapper.deleteById(fileId);
+        log.info("File deleted, userId={}, fileId={}, originalName={}", userId, fileId, sysFile.getOriginalName());
     }
 
     private SysFile findFileByUrl(String fileUrl) {

@@ -1,5 +1,7 @@
 linkx:
   security:
     allowed-origin-patterns:
-      - http://*
-      - https://*
+      - ${LINKX_SECURITY_DEV_ORIGIN_1:http://localhost:5173}
+      - ${LINKX_SECURITY_DEV_ORIGIN_2:http://localhost:3000}
+      - ${LINKX_SECURITY_DEV_ORIGIN_3:http://127.0.0.1:5173}
+      - ${LINKX_SECURITY_DEV_ORIGIN_4:http://127.0.0.1:3000}

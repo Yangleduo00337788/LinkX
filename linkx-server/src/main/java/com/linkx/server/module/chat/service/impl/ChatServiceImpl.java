@@ -2,8 +2,10 @@ package com.linkx.server.module.chat.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.linkx.server.common.AuditLogService;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.common.TextNormalizer;
 import com.linkx.server.entity.ImGroupInfo;
 import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.ImMessage;
@@ -32,6 +34,7 @@ import com.linkx.server.module.chat.ws.ChatReadReceiptPayload;
 import com.linkx.server.module.chat.ws.ChatSessionPayload;
 import com.linkx.server.module.group.constant.GroupConstants;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,11 +55,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatServiceImpl implements ChatService {
 
     private static final int SESSION_PREVIEW_MAX_LENGTH = 500;
+    private static final int MESSAGE_CONTENT_MAX_LENGTH = 5000;
 
     private record MentionContext(boolean mentionAll, List<Long> mentionUserIds) {
         private static final MentionContext EMPTY = new MentionContext(false, List.of());
@@ -76,16 +81,14 @@ public class ChatServiceImpl implements ChatService {
     private final BlacklistService blacklistService;
     private final ChatEventPushService chatEventPushService;
     private final ChatPresenceService chatPresenceService;
+    private final AuditLogService auditLogService;
 
     @Override
     @Transactional
     public MessageDTO sendMessage(Long fromUserId, Long toUserId, String content, Integer msgType, Integer sessionType, String clientMessageId, Boolean mentionAll, List<Long> mentionUserIds) {
-        if (!StringUtils.hasText(content)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "消息内容不能为空");
-        }
+        String normalizedContent = TextNormalizer.normalizeRequiredMultiline(content, MESSAGE_CONTENT_MAX_LENGTH, "消息内容");
         int resolvedMsgType = resolveTextMessageType(msgType);
         int resolvedSessionType = resolveSessionType(sessionType);
-        String normalizedContent = content.trim();
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
             return sendGroupMessage(fromUserId, toUserId, normalizedContent, resolvedMsgType, clientMessageId, mentionAll, mentionUserIds);
         }
@@ -160,6 +163,8 @@ public class ChatServiceImpl implements ChatService {
     public void markAsRead(Long userId, Long targetId, Integer sessionType) {
         int resolvedSessionType = resolveSessionType(sessionType);
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_SINGLE && !canAccessSingleChat(userId, targetId)) {
+            log.warn("Chat mark read skipped, userId={}, targetId={}, sessionType={}, reason=conversation_unavailable",
+                    userId, targetId, resolvedSessionType);
             return;
         }
         ImSession session = getSession(userId, targetId, resolvedSessionType);
@@ -173,6 +178,8 @@ public class ChatServiceImpl implements ChatService {
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_SINGLE) {
             List<ImMessage> unreadMessages = listUnreadSingleMessages(targetId, userId);
             List<Long> messageIds = batchMarkAsRead(unreadMessages, readTime);
+            log.info("Chat messages marked read, userId={}, targetId={}, sessionType={}, messageCount={}",
+                    userId, targetId, resolvedSessionType, messageIds.size());
 
             executeAfterCommit(() -> {
                 pushSessionUpdate(userId, targetId, ChatConstants.SESSION_TYPE_SINGLE);
@@ -188,6 +195,7 @@ public class ChatServiceImpl implements ChatService {
         }
 
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
+            log.info("Chat group session marked read, userId={}, groupId={}", userId, targetId);
             executeAfterCommit(() -> {
                 pushSessionUpdate(userId, targetId, ChatConstants.SESSION_TYPE_GROUP);
             });
@@ -202,21 +210,28 @@ public class ChatServiceImpl implements ChatService {
     public void recallMessage(Long userId, Long messageId) {
         ImMessage message = messageMapper.selectById(messageId);
         if (message == null) {
+            auditLogService.recordFailure("CHAT_RECALL_MESSAGE", userId, "MESSAGE", messageId, "message_not_found");
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
         if (!message.getFromUserId().equals(userId)) {
+            auditLogService.recordFailure("CHAT_RECALL_MESSAGE", userId, "MESSAGE", messageId, "operator_not_owner");
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         if (message.getStatus() == ChatConstants.MESSAGE_STATUS_RECALLED) {
+            auditLogService.recordFailure("CHAT_RECALL_MESSAGE", userId, "MESSAGE", messageId, "already_recalled");
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息已撤回");
         }
         if (message.getCreateTime() != null && message.getCreateTime().isBefore(LocalDateTime.now().minusMinutes(2))) {
+            auditLogService.recordFailure("CHAT_RECALL_MESSAGE", userId, "MESSAGE", messageId, "recall_timeout");
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息发送超过2分钟，无法撤回");
         }
 
         int sessionType = resolveMessageSessionType(message);
         message.setStatus(ChatConstants.MESSAGE_STATUS_RECALLED);
         messageMapper.updateById(message);
+        log.info("Chat message recalled, userId={}, messageId={}, sessionType={}, targetId={}",
+                userId, messageId, sessionType, message.getToUserId());
+        auditLogService.recordSuccess("CHAT_RECALL_MESSAGE", userId, "MESSAGE", messageId, "sessionType=" + sessionType);
 
         if (sessionType == ChatConstants.SESSION_TYPE_GROUP) {
             Long groupId = message.getToUserId();
@@ -269,6 +284,8 @@ public class ChatServiceImpl implements ChatService {
 
         MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_SINGLE, loadUserMap(Set.of(fromUserId)), Map.of());
         messageDTO.setClientMessageId(normalizeClientMessageId(clientMessageId));
+        log.info("Chat single message sent, fromUserId={}, toUserId={}, messageId={}, clientMessageId={}",
+                fromUserId, toUserId, messageDTO.getId(), messageDTO.getClientMessageId());
         executeAfterCommit(() -> notifySingleMessage(messageDTO, fromUserId, toUserId));
         return messageDTO;
     }
@@ -325,6 +342,8 @@ public class ChatServiceImpl implements ChatService {
         relatedUserIds.addAll(mentionContext.mentionUserIds());
         MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(relatedUserIds), Map.of());
         messageDTO.setClientMessageId(normalizeClientMessageId(clientMessageId));
+        log.info("Chat group message sent, fromUserId={}, groupId={}, messageId={}, mentionAll={}, mentionCount={}, clientMessageId={}",
+                fromUserId, groupId, messageDTO.getId(), mentionContext.mentionAll(), mentionContext.mentionUserIds().size(), messageDTO.getClientMessageId());
         executeAfterCommit(() -> notifyGroupMessage(messageDTO, groupId, memberUserIds));
         return messageDTO;
     }

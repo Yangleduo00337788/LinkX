@@ -68,6 +68,44 @@ export interface GroupDetail {
   members: GroupMember[]
 }
 
+export interface GroupMediaItem {
+  id: string | number
+  fromUserId?: string | number
+  fromNickname?: string
+  fromAvatar?: string
+  content: string
+  accessUrl?: string
+  msgType: number
+  fileName?: string
+  fileSize?: number
+  fileType?: string
+  createTime?: string
+}
+
+export interface GroupRequestItem {
+  id: number | string
+  groupId: string | number
+  groupName: string
+  groupAvatar?: string
+  fromNickname?: string
+  fromUsername?: string
+  message?: string
+  requestType: number
+  createTime?: string
+}
+
+export type GroupRoleFilter = 'all' | 'owner' | 'admin' | 'member' | 'muted'
+
+export interface GroupRoleFilterOption {
+  label: string
+  value: GroupRoleFilter
+}
+
+export interface GroupPreferenceDraftState {
+  groupRemark: string
+  notificationMuted: boolean
+}
+
 export interface DisplayMessage {
   id: string | number
   localId: string

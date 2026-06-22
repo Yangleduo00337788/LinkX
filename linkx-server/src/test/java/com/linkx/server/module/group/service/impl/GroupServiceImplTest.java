@@ -2,6 +2,8 @@ package com.linkx.server.module.group.service.impl;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.linkx.server.common.AuditLogService;
+import com.linkx.server.config.LinkxAppProperties;
 import com.linkx.server.entity.ImGroupInfo;
 import com.linkx.server.entity.ImGroupMember;
 import com.linkx.server.entity.ImGroupRequest;
@@ -30,11 +32,13 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -65,6 +69,10 @@ class GroupServiceImplTest {
     @Mock
     private ChatGroupRealtimeService chatGroupRealtimeService;
 
+    @Mock
+    private AuditLogService auditLogService;
+
+    private LinkxAppProperties linkxAppProperties;
     private GroupServiceImpl groupService;
 
     @BeforeEach
@@ -73,6 +81,7 @@ class GroupServiceImplTest {
         initTableInfo(ImGroupMember.class);
         initTableInfo(ImGroupRequest.class);
         initTableInfo(ImMessage.class);
+        linkxAppProperties = new LinkxAppProperties();
 
         groupService = new GroupServiceImpl(
                 groupInfoMapper,
@@ -82,7 +91,9 @@ class GroupServiceImplTest {
                 sessionMapper,
                 fileMapper,
                 userMapper,
-                chatGroupRealtimeService
+                chatGroupRealtimeService,
+                linkxAppProperties,
+                auditLogService
         );
     }
 
@@ -187,5 +198,33 @@ class GroupServiceImplTest {
         List<Long> pushedUserIds = userIdsCaptor.getValue();
         assertNotNull(pushedUserIds);
         assertEquals(Set.of(approverId, ownerId, applicantId), Set.copyOf(pushedUserIds));
+    }
+
+    @Test
+    void should_reject_transfer_owner_when_operator_is_not_owner() {
+        Long groupId = 20L;
+        Long operatorId = 201L;
+        Long newOwnerId = 202L;
+
+        ImGroupInfo groupInfo = new ImGroupInfo();
+        groupInfo.setId(groupId);
+        groupInfo.setDeleted(0);
+        groupInfo.setOwnerId(999L);
+
+        ImGroupMember adminMember = new ImGroupMember();
+        adminMember.setId(21L);
+        adminMember.setGroupId(groupId);
+        adminMember.setUserId(operatorId);
+        adminMember.setRole(GroupConstants.ROLE_ADMIN);
+
+        when(groupInfoMapper.selectOne(any())).thenReturn(groupInfo);
+        when(groupMemberMapper.selectOne(any())).thenReturn(adminMember);
+
+        var exception = assertThrows(com.linkx.server.common.BusinessException.class,
+                () -> groupService.transferOwner(operatorId, groupId, newOwnerId));
+
+        assertEquals(com.linkx.server.common.ErrorCode.FORBIDDEN, exception.getErrorCode());
+        verify(groupMemberMapper, never()).updateById(any(ImGroupMember.class));
+        verify(groupInfoMapper, never()).updateById(any(ImGroupInfo.class));
     }
 }

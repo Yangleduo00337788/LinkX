@@ -43,10 +43,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         Long userId = getUserId(session);
         if (userId == null) {
+            log.warn("WebSocket connection rejected, sessionId={}, reason=missing_user_identity", session.getId());
             session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Missing user identity"));
             return;
         }
         chatPresenceService.onConnected(userId, session);
+        log.info("WebSocket connected, sessionId={}, userId={}", session.getId(), userId);
     }
 
     @Override
@@ -89,8 +91,12 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
         try {
             Object result = handleAction(userId, action, dataNode);
+            log.info("WebSocket command handled, sessionId={}, userId={}, requestId={}, action={}, success=true",
+                    session.getId(), userId, requestId, action);
             sendCommandSuccess(session, requestId, action, result);
         } catch (BusinessException exception) {
+            log.warn("WebSocket command rejected, sessionId={}, userId={}, requestId={}, action={}, code={}, message={}",
+                    session.getId(), userId, requestId, action, exception.getErrorCode().getCode(), exception.getMessage());
             sendCommandError(
                     session,
                     requestId,
@@ -121,6 +127,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         if (userId != null) {
             chatPresenceService.onDisconnected(userId, session);
         }
+        log.info("WebSocket disconnected, sessionId={}, userId={}, status={}", session.getId(), userId, status);
     }
 
     @Override

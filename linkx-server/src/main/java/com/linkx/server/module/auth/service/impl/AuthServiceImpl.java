@@ -3,6 +3,7 @@ package com.linkx.server.module.auth.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
+import com.linkx.server.common.TextNormalizer;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.auth.dto.AuthResponse;
@@ -17,7 +18,6 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 @Slf4j
 @Service
@@ -32,10 +32,10 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        String username = normalizeText(request.getUsername());
-        String nickname = normalizeText(request.getNickname());
-        String phone = normalizeOptionalText(request.getPhone());
-        String email = normalizeOptionalText(request.getEmail());
+        String username = TextNormalizer.normalizeRequiredSingleLine(request.getUsername(), 50, "用户名");
+        String nickname = TextNormalizer.normalizeRequiredSingleLine(request.getNickname(), 50, "昵称");
+        String phone = TextNormalizer.normalizeOptionalSingleLine(request.getPhone(), 32, "手机号");
+        String email = TextNormalizer.normalizeOptionalSingleLine(request.getEmail(), 128, "邮箱");
 
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysUser::getUsername, username);
@@ -93,7 +93,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponse login(LoginRequest request) {
-        String username = normalizeText(request.getUsername());
+        String username = TextNormalizer.normalizeRequiredSingleLine(request.getUsername(), 50, "用户名");
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysUser::getUsername, username);
         SysUser user = userMapper.selectOne(wrapper);
@@ -174,9 +174,9 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private BusinessException resolveRegisterConflict(RegisterRequest request) {
-        String username = normalizeText(request.getUsername());
-        String phone = normalizeOptionalText(request.getPhone());
-        String email = normalizeOptionalText(request.getEmail());
+        String username = TextNormalizer.normalizeRequiredSingleLine(request.getUsername(), 50, "用户名");
+        String phone = TextNormalizer.normalizeOptionalSingleLine(request.getPhone(), 32, "手机号");
+        String email = TextNormalizer.normalizeOptionalSingleLine(request.getEmail(), 128, "邮箱");
         if (existsByUsername(username)) {
             return new BusinessException(ErrorCode.USERNAME_EXISTS);
         }
@@ -207,15 +207,4 @@ public class AuthServiceImpl implements AuthService {
         return userMapper.selectCount(wrapper) > 0;
     }
 
-    private String normalizeText(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        return value.trim();
-    }
-
-    private String normalizeOptionalText(String value) {
-        String normalized = normalizeText(value);
-        return normalized.isEmpty() ? null : normalized;
-    }
 }
