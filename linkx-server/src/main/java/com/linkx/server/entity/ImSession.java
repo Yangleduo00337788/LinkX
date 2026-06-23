@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 用户会话列表项：单聊对端或群 ID、置顶、未读、最后一条预览等。 */
 @Data
 @TableName("im_session")
 public class ImSession {

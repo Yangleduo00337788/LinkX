@@ -10,6 +10,9 @@ import org.springframework.context.annotation.Configuration;
 
 import java.time.LocalDateTime;
 
+/**
+ * MyBatis-Plus：MySQL 分页插件与 {@code createTime}/{@code updateTime} 自动填充。
+ */
 @Configuration
 public class MyBatisPlusConfig {
 

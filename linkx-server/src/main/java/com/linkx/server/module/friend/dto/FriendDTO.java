@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 好友列表项。 */
 @Data
 public class FriendDTO {
     private Long id;

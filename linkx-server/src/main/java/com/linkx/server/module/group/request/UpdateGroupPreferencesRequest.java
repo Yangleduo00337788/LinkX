@@ -3,6 +3,7 @@ package com.linkx.server.module.group.request;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+/** 当前用户在群内的备注、消息免打扰等偏好。 */
 @Data
 public class UpdateGroupPreferencesRequest {
 

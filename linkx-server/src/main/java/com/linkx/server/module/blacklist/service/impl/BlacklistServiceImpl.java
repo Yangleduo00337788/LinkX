@@ -21,6 +21,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * 拉黑时写入 {@link SysBlacklist}，并清理单向好友关系与会话侧展示（按业务规则）。
+ */
 @Service
 @RequiredArgsConstructor
 public class BlacklistServiceImpl implements BlacklistService {

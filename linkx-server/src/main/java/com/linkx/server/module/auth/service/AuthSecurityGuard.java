@@ -15,6 +15,12 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * 认证链路安全：验证码校验、Redis 滑动窗口限流、客户端 IP 解析。
+ * <p>
+ * IP 仅在 {@link LinkxSecurityProperties.TrustedProxy#enabled} 为 true 时信任 X-Forwarded-For。
+ * </p>
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -25,6 +31,7 @@ public class AuthSecurityGuard {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final LinkxSecurityProperties linkxSecurityProperties;
+    private final CaptchaService captchaService;
 
     public void validateLoginCaptcha(String captchaId, String captchaCode) {
         validateCaptcha("login", captchaId, captchaCode);
@@ -65,17 +72,30 @@ public class AuthSecurityGuard {
         ensureWithinLimit("refresh", clientIp, properties.getRefreshMaxRequests(), properties.getWindowSeconds(), clientIp);
     }
 
+    public void checkCaptchaIssueRateLimit(HttpServletRequest request) {
+        LinkxSecurityProperties.AuthRateLimit properties = linkxSecurityProperties.getAuthRateLimit();
+        if (!properties.isEnabled()) {
+            return;
+        }
+        String clientIp = resolveClientIp(request);
+        long maxRequests = Math.max(properties.getCaptchaIssueMaxRequests(), 1);
+        ensureWithinLimit("captcha-issue", clientIp, maxRequests, properties.getWindowSeconds(), clientIp);
+    }
+
     public String resolveClientIp(HttpServletRequest request) {
         if (request == null) {
             return UNKNOWN_CLIENT_IP;
         }
-        String forwardedFor = firstHeaderValue(request, "X-Forwarded-For");
-        if (StringUtils.hasText(forwardedFor)) {
-            return forwardedFor;
-        }
-        String realIp = firstHeaderValue(request, "X-Real-IP");
-        if (StringUtils.hasText(realIp)) {
-            return realIp;
+        LinkxSecurityProperties.TrustedProxy trustedProxy = linkxSecurityProperties.getTrustedProxy();
+        if (trustedProxy.isEnabled()) {
+            String forwardedFor = firstHeaderValue(request, "X-Forwarded-For");
+            if (StringUtils.hasText(forwardedFor)) {
+                return forwardedFor;
+            }
+            String realIp = firstHeaderValue(request, "X-Real-IP");
+            if (StringUtils.hasText(realIp)) {
+                return realIp;
+            }
         }
         String remoteAddr = request.getRemoteAddr();
         return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : UNKNOWN_CLIENT_IP;
@@ -89,11 +109,7 @@ public class AuthSecurityGuard {
         if (!linkxSecurityProperties.getCaptcha().isEnabled()) {
             return;
         }
-        if (!StringUtils.hasText(captchaId) || !StringUtils.hasText(captchaCode)) {
-            log.warn("Captcha validation rejected, scene={}, reason=missing_captcha_payload", scene);
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "请先完成验证码校验");
-        }
-        log.info("Captcha validation reserved for scene={}, captchaId={}", scene, captchaId.trim());
+        captchaService.consume(scene, captchaId, captchaCode);
     }
 
     private void ensureWithinLimit(String scene, String bucketKey, long maxRequests, long windowSeconds, String clientIp) {

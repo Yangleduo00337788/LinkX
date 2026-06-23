@@ -5,6 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/** 聊天消息 API/WS 传输对象。 */
 @Data
 public class MessageDTO {
     private Long id;

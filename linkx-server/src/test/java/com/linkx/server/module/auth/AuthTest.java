@@ -140,7 +140,7 @@ class AuthTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginRequest(username, "wrongpassword"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(1005));
+                .andExpect(jsonPath("$.code").value(1007));
     }
 
     @Test

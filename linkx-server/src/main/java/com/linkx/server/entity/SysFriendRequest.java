@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 好友申请：待处理/已同意/已拒绝。 */
 @Data
 @TableName("sys_friend_request")
 public class SysFriendRequest {

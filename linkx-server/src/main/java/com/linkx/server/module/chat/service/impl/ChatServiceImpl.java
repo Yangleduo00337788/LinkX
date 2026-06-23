@@ -55,6 +55,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 聊天核心实现：单聊须好友、群聊须成员；消息入库后事务提交再 WebSocket 推送；
+ * 支持 clientMessageId 幂等、@全员/成员、已读与撤回。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -82,6 +86,7 @@ public class ChatServiceImpl implements ChatService {
     private final ChatEventPushService chatEventPushService;
     private final ChatPresenceService chatPresenceService;
     private final AuditLogService auditLogService;
+    private final ChatMessageHelper chatMessageHelper;
 
     @Override
     @Transactional
@@ -141,7 +146,7 @@ public class ChatServiceImpl implements ChatService {
                 .filter(session -> session.getSessionType() == ChatConstants.SESSION_TYPE_GROUP)
                 .toList();
 
-        Map<Long, SysUser> userMap = loadUserMap(singleSessions.stream().map(ImSession::getTargetId).collect(Collectors.toSet()));
+        Map<Long, SysUser> userMap = chatMessageHelper.loadUserMap(singleSessions.stream().map(ImSession::getTargetId).collect(Collectors.toSet()));
         Map<Long, Boolean> blacklistCache = new HashMap<>();
         Map<Long, Boolean> friendshipCache = new HashMap<>();
 
@@ -163,9 +168,9 @@ public class ChatServiceImpl implements ChatService {
     public void markAsRead(Long userId, Long targetId, Integer sessionType) {
         int resolvedSessionType = resolveSessionType(sessionType);
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_SINGLE && !canAccessSingleChat(userId, targetId)) {
-            log.warn("Chat mark read skipped, userId={}, targetId={}, sessionType={}, reason=conversation_unavailable",
+            log.warn("Chat mark read rejected, userId={}, targetId={}, sessionType={}, reason=conversation_unavailable",
                     userId, targetId, resolvedSessionType);
-            return;
+            throw new BusinessException(ErrorCode.FORBIDDEN, "无法标记该会话为已读");
         }
         ImSession session = getSession(userId, targetId, resolvedSessionType);
         if (session != null && session.getUnreadCount() != 0) {
@@ -195,9 +200,24 @@ public class ChatServiceImpl implements ChatService {
         }
 
         if (resolvedSessionType == ChatConstants.SESSION_TYPE_GROUP) {
-            log.info("Chat group session marked read, userId={}, groupId={}", userId, targetId);
+            requireActiveGroup(targetId);
+            ImGroupMember member = requireGroupMember(targetId, userId);
+            member.setLastMessageReadTime(readTime);
+            groupMemberMapper.updateById(member);
+            log.info("Chat group session marked read, userId={}, groupId={}, readTime={}", userId, targetId, readTime);
+            List<Long> groupMemberUserIds = listGroupMembers(targetId).stream()
+                    .map(ImGroupMember::getUserId)
+                    .filter(memberUserId -> !memberUserId.equals(userId))
+                    .toList();
             executeAfterCommit(() -> {
                 pushSessionUpdate(userId, targetId, ChatConstants.SESSION_TYPE_GROUP);
+                if (!groupMemberUserIds.isEmpty()) {
+                    chatEventPushService.sendToUsers(
+                            groupMemberUserIds,
+                            ChatEventType.READ_RECEIPT,
+                            new ChatReadReceiptPayload(targetId, ChatConstants.SESSION_TYPE_GROUP, userId, readTime, List.of())
+                    );
+                }
             });
             return;
         }
@@ -240,18 +260,27 @@ public class ChatServiceImpl implements ChatService {
             refreshGroupSessionPreviews(groupId, memberUserIds);
             Set<Long> relatedUserIds = new LinkedHashSet<>();
             relatedUserIds.add(message.getFromUserId());
-            relatedUserIds.addAll(parseMentionUserIds(message.getMentionUserIds()));
-            MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(relatedUserIds), Map.of());
+            relatedUserIds.addAll(chatMessageHelper.parseMentionUserIds(message.getMentionUserIds()));
+            MessageDTO messageDTO = chatMessageHelper.toMessageDTO(
+                    message, ChatConstants.SESSION_TYPE_GROUP, chatMessageHelper.loadUserMap(relatedUserIds), Map.of());
             executeAfterCommit(() -> notifyGroupRecall(messageDTO, groupId, memberUserIds));
             return;
         }
 
         refreshSingleSessionPreviews(message.getFromUserId(), message.getToUserId());
-        MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_SINGLE, loadUserMap(Set.of(message.getFromUserId())), Map.of());
+        MessageDTO messageDTO = chatMessageHelper.toMessageDTO(
+                message, ChatConstants.SESSION_TYPE_SINGLE, chatMessageHelper.loadUserMap(Set.of(message.getFromUserId())), Map.of());
         executeAfterCommit(() -> notifySingleRecall(messageDTO, message.getFromUserId(), message.getToUserId()));
     }
 
     private MessageDTO sendSingleMessage(Long fromUserId, Long toUserId, String content, Integer msgType, String clientMessageId) {
+        String normalizedClientMessageId = normalizeClientMessageId(clientMessageId);
+        MessageDTO existing = findExistingOutboundMessage(
+                fromUserId, normalizedClientMessageId, toUserId, ChatConstants.SESSION_TYPE_SINGLE);
+        if (existing != null) {
+            return existing;
+        }
+
         SysUser toUser = userMapper.selectById(toUserId);
         if (toUser == null) {
             throw new BusinessException(ErrorCode.USER_NOT_FOUND);
@@ -280,10 +309,21 @@ public class ChatServiceImpl implements ChatService {
         message.setContent(content);
         message.setMsgType(msgType);
         message.setStatus(ChatConstants.MESSAGE_STATUS_NORMAL);
-        messageMapper.insert(message);
+        message.setClientMessageId(normalizedClientMessageId);
+        try {
+            messageMapper.insert(message);
+        } catch (DuplicateKeyException exception) {
+            MessageDTO duplicate = findExistingOutboundMessage(
+                    fromUserId, normalizedClientMessageId, toUserId, ChatConstants.SESSION_TYPE_SINGLE);
+            if (duplicate != null) {
+                return duplicate;
+            }
+            throw exception;
+        }
 
-        MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_SINGLE, loadUserMap(Set.of(fromUserId)), Map.of());
-        messageDTO.setClientMessageId(normalizeClientMessageId(clientMessageId));
+        MessageDTO messageDTO = chatMessageHelper.toMessageDTO(
+                message, ChatConstants.SESSION_TYPE_SINGLE, chatMessageHelper.loadUserMap(Set.of(fromUserId)), Map.of());
+        messageDTO.setClientMessageId(normalizedClientMessageId);
         log.info("Chat single message sent, fromUserId={}, toUserId={}, messageId={}, clientMessageId={}",
                 fromUserId, toUserId, messageDTO.getId(), messageDTO.getClientMessageId());
         executeAfterCommit(() -> notifySingleMessage(messageDTO, fromUserId, toUserId));
@@ -299,6 +339,13 @@ public class ChatServiceImpl implements ChatService {
             Boolean mentionAll,
             List<Long> mentionUserIds
     ) {
+        String normalizedClientMessageId = normalizeClientMessageId(clientMessageId);
+        MessageDTO existing = findExistingOutboundMessage(
+                fromUserId, normalizedClientMessageId, groupId, ChatConstants.SESSION_TYPE_GROUP);
+        if (existing != null) {
+            return existing;
+        }
+
         requireActiveGroup(groupId);
         ImGroupMember senderMember = requireGroupMember(groupId, fromUserId);
         if (isMuted(senderMember)) {
@@ -335,13 +382,24 @@ public class ChatServiceImpl implements ChatService {
         message.setMentionAll(mentionContext.mentionAll());
         message.setMentionUserIds(joinMentionUserIds(mentionContext.mentionUserIds()));
         message.setStatus(ChatConstants.MESSAGE_STATUS_NORMAL);
-        messageMapper.insert(message);
+        message.setClientMessageId(normalizedClientMessageId);
+        try {
+            messageMapper.insert(message);
+        } catch (DuplicateKeyException exception) {
+            MessageDTO duplicate = findExistingOutboundMessage(
+                    fromUserId, normalizedClientMessageId, groupId, ChatConstants.SESSION_TYPE_GROUP);
+            if (duplicate != null) {
+                return duplicate;
+            }
+            throw exception;
+        }
 
         Set<Long> relatedUserIds = new LinkedHashSet<>();
         relatedUserIds.add(fromUserId);
         relatedUserIds.addAll(mentionContext.mentionUserIds());
-        MessageDTO messageDTO = toMessageDTO(message, ChatConstants.SESSION_TYPE_GROUP, loadUserMap(relatedUserIds), Map.of());
-        messageDTO.setClientMessageId(normalizeClientMessageId(clientMessageId));
+        MessageDTO messageDTO = chatMessageHelper.toMessageDTO(
+                message, ChatConstants.SESSION_TYPE_GROUP, chatMessageHelper.loadUserMap(relatedUserIds), Map.of());
+        messageDTO.setClientMessageId(normalizedClientMessageId);
         log.info("Chat group message sent, fromUserId={}, groupId={}, messageId={}, mentionAll={}, mentionCount={}, clientMessageId={}",
                 fromUserId, groupId, messageDTO.getId(), mentionContext.mentionAll(), mentionContext.mentionUserIds().size(), messageDTO.getClientMessageId());
         executeAfterCommit(() -> notifyGroupMessage(messageDTO, groupId, memberUserIds));
@@ -383,12 +441,12 @@ public class ChatServiceImpl implements ChatService {
         Set<Long> userIds = new HashSet<>();
         for (ImMessage message : messages) {
             userIds.add(message.getFromUserId());
-            userIds.addAll(parseMentionUserIds(message.getMentionUserIds()));
+            userIds.addAll(chatMessageHelper.parseMentionUserIds(message.getMentionUserIds()));
         }
-        Map<Long, SysUser> userMap = loadUserMap(userIds);
-        Map<String, SysFile> fileMap = loadFileMap(messages);
+        Map<Long, SysUser> userMap = chatMessageHelper.loadUserMap(userIds);
+        Map<String, SysFile> fileMap = chatMessageHelper.loadFileMap(messages);
         return messages.stream()
-                .map(message -> toMessageDTO(message, sessionType, userMap, fileMap))
+                .map(message -> chatMessageHelper.toMessageDTO(message, sessionType, userMap, fileMap))
                 .collect(Collectors.toList());
     }
 
@@ -451,7 +509,7 @@ public class ChatServiceImpl implements ChatService {
             return buildSessionDTO(
                     userId,
                     session,
-                    loadUserMap(Set.of(targetId)),
+                    chatMessageHelper.loadUserMap(Set.of(targetId)),
                     new HashMap<>(),
                     new HashMap<>(),
                     Map.of(),
@@ -670,64 +728,6 @@ public class ChatServiceImpl implements ChatService {
         return ChatConstants.SESSION_TYPE_SINGLE;
     }
 
-    private MessageDTO toMessageDTO(ImMessage message, Integer sessionType, Map<Long, SysUser> userMap, Map<String, SysFile> fileMap) {
-        List<Long> mentionUserIds = parseMentionUserIds(message.getMentionUserIds());
-        MessageDTO dto = new MessageDTO();
-        dto.setId(message.getId());
-        dto.setSessionId(message.getSessionId());
-        dto.setFromUserId(message.getFromUserId());
-        dto.setToUserId(message.getToUserId());
-        dto.setSessionType(sessionType);
-        dto.setContent(message.getContent());
-        dto.setMsgType(message.getMsgType());
-        dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));
-        dto.setMentionUserIds(mentionUserIds);
-        dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));
-        dto.setStatus(message.getStatus());
-        dto.setReadTime(message.getReadTime());
-        dto.setCreateTime(message.getCreateTime());
-
-        SysUser fromUser = userMap.get(message.getFromUserId());
-        if (fromUser != null) {
-            dto.setFromNickname(fromUser.getNickname());
-            dto.setFromAvatar(fromUser.getAvatar());
-        }
-        if ((message.getMsgType() == ChatConstants.MESSAGE_TYPE_FILE || message.getMsgType() == ChatConstants.MESSAGE_TYPE_IMAGE)
-                && StringUtils.hasText(message.getContent())) {
-            SysFile file = fileMap.get(message.getContent());
-            if (file != null) {
-                dto.setFileName(file.getOriginalName());
-                dto.setFileSize(file.getFileSize());
-                dto.setFileType(file.getFileType());
-            }
-        }
-        return dto;
-    }
-
-    private Map<String, SysFile> loadFileMap(List<ImMessage> messages) {
-        Set<String> fileUrls = messages.stream()
-                .filter(message -> (message.getMsgType() == ChatConstants.MESSAGE_TYPE_FILE || message.getMsgType() == ChatConstants.MESSAGE_TYPE_IMAGE)
-                        && StringUtils.hasText(message.getContent()))
-                .map(ImMessage::getContent)
-                .collect(Collectors.toSet());
-        if (fileUrls.isEmpty()) {
-            return Map.of();
-        }
-
-        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
-        wrapper.in(SysFile::getFileUrl, fileUrls);
-        return fileMapper.selectList(wrapper).stream()
-                .collect(Collectors.toMap(SysFile::getFileUrl, file -> file, (left, right) -> left));
-    }
-
-    private Map<Long, SysUser> loadUserMap(Set<Long> userIds) {
-        if (userIds.isEmpty()) {
-            return Map.of();
-        }
-        return userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, user -> user, (left, right) -> left));
-    }
-
     private Map<Long, ImGroupInfo> loadActiveGroupMap(Set<Long> groupIds) {
         if (groupIds.isEmpty()) {
             return Map.of();
@@ -791,10 +791,16 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private boolean hasFriendRelation(Long userId, Long targetUserId) {
-        LambdaQueryWrapper<SysFriend> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysFriend::getUserId, userId)
+        LambdaQueryWrapper<SysFriend> forward = new LambdaQueryWrapper<>();
+        forward.eq(SysFriend::getUserId, userId)
                 .eq(SysFriend::getFriendId, targetUserId);
-        return friendMapper.selectCount(wrapper) > 0;
+        if (friendMapper.selectCount(forward) > 0) {
+            return true;
+        }
+        LambdaQueryWrapper<SysFriend> reverse = new LambdaQueryWrapper<>();
+        reverse.eq(SysFriend::getUserId, targetUserId)
+                .eq(SysFriend::getFriendId, userId);
+        return friendMapper.selectCount(reverse) > 0;
     }
 
     private ImGroupMember requireGroupMember(Long groupId, Long userId) {
@@ -899,13 +905,46 @@ public class ChatServiceImpl implements ChatService {
         return "[消息]";
     }
 
+    private MessageDTO findExistingOutboundMessage(
+            Long fromUserId,
+            String clientMessageId,
+            Long targetId,
+            int sessionType
+    ) {
+        if (!StringUtils.hasText(clientMessageId)) {
+            return null;
+        }
+        LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImMessage::getFromUserId, fromUserId)
+                .eq(ImMessage::getClientMessageId, clientMessageId)
+                .last("LIMIT 1");
+        ImMessage message = messageMapper.selectOne(wrapper);
+        if (message == null) {
+            return null;
+        }
+        if (sessionType == ChatConstants.SESSION_TYPE_GROUP) {
+            if (!targetId.equals(message.getToUserId()) || !targetId.equals(message.getSessionId())) {
+                return null;
+            }
+        } else if (!targetId.equals(message.getToUserId())) {
+            return null;
+        }
+        Set<Long> relatedUserIds = new LinkedHashSet<>();
+        relatedUserIds.add(message.getFromUserId());
+        relatedUserIds.addAll(chatMessageHelper.parseMentionUserIds(message.getMentionUserIds()));
+        MessageDTO dto = chatMessageHelper.toMessageDTO(
+                message, sessionType, chatMessageHelper.loadUserMap(relatedUserIds), Map.of());
+        dto.setClientMessageId(clientMessageId);
+        return dto;
+    }
+
     private String normalizeClientMessageId(String clientMessageId) {
         if (!StringUtils.hasText(clientMessageId)) {
             return null;
         }
         String normalized = clientMessageId.trim();
         if (normalized.length() > 64) {
-            return normalized.substring(0, 64);
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "clientMessageId 长度不能超过64");
         }
         return normalized;
     }
@@ -988,40 +1027,4 @@ public class ChatServiceImpl implements ChatService {
                 .collect(Collectors.joining(","));
     }
 
-    private List<Long> parseMentionUserIds(String mentionUserIds) {
-        if (!StringUtils.hasText(mentionUserIds)) {
-            return List.of();
-        }
-        List<Long> result = new ArrayList<>();
-        for (String item : mentionUserIds.split(",")) {
-            if (!StringUtils.hasText(item)) {
-                continue;
-            }
-            try {
-                result.add(Long.parseLong(item.trim()));
-            } catch (NumberFormatException exception) {
-                // Skip malformed legacy values to avoid blocking history loading.
-            }
-        }
-        return result;
-    }
-
-    private List<String> resolveMentionDisplayNames(List<Long> mentionUserIds, Map<Long, SysUser> userMap) {
-        if (mentionUserIds.isEmpty()) {
-            return List.of();
-        }
-        List<String> displayNames = new ArrayList<>();
-        for (Long mentionUserId : mentionUserIds) {
-            SysUser user = userMap.get(mentionUserId);
-            if (user == null) {
-                continue;
-            }
-            if (StringUtils.hasText(user.getNickname())) {
-                displayNames.add(user.getNickname().trim());
-            } else if (StringUtils.hasText(user.getUsername())) {
-                displayNames.add(user.getUsername().trim());
-            }
-        }
-        return displayNames;
-    }
 }

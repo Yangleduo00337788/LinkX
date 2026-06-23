@@ -27,6 +27,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 好友业务：申请、同意时建立双向 {@link SysFriend} 并创建单聊 {@link ImSession}；
+ * 校验黑名单、重复申请、已是好友等。
+ */
 @Service
 @RequiredArgsConstructor
 public class FriendServiceImpl implements FriendService {

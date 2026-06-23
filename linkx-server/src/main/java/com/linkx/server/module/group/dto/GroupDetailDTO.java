@@ -5,6 +5,7 @@ import lombok.Data;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/** 群详情：含成员列表、当前用户角色与群偏好。 */
 @Data
 public class GroupDetailDTO {
     private Long id;

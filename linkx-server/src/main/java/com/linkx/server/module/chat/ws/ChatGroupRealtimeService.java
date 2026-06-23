@@ -31,6 +31,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 群相关实时推送：群详情变更、成员变动、群会话列表刷新等，推送给群内在线成员。
+ */
 @Service
 @RequiredArgsConstructor
 public class ChatGroupRealtimeService {

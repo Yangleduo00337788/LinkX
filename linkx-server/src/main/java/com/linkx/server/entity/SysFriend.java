@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 好友关系（单向一行，互为好友时存两条）。 */
 @Data
 @TableName("sys_friend")
 public class SysFriend {

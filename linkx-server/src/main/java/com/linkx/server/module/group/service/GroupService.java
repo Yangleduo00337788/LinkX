@@ -7,6 +7,9 @@ import com.linkx.server.module.chat.dto.MessageDTO;
 
 import java.util.List;
 
+/**
+ * 群组生命周期与成员管理：创建、邀请/入群申请、角色、禁言、转让群主、群偏好与公告等。
+ */
 public interface GroupService {
     GroupDTO createGroup(Long operatorId, String groupName, String groupAvatar, String notice, List<Long> memberIds);
     List<GroupDTO> getMyGroups(Long userId);

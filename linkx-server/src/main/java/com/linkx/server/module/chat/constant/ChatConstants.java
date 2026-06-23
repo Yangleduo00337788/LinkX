@@ -1,5 +1,6 @@
 package com.linkx.server.module.chat.constant;
 
+/** 会话类型、消息类型与消息状态枚举值（与库表、前端约定一致）。 */
 public final class ChatConstants {
 
     private ChatConstants() {

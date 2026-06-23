@@ -11,6 +11,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 
+/**
+ * 每用户仅保留一份有效 refresh：Redis 存 refresh 的 SHA-256 哈希。
+ * <p>
+ * 刷新或登出会轮换/删除；用 access 调 refresh 接口无效。
+ * </p>
+ */
 @Service
 @RequiredArgsConstructor
 public class RefreshTokenSessionService {
@@ -20,6 +26,7 @@ public class RefreshTokenSessionService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final JwtTokenProvider jwtTokenProvider;
 
+    /** 登录/注册/刷新成功后写入当前 refresh 哈希 */
     public void issueToken(Long userId, String refreshToken) {
         if (userId == null || !StringUtils.hasText(refreshToken)) {
             return;
@@ -32,6 +39,7 @@ public class RefreshTokenSessionService {
         redisTemplate.opsForValue().set(buildKey(userId), hashToken(refreshToken), Duration.ofMillis(ttlMillis));
     }
 
+    /** 防止使用已轮换的旧 refresh */
     public boolean matchesActiveToken(Long userId, String refreshToken) {
         if (userId == null || !StringUtils.hasText(refreshToken)) {
             return false;

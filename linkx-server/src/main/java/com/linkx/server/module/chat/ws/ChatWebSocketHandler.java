@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.module.chat.constant.ChatConstants;
+import com.linkx.server.module.chat.constant.ChatHistoryLimits;
 import com.linkx.server.module.chat.service.ChatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 聊天 WebSocket 文本帧处理：心跳、客户端命令（发消息/已读等）与下行事件推送入口。
+ * <p>连接建立后 userId 由握手拦截器写入 session 属性。</p>
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -30,8 +35,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private static final int MAX_TEXT_PAYLOAD_LENGTH = 16 * 1024;
     private static final int COMMAND_RATE_WINDOW_MILLIS = 10_000;
     private static final int COMMAND_RATE_LIMIT = 120;
-    private static final int MAX_HISTORY_PAGE_SIZE = 200;
-    private static final int MAX_HISTORY_PAGE_NUMBER = 100;
+
     private static final String ATTR_COMMAND_WINDOW_START = "chat:commandWindowStart";
     private static final String ATTR_COMMAND_WINDOW_COUNT = "chat:commandWindowCount";
 
@@ -153,8 +157,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     userId,
                     readRequiredLong(dataNode, "targetId"),
                     readInt(dataNode, "sessionType", ChatConstants.SESSION_TYPE_SINGLE),
-                    readPositiveInt(dataNode, "page", 1, MAX_HISTORY_PAGE_NUMBER),
-                    readPositiveInt(dataNode, "size", 50, MAX_HISTORY_PAGE_SIZE)
+                    readPositiveInt(dataNode, "page", 1, ChatHistoryLimits.MAX_PAGE_NUMBER),
+                    readPositiveInt(dataNode, "size", ChatHistoryLimits.DEFAULT_PAGE_SIZE, ChatHistoryLimits.MAX_PAGE_SIZE)
             );
             case ChatSocketAction.SEND_MESSAGE -> chatService.sendMessage(
                     userId,

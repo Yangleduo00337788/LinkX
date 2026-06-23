@@ -116,7 +116,9 @@ CREATE TABLE IF NOT EXISTS im_message (
     mention_user_ids VARCHAR(1024) COMMENT '@成员ID列表，逗号分隔',
     status TINYINT DEFAULT 0 COMMENT '状态 0正常 1已撤回',
     read_time DATETIME COMMENT '已读时间',
+    client_message_id VARCHAR(64) COMMENT '客户端幂等消息ID',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE INDEX uk_from_client (from_user_id, client_message_id),
     INDEX idx_session_id (session_id),
     INDEX idx_from_user (from_user_id),
     INDEX idx_to_user (to_user_id)
@@ -170,6 +172,7 @@ CREATE TABLE IF NOT EXISTS im_group_member (
     notice_read_time DATETIME COMMENT '群公告已读时间',
     group_remark VARCHAR(100) COMMENT '群备注/别名',
     notification_muted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '消息免打扰 0否 1是',
+    last_message_read_time DATETIME COMMENT '群聊消息已读游标时间',
     create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     INDEX idx_group_id (group_id),
     INDEX idx_user_id (user_id),

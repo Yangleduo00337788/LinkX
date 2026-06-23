@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 群列表摘要（我的群）。 */
 @Data
 public class GroupDTO {
     private Long id;

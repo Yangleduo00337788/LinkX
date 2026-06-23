@@ -4,6 +4,7 @@ import com.linkx.server.module.blacklist.dto.BlacklistUserDTO;
 
 import java.util.List;
 
+/** 用户黑名单的增删查及双向关系判断。 */
 public interface BlacklistService {
 
     void addBlacklist(Long userId, Long targetUserId);

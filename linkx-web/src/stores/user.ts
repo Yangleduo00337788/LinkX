@@ -27,7 +27,18 @@ export const useUserStore = defineStore('user', () => {
     localStorage.setItem('username', data.username)
   }
 
-  function logout() {
+  async function logout() {
+    const storedRefresh = refreshToken.value || localStorage.getItem('refreshToken') || ''
+    const storedAccess = token.value || localStorage.getItem('token') || ''
+    try {
+      const { authApi } = await import('../api/client')
+      await authApi.logout({
+        refreshToken: storedRefresh || undefined,
+        accessToken: storedAccess || undefined
+      })
+    } catch {
+      // clear local state even if server logout fails
+    }
     token.value = ''
     refreshToken.value = ''
     userId.value = ''
@@ -36,6 +47,12 @@ export const useUserStore = defineStore('user', () => {
     username.value = ''
     for (const key of AUTH_STORAGE_KEYS) {
       localStorage.removeItem(key)
+    }
+    try {
+      const { revokeAllFileAccessBlobUrls } = await import('../utils/file-access')
+      revokeAllFileAccessBlobUrls()
+    } catch {
+      // ignore
     }
   }
 

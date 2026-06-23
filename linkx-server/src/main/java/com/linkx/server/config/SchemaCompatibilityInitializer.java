@@ -7,6 +7,12 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+/**
+ * 应用启动后检查并补齐旧库缺失的列/索引（幂等）。
+ * <p>
+ * 新环境由 {@code schema.sql} 初始化；从旧版本升级时无需手工跑迁移 SQL。
+ * </p>
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -22,6 +28,9 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         ensureImGroupMemberNoticeReadTimeColumn();
         ensureImGroupMemberGroupRemarkColumn();
         ensureImGroupMemberNotificationMutedColumn();
+        ensureImMessageClientMessageIdColumn();
+        ensureImMessageClientMessageIdUniqueIndex();
+        ensureImGroupMemberLastMessageReadTimeColumn();
     }
 
     private void ensureImMessageReadTimeColumn() {
@@ -81,6 +90,50 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
         jdbcTemplate.execute("ALTER TABLE im_group_member ADD COLUMN notification_muted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '消息免打扰 0否 1是'");
         log.info("Schema compatibility repaired: added im_group_member.notification_muted column");
+    }
+
+    private void ensureImMessageClientMessageIdColumn() {
+        if (hasColumn("im_message", "client_message_id")) {
+            return;
+        }
+        jdbcTemplate.execute("ALTER TABLE im_message ADD COLUMN client_message_id VARCHAR(64) NULL COMMENT '客户端幂等消息ID'");
+        log.info("Schema compatibility repaired: added im_message.client_message_id column");
+    }
+
+    private void ensureImMessageClientMessageIdUniqueIndex() {
+        if (hasIndex("im_message", "uk_im_message_from_client")) {
+            return;
+        }
+        jdbcTemplate.execute(
+                "CREATE UNIQUE INDEX uk_im_message_from_client ON im_message (from_user_id, client_message_id)"
+        );
+        log.info("Schema compatibility repaired: added im_message.uk_im_message_from_client index");
+    }
+
+    private void ensureImGroupMemberLastMessageReadTimeColumn() {
+        if (hasColumn("im_group_member", "last_message_read_time")) {
+            return;
+        }
+        jdbcTemplate.execute(
+                "ALTER TABLE im_group_member ADD COLUMN last_message_read_time DATETIME NULL COMMENT '群聊消息已读游标时间'"
+        );
+        log.info("Schema compatibility repaired: added im_group_member.last_message_read_time column");
+    }
+
+    private boolean hasIndex(String tableName, String indexName) {
+        Integer indexCount = jdbcTemplate.queryForObject(
+                """
+                SELECT COUNT(1)
+                FROM information_schema.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = ?
+                  AND INDEX_NAME = ?
+                """,
+                Integer.class,
+                tableName,
+                indexName
+        );
+        return indexCount != null && indexCount > 0;
     }
 
     private boolean hasColumn(String tableName, String columnName) {

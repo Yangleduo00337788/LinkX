@@ -52,6 +52,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 群组业务实现：权限按群主/管理员校验；变更后通过 {@link ChatGroupRealtimeService} 推送；
+ * 事务提交后再发 WebSocket 事件。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

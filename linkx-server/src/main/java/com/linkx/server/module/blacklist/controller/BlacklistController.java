@@ -10,6 +10,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 黑名单：拉黑/取消、列表；拉黑后限制私聊与好友操作。
+ */
 @RestController
 @RequestMapping("/api/blacklist")
 @RequiredArgsConstructor

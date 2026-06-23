@@ -4,6 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+/**
+ * 开放注册请求体；密码强度另由 {@link com.linkx.server.module.auth.service.PasswordPolicy} 校验。
+ */
 @Data
 public class RegisterRequest {
 
@@ -16,7 +19,7 @@ public class RegisterRequest {
     private String nickname;
 
     @NotBlank(message = "密码不能为空")
-    @Size(min = 6, max = 50, message = "密码长度6-50位")
+    @Size(min = 8, max = 50, message = "密码长度8-50位")
     private String password;
 
     @Size(max = 128, message = "验证码ID长度不能超过128位")
@@ -25,7 +28,9 @@ public class RegisterRequest {
     @Size(max = 32, message = "验证码长度不能超过32位")
     private String captchaCode;
 
+    /** 可选，唯一性由数据库约束保证 */
     private String phone;
 
+    /** 可选，唯一性由数据库约束保证 */
     private String email;
 }

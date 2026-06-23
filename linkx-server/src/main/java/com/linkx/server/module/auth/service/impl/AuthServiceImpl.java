@@ -9,7 +9,9 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.auth.dto.AuthResponse;
 import com.linkx.server.module.auth.dto.LoginRequest;
 import com.linkx.server.module.auth.dto.RegisterRequest;
+import com.linkx.server.module.auth.service.AccessTokenDenylistService;
 import com.linkx.server.module.auth.service.AuthService;
+import com.linkx.server.module.auth.service.PasswordPolicy;
 import com.linkx.server.module.auth.service.RefreshTokenSessionService;
 import com.linkx.server.security.JwtTokenProvider;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +20,11 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
+/**
+ * 认证服务实现：BCrypt 存密、JWT 双令牌、Redis 管理 refresh 与 access 黑名单。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -28,6 +34,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenSessionService refreshTokenSessionService;
+    private final AccessTokenDenylistService accessTokenDenylistService;
 
     @Override
     @Transactional
@@ -36,6 +43,7 @@ public class AuthServiceImpl implements AuthService {
         String nickname = TextNormalizer.normalizeRequiredSingleLine(request.getNickname(), 50, "昵称");
         String phone = TextNormalizer.normalizeOptionalSingleLine(request.getPhone(), 32, "手机号");
         String email = TextNormalizer.normalizeOptionalSingleLine(request.getEmail(), 128, "邮箱");
+        PasswordPolicy.validate(request.getPassword());
 
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysUser::getUsername, username);
@@ -100,12 +108,12 @@ public class AuthServiceImpl implements AuthService {
 
         if (user == null) {
             log.warn("Auth login rejected, reason=user_not_found, username={}", username);
-            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+            throw new BusinessException(ErrorCode.AUTH_LOGIN_FAILED);
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             log.warn("Auth login rejected, reason=password_error, userId={}, username={}", user.getId(), user.getUsername());
-            throw new BusinessException(ErrorCode.PASSWORD_ERROR);
+            throw new BusinessException(ErrorCode.AUTH_LOGIN_FAILED);
         }
 
         if (user.getStatus() == 0) {
@@ -171,6 +179,25 @@ public class AuthServiceImpl implements AuthService {
                 .nickname(user.getNickname())
                 .avatar(user.getAvatar())
                 .build();
+    }
+
+    @Override
+    public void logout(Long userId, String refreshToken, String accessToken) {
+        if (userId != null) {
+            refreshTokenSessionService.revokeToken(userId);
+        }
+        if (StringUtils.hasText(refreshToken) && jwtTokenProvider.validateToken(refreshToken)
+                && jwtTokenProvider.isRefreshToken(refreshToken)) {
+            Long tokenUserId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+            if (userId == null || userId.equals(tokenUserId)) {
+                refreshTokenSessionService.revokeToken(tokenUserId);
+            }
+        }
+        if (StringUtils.hasText(accessToken) && jwtTokenProvider.validateToken(accessToken)
+                && jwtTokenProvider.isAccessToken(accessToken)) {
+            accessTokenDenylistService.denyToken(accessToken);
+        }
+        log.info("Auth logout completed, userId={}", userId);
     }
 
     private BusinessException resolveRegisterConflict(RegisterRequest request) {

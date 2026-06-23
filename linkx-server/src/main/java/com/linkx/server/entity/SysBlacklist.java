@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 用户拉黑记录：拉黑后不可发消息/加好友等。 */
 @Data
 @TableName("sys_blacklist")
 public class SysBlacklist {

@@ -23,5 +23,15 @@ log.txt
 # Debug
 .dbg/
 
-# Uploads
+# Uploads (local dev runtime data)
 linkx-server/uploads/
+
+# Environment (keep *.example)
+.env
+!.env.example
+!.env.*.example
+
+# Frontend build artifacts (also in linkx-web/.gitignore)
+linkx-web/dist/
+linkx-web/release/
+linkx-web/.electron-builder-cache/

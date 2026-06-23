@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/**
+ * 系统用户表 {@code sys_user}：登录账号、资料、状态与逻辑删除。
+ */
 @Data
 @TableName("sys_user")
 public class SysUser {

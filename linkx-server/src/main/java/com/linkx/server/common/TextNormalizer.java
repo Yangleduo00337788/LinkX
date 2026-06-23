@@ -2,6 +2,10 @@ package com.linkx.server.common;
 
 import org.springframework.util.StringUtils;
 
+/**
+ * 用户输入文本规范化：去首尾空白、折叠空白、长度校验。
+ * <p>注册/登录用户名等使用单行模式；群公告等可使用多行模式。</p>
+ */
 public final class TextNormalizer {
 
     private TextNormalizer() {

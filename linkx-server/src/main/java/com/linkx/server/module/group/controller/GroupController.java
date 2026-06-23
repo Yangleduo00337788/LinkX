@@ -22,6 +22,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 群组 REST：创建/解散、资料与公告、成员与禁言、入群申请、群偏好等。
+ */
 @RestController
 @RequestMapping("/api/group")
 @RequiredArgsConstructor

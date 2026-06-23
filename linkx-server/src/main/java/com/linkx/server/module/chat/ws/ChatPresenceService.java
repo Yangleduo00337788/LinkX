@@ -11,6 +11,9 @@ import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * 好友在线状态：连接/断开时向好友广播 online/offline 事件。
+ */
 @Service
 @RequiredArgsConstructor
 public class ChatPresenceService {

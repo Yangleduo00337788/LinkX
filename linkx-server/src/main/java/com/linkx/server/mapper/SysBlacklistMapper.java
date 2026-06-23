@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.linkx.server.entity.SysBlacklist;
 import org.apache.ibatis.annotations.Mapper;
 
+/** {@link com.linkx.server.entity.SysBlacklist} Mapper。 */
 @Mapper
 public interface SysBlacklistMapper extends BaseMapper<SysBlacklist> {
 }

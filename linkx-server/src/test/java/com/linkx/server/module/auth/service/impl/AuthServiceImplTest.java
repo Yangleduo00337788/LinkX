@@ -5,6 +5,7 @@ import com.linkx.server.common.ErrorCode;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.auth.dto.AuthResponse;
+import com.linkx.server.module.auth.service.AccessTokenDenylistService;
 import com.linkx.server.module.auth.service.RefreshTokenSessionService;
 import com.linkx.server.security.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,11 +36,20 @@ class AuthServiceImplTest {
     @Mock
     private RefreshTokenSessionService refreshTokenSessionService;
 
+    @Mock
+    private AccessTokenDenylistService accessTokenDenylistService;
+
     private AuthServiceImpl authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthServiceImpl(userMapper, passwordEncoder, jwtTokenProvider, refreshTokenSessionService);
+        authService = new AuthServiceImpl(
+                userMapper,
+                passwordEncoder,
+                jwtTokenProvider,
+                refreshTokenSessionService,
+                accessTokenDenylistService
+        );
     }
 
     @Test

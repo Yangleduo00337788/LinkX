@@ -9,6 +9,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 群组资料：名称、头像、公告、群主、最大人数等。 */
 @Data
 @TableName("im_group_info")
 public class ImGroupInfo {

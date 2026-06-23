@@ -7,6 +7,9 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+/**
+ * Redis 模板：Key 为字符串，Value 为 JSON（限流计数、验证码、refresh 会话、token 黑名单等）。
+ */
 @Configuration
 public class RedisConfig {
 

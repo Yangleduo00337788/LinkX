@@ -9,6 +9,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 入群申请/邀请记录。 */
 @Data
 @TableName("im_group_request")
 public class ImGroupRequest {

@@ -113,12 +113,26 @@ api.interceptors.response.use(
 )
 
 export const authApi = {
-  register: (data: { username: string; nickname: string; password: string }) =>
-    api.post('/api/auth/register', data),
-  login: (data: { username: string; password: string }) =>
-    api.post('/api/auth/login', data),
+  getCaptchaMeta: () => api.get('/api/auth/captcha/meta'),
+  issueCaptcha: (scene: 'login' | 'register' = 'login') =>
+    api.get('/api/auth/captcha', { params: { scene } }),
+  register: (data: {
+    username: string
+    nickname: string
+    password: string
+    captchaId?: string
+    captchaCode?: string
+  }) => api.post('/api/auth/register', data),
+  login: (data: {
+    username: string
+    password: string
+    captchaId?: string
+    captchaCode?: string
+  }) => api.post('/api/auth/login', data),
   refresh: (refreshToken: string) =>
-    api.post('/api/auth/refresh', { refreshToken })
+    api.post('/api/auth/refresh', { refreshToken }),
+  logout: (data: { refreshToken?: string; accessToken?: string }) =>
+    api.post('/api/auth/logout', data)
 }
 
 export const chatApi = {

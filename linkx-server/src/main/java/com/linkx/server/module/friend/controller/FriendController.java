@@ -4,7 +4,9 @@ import com.linkx.server.common.Result;
 import com.linkx.server.module.friend.dto.FriendDTO;
 import com.linkx.server.module.friend.dto.FriendRequestDTO;
 import com.linkx.server.module.friend.dto.SendFriendRequest;
+import com.linkx.server.module.abuse.service.AbuseProtectionGuard;
 import com.linkx.server.module.friend.service.FriendService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -13,18 +15,25 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 好友关系：发申请、待处理列表、同意/拒绝、好友列表、删除好友。
+ * <p>发申请前经 {@link AbuseProtectionGuard#checkFriendRequestSend} 日限流。</p>
+ */
 @RestController
 @RequestMapping("/api/friend")
 @RequiredArgsConstructor
 public class FriendController {
 
     private final FriendService friendService;
+    private final AbuseProtectionGuard abuseProtectionGuard;
 
     @PostMapping("/request")
     public Result<Void> sendRequest(
             @AuthenticationPrincipal UserDetails userDetails,
-            @Valid @RequestBody SendFriendRequest request) {
+            @Valid @RequestBody SendFriendRequest request,
+            HttpServletRequest httpRequest) {
         Long userId = Long.parseLong(userDetails.getUsername());
+        abuseProtectionGuard.checkFriendRequestSend(userId, httpRequest);
         friendService.sendFriendRequest(userId, request.getToUserId(), request.getMessage());
         return Result.success();
     }

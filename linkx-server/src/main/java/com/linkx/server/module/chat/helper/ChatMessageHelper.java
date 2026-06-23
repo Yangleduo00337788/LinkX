@@ -12,9 +12,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+/** 消息实体转 DTO、@ 列表解析、发送者昵称/头像批量填充。 */
 @Component
 @RequiredArgsConstructor
 public class ChatMessageHelper {
@@ -34,6 +38,7 @@ public class ChatMessageHelper {
             try {
                 result.add(Long.parseLong(item.trim()));
             } catch (NumberFormatException ignored) {
+                // Skip malformed legacy values to avoid blocking history loading.
             }
         }
         return result;
@@ -74,7 +79,7 @@ public class ChatMessageHelper {
         dto.setMsgType(message.getMsgType());
         dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));
         dto.setMentionUserIds(mentionUserIds);
-        dto.setMentionDisplayNames(List.of());
+        dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));
         dto.setStatus(message.getStatus());
         dto.setReadTime(message.getReadTime());
         dto.setCreateTime(message.getCreateTime());
@@ -94,5 +99,24 @@ public class ChatMessageHelper {
             }
         }
         return dto;
+    }
+
+    private List<String> resolveMentionDisplayNames(List<Long> mentionUserIds, Map<Long, SysUser> userMap) {
+        if (mentionUserIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> displayNames = new ArrayList<>();
+        for (Long mentionUserId : mentionUserIds) {
+            SysUser user = userMap.get(mentionUserId);
+            if (user == null) {
+                continue;
+            }
+            if (StringUtils.hasText(user.getNickname())) {
+                displayNames.add(user.getNickname().trim());
+            } else if (StringUtils.hasText(user.getUsername())) {
+                displayNames.add(user.getUsername().trim());
+            }
+        }
+        return displayNames;
     }
 }

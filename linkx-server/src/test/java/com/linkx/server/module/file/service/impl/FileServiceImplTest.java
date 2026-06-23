@@ -115,13 +115,13 @@ class FileServiceImplTest {
         sysFile.setUserId(1001L);
         sysFile.setFileUrl("http://localhost:8080/uploads/file/report.pdf");
         when(fileMapper.selectOne(any())).thenReturn(sysFile);
-        when(fileAccessTicketService.createTicket(601L)).thenReturn("ticket-601");
+        when(fileAccessTicketService.createTicket(1001L, 601L)).thenReturn("ticket-601");
 
         FileAccessDTO response = fileService.createAccessUrl(1001L, sysFile.getFileUrl());
 
         assertNotNull(response);
         assertEquals("http://localhost:8080/api/file/access/ticket-601", response.getAccessUrl());
-        verify(fileAccessTicketService).createTicket(601L);
+        verify(fileAccessTicketService).createTicket(1001L, 601L);
     }
 
     @Test
@@ -136,6 +136,6 @@ class FileServiceImplTest {
         BusinessException exception = assertThrows(BusinessException.class, () -> fileService.createAccessUrl(2002L, sysFile.getFileUrl()));
 
         assertEquals(ErrorCode.FORBIDDEN, exception.getErrorCode());
-        verify(fileAccessTicketService, never()).createTicket(602L);
+        verify(fileAccessTicketService, never()).createTicket(org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.eq(602L));
     }
 }

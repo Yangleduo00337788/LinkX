@@ -8,6 +8,12 @@ import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
+/**
+ * 注册聊天 WebSocket 端点 {@code /ws/chat}。
+ * <p>
+ * 握手阶段由 {@link ChatHandshakeInterceptor} 校验短期 ticket；允许的 Origin 与 HTTP CORS 一致。
+ * </p>
+ */
 @Configuration
 @EnableWebSocket
 @RequiredArgsConstructor

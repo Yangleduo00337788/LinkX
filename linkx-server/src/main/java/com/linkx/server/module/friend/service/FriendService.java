@@ -5,6 +5,9 @@ import com.linkx.server.module.friend.dto.FriendRequestDTO;
 
 import java.util.List;
 
+/**
+ * 好友申请与双向好友关系维护。
+ */
 public interface FriendService {
     void sendFriendRequest(Long fromUserId, Long toUserId, String message);
     List<FriendRequestDTO> getPendingRequests(Long userId);

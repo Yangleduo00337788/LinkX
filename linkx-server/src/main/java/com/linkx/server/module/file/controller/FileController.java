@@ -23,6 +23,9 @@ import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.util.List;
 
+/**
+ * 文件上传与受控访问：上传后元数据入库；读取须先换 ticket 再 GET /access/{ticket}。
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/file")
@@ -86,10 +89,14 @@ public class FileController {
     }
 
     @GetMapping("/access/{ticket}")
-    public ResponseEntity<Resource> accessFile(@PathVariable("ticket") String ticket) throws MalformedURLException {
-        SysFile sysFile = fileAccessTicketService.resolveFile(ticket);
+    public ResponseEntity<Resource> accessFile(
+            @PathVariable("ticket") String ticket,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) throws MalformedURLException {
+        Long requestUserId = resolveRequestUserId(userDetails);
+        SysFile sysFile = fileAccessTicketService.consumeFile(ticket, requestUserId);
         if (sysFile == null) {
-            log.warn("File access rejected, reason=invalid_ticket, ticket={}", ticket);
+            log.warn("File access rejected, reason=invalid_ticket, ticket={}, requestUserId={}", ticket, requestUserId);
             auditLogService.recordFailure("FILE_ACCESS_BY_TICKET", null, "FILE_TICKET", ticket, "invalid_ticket");
             return ResponseEntity.notFound().build();
         }
@@ -123,5 +130,16 @@ public class FileController {
         log.info("File delete success, userId={}, fileId={}", userId, id);
         auditLogService.recordSuccess("FILE_DELETE", userId, "FILE", id, "");
         return Result.success();
+    }
+
+    private static Long resolveRequestUserId(UserDetails userDetails) {
+        if (userDetails == null || userDetails.getUsername() == null) {
+            return null;
+        }
+        try {
+            return Long.parseLong(userDetails.getUsername());
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 }

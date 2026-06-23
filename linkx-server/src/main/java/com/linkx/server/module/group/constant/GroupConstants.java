@@ -1,5 +1,6 @@
 package com.linkx.server.module.group.constant;
 
+/** 群成员角色、入群/邀请申请类型与状态。 */
 public final class GroupConstants {
 
     private GroupConstants() {

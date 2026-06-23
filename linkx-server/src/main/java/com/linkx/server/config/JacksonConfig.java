@@ -15,6 +15,9 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+/**
+ * JSON 序列化定制：时间格式、Long 防前端精度丢失。
+ */
 @Configuration
 public class JacksonConfig {
 
@@ -32,6 +35,9 @@ public class JacksonConfig {
         };
     }
 
+    /**
+     * 超过 JS Number.MAX_SAFE_INTEGER 的 Long 序列化为字符串，避免前端 ID 错乱。
+     */
     private static class SafeLongSerializer extends JsonSerializer<Long> {
         private static final long MAX_SAFE = 9007199254740991L;
 

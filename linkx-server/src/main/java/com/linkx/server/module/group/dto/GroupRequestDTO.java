@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 待处理的入群/邀请申请。 */
 @Data
 public class GroupRequestDTO {
     private Long id;

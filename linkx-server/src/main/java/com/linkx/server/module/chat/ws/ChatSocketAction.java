@@ -1,5 +1,6 @@
 package com.linkx.server.module.chat.ws;
 
+/** 客户端经 WebSocket 上行的 action 字段取值（与 REST 能力互补）。 */
 public final class ChatSocketAction {
 
     private ChatSocketAction() {

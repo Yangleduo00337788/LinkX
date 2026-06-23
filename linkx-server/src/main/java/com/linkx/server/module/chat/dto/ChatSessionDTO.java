@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 会话列表项：对端用户或群、最后消息预览、未读数、置顶等。 */
 @Data
 public class ChatSessionDTO {
     private Long id;

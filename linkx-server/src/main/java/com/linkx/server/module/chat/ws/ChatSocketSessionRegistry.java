@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * 在线 WebSocket 会话注册表：同一用户可多端连接，用于按 userId 广播推送。
+ */
 @Component
 public class ChatSocketSessionRegistry {
 

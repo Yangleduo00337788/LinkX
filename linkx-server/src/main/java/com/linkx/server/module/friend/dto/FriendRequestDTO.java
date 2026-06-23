@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 待处理的好友申请。 */
 @Data
 public class FriendRequestDTO {
     private Long id;

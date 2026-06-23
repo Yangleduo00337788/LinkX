@@ -36,8 +36,20 @@ linkx:
       login-max-requests: ${LINKX_SECURITY_AUTH_LOGIN_MAX_REQUESTS:10}
       register-max-requests: ${LINKX_SECURITY_AUTH_REGISTER_MAX_REQUESTS:5}
       refresh-max-requests: ${LINKX_SECURITY_AUTH_REFRESH_MAX_REQUESTS:20}
+      captcha-issue-max-requests: ${LINKX_SECURITY_AUTH_CAPTCHA_ISSUE_MAX_REQUESTS:30}
     captcha:
       enabled: ${LINKX_SECURITY_CAPTCHA_ENABLED:false}
+    trusted-proxy:
+      enabled: ${LINKX_SECURITY_TRUSTED_PROXY_ENABLED:false}
+    abuse-protection:
+      enabled: ${LINKX_SECURITY_ABUSE_PROTECTION_ENABLED:true}
+      user-search:
+        window-seconds: ${LINKX_SECURITY_USER_SEARCH_WINDOW_SECONDS:60}
+        max-requests-per-user: ${LINKX_SECURITY_USER_SEARCH_MAX_PER_USER:30}
+        max-requests-per-ip: ${LINKX_SECURITY_USER_SEARCH_MAX_PER_IP:60}
+      friend-request:
+        max-per-user-per-day: ${LINKX_SECURITY_FRIEND_REQUEST_MAX_PER_USER_DAY:20}
+        max-per-ip-per-day: ${LINKX_SECURITY_FRIEND_REQUEST_MAX_PER_IP_DAY:50}
   jwt:
     secret: ${LINKX_JWT_SECRET:PLEASE_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN}  # required: override via env before startup
     expiration: ${LINKX_JWT_EXPIRATION:86400000}  # 24小时

@@ -77,6 +77,31 @@
               </div>
             </div>
 
+            <div v-if="captchaEnabled" class="form-group">
+              <label class="form-label">验证码</label>
+              <div class="captcha-row">
+                <input
+                  v-model="captchaCode"
+                  type="text"
+                  class="form-input captcha-input"
+                  placeholder="请输入验证码"
+                  maxlength="8"
+                  autocomplete="off"
+                  @keyup.enter="handleLogin"
+                />
+                <button
+                  type="button"
+                  class="captcha-image-btn"
+                  :disabled="captchaLoading"
+                  title="点击刷新验证码"
+                  @click="refreshCaptcha"
+                >
+                  <img v-if="captchaImageUrl" :src="captchaImageUrl" alt="验证码" class="captcha-image" />
+                  <span v-else class="captcha-placeholder">{{ captchaLoading ? '加载中' : '刷新' }}</span>
+                </button>
+              </div>
+            </div>
+
             <button
               type="submit"
               class="submit-btn"
@@ -117,6 +142,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { authApi } from '../api/client'
+import { useAuthCaptcha } from '../hooks/useAuthCaptcha'
 import { useUserStore } from '../stores/user'
 import TitleBar from '../components/TitleBar.vue'
 
@@ -126,19 +152,35 @@ const loading = ref(false)
 const error = ref('')
 const form = reactive({ username: '', password: '' })
 
+const {
+  captchaEnabled,
+  captchaCode,
+  captchaImageUrl,
+  captchaLoading,
+  refreshCaptcha,
+  captchaPayload,
+  validateCaptchaFilled
+} = useAuthCaptcha('login')
+
 async function handleLogin() {
   if (!form.username || !form.password) {
     error.value = '请输入用户名和密码'
     return
   }
+  const captchaError = validateCaptchaFilled()
+  if (captchaError) {
+    error.value = captchaError
+    return
+  }
   loading.value = true
   error.value = ''
   try {
-    const res: any = await authApi.login(form)
+    const res: any = await authApi.login({ ...form, ...captchaPayload() })
     userStore.setLoginData(res.data)
     router.push('/')
   } catch (e: any) {
-    error.value = e.response?.data?.message || '登录失败'
+    error.value = e.response?.data?.message || e.message || '登录失败'
+    await refreshCaptcha()
   } finally {
     loading.value = false
   }
@@ -325,6 +367,55 @@ async function handleLogin() {
 
 .input-wrapper:focus-within .input-icon {
   color: var(--linkx-primary);
+}
+
+.captcha-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.captcha-input {
+  flex: 1;
+  min-width: 0;
+  padding-left: 14px;
+}
+
+.captcha-image-btn {
+  flex-shrink: 0;
+  width: 120px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius);
+  background: var(--linkx-bg);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--linkx-transition);
+}
+
+.captcha-image-btn:hover:not(:disabled) {
+  border-color: var(--linkx-primary);
+}
+
+.captcha-image-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.captcha-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.captcha-placeholder {
+  font-size: 12px;
+  color: var(--linkx-text-muted);
 }
 
 .submit-btn {

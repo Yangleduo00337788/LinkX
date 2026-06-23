@@ -1032,23 +1032,77 @@ export function useChatRuntime(options: UseChatRuntimeOptions) {
     }
   }
 
+  function applyReadReceiptToMessage(item: DisplayMessage, readTime: string) {
+    if (item.status === MESSAGE_STATUS_RECALLED) {
+      return item
+    }
+    return {
+      ...item,
+      readTime: readTime || item.readTime,
+      readStatus: '已读'
+    }
+  }
+
   function handleRealtimeReadReceipt(payload: any) {
-    if (!payload || Number(payload.sessionType) !== SESSION_TYPE_SINGLE) {
+    if (!payload) {
       return
     }
+    const sessionType = Number(payload.sessionType ?? SESSION_TYPE_SINGLE)
+    const readTime = payload.readTime ? String(payload.readTime) : ''
+    const readTimestamp = getDateTimeTimestamp(readTime)
+
+    if (sessionType === SESSION_TYPE_SINGLE) {
+      const messageIds = new Set((payload.messageIds || []).map((id: string | number) => String(id)))
+      if (messageIds.size === 0) {
+        return
+      }
+      options.messages.value = options.messages.value.map(item => {
+        if (!messageIds.has(String(item.id))) {
+          return item
+        }
+        return applyReadReceiptToMessage(item, readTime)
+      })
+      return
+    }
+
+    if (sessionType !== SESSION_TYPE_GROUP) {
+      return
+    }
+
+    const groupId = payload.targetId != null ? String(payload.targetId) : ''
+    const readerUserId = payload.readerUserId != null ? String(payload.readerUserId) : ''
+    if (!groupId || !readerUserId) {
+      return
+    }
+
+    const viewingGroup =
+      options.currentSessionType.value === SESSION_TYPE_GROUP &&
+      options.currentTargetId.value != null &&
+      String(options.currentTargetId.value) === groupId
+
+    if (!viewingGroup) {
+      return
+    }
+
     const messageIds = new Set((payload.messageIds || []).map((id: string | number) => String(id)))
-    if (messageIds.size === 0) {
-      return
-    }
     options.messages.value = options.messages.value.map(item => {
-      if (!messageIds.has(String(item.id))) {
+      if (!item.isMe || Number(item.sessionType) !== SESSION_TYPE_GROUP || String(item.targetId) !== groupId) {
         return item
       }
-      return {
-        ...item,
-        readTime: payload.readTime || item.readTime,
-        readStatus: item.status === MESSAGE_STATUS_RECALLED ? '已撤回' : '已读'
+      if (messageIds.size > 0) {
+        if (!messageIds.has(String(item.id))) {
+          return item
+        }
+        return applyReadReceiptToMessage(item, readTime)
       }
+      if (!readTimestamp) {
+        return item
+      }
+      const messageTimestamp = getDateTimeTimestamp(item.createTime)
+      if (messageTimestamp > 0 && messageTimestamp <= readTimestamp) {
+        return applyReadReceiptToMessage(item, readTime)
+      }
+      return item
     })
   }
 

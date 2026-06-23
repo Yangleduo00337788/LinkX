@@ -17,6 +17,7 @@ import com.linkx.server.mapper.SysFriendMapper;
 import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.module.blacklist.service.BlacklistService;
 import com.linkx.server.module.chat.constant.ChatConstants;
+import com.linkx.server.module.chat.helper.ChatMessageHelper;
 import com.linkx.server.module.chat.ws.ChatEventPushService;
 import com.linkx.server.module.chat.ws.ChatPresenceService;
 import org.junit.jupiter.api.BeforeEach;
@@ -70,6 +71,9 @@ class ChatServiceImplTest {
     @Mock
     private AuditLogService auditLogService;
 
+    @Mock
+    private ChatMessageHelper chatMessageHelper;
+
     private ChatServiceImpl chatService;
 
     @BeforeEach
@@ -85,7 +89,8 @@ class ChatServiceImplTest {
                 blacklistService,
                 chatEventPushService,
                 chatPresenceService,
-                auditLogService
+                auditLogService,
+                chatMessageHelper
         );
     }
 

@@ -33,6 +33,10 @@ import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+/**
+ * 文件上传实现：魔数/扩展名校验、ZIP 炸弹防护、落盘与 {@link SysFile} 入库；
+ * 访问 URL 经 {@link FileAccessTicketService} 换 ticket。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -398,8 +402,8 @@ public class FileServiceImpl implements FileService {
             log.warn("File access url rejected, userId={}, fileId={}, fileUrl={}, reason=forbidden", userId, sysFile.getId(), fileUrl);
             throw new BusinessException(ErrorCode.FORBIDDEN, "无权访问该文件");
         }
-        String ticket = fileAccessTicketService.createTicket(sysFile.getId());
-        log.info("File access ticket created, userId={}, fileId={}, ticket={}", userId, sysFile.getId(), ticket);
+        String ticket = fileAccessTicketService.createTicket(userId, sysFile.getId());
+        log.info("File access ticket created, userId={}, fileId={}", userId, sysFile.getId());
         return new FileAccessDTO(buildAccessUrl(ticket));
     }
 
@@ -432,31 +436,53 @@ public class FileServiceImpl implements FileService {
         if (!StringUtils.hasText(fileUrl)) {
             return null;
         }
-        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysFile::getFileUrl, fileUrl.trim()).last("LIMIT 1");
-        return fileMapper.selectOne(wrapper);
+        String trimmed = fileUrl.trim();
+        LambdaQueryWrapper<SysFile> exactWrapper = new LambdaQueryWrapper<>();
+        exactWrapper.eq(SysFile::getFileUrl, trimmed).last("LIMIT 1");
+        SysFile exact = fileMapper.selectOne(exactWrapper);
+        if (exact != null) {
+            return exact;
+        }
+        String storedName = extractStoredNameFromUrl(trimmed);
+        if (!StringUtils.hasText(storedName)) {
+            return null;
+        }
+        LambdaQueryWrapper<SysFile> nameWrapper = new LambdaQueryWrapper<>();
+        nameWrapper.eq(SysFile::getStoredName, storedName).last("LIMIT 1");
+        return fileMapper.selectOne(nameWrapper);
+    }
+
+    private String extractStoredNameFromUrl(String fileUrl) {
+        if (!StringUtils.hasText(fileUrl)) {
+            return null;
+        }
+        String path = fileUrl.trim();
+        int queryIndex = path.indexOf('?');
+        if (queryIndex >= 0) {
+            path = path.substring(0, queryIndex);
+        }
+        int slash = path.lastIndexOf('/');
+        if (slash < 0 || slash >= path.length() - 1) {
+            return null;
+        }
+        return path.substring(slash + 1);
     }
 
     private boolean canAccessFile(Long userId, SysFile sysFile) {
-        if (sysFile == null) {
+        if (sysFile == null || userId == null) {
             return false;
         }
-        if (userId != null && userId.equals(sysFile.getUserId())) {
+        if (userId.equals(sysFile.getUserId())) {
             return true;
         }
-        if (isAvatarUrl(sysFile.getFileUrl())) {
-            return true;
-        }
-        if (userId == null) {
+        String fileUrl = sysFile.getFileUrl();
+        if (!StringUtils.hasText(fileUrl)) {
             return false;
         }
-
         LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ImMessage::getContent, sysFile.getFileUrl())
+        wrapper.eq(ImMessage::getContent, fileUrl.trim())
                 .in(ImMessage::getMsgType, List.of(ChatConstants.MESSAGE_TYPE_IMAGE, ChatConstants.MESSAGE_TYPE_FILE))
-                .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED)
-                .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
-                .last("LIMIT 100");
+                .ne(ImMessage::getStatus, ChatConstants.MESSAGE_STATUS_RECALLED);
         List<ImMessage> relatedMessages = messageMapper.selectList(wrapper);
         if (relatedMessages.isEmpty()) {
             return false;
@@ -492,10 +518,6 @@ public class FileServiceImpl implements FileService {
         wrapper.eq(ImGroupMember::getGroupId, groupId)
                 .eq(ImGroupMember::getUserId, userId);
         return groupMemberMapper.selectCount(wrapper) > 0;
-    }
-
-    private boolean isAvatarUrl(String fileUrl) {
-        return StringUtils.hasText(fileUrl) && fileUrl.contains("/avatar/");
     }
 
     private String buildAccessUrl(String ticket) {

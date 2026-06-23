@@ -6,6 +6,7 @@ import com.linkx.server.module.chat.dto.ChatWsTicketDTO;
 import com.linkx.server.module.chat.dto.MessageDTO;
 import com.linkx.server.module.chat.dto.SendFileMessageRequest;
 import com.linkx.server.module.chat.dto.SendMessageRequest;
+import com.linkx.server.module.chat.constant.ChatHistoryLimits;
 import com.linkx.server.module.chat.service.ChatService;
 import com.linkx.server.module.chat.ws.ChatWebSocketTicketService;
 import jakarta.validation.Valid;
@@ -16,12 +17,13 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 聊天 REST：会话列表、历史、发消息/文件、已读、撤回、WebSocket 连接 ticket。
+ */
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
 public class ChatController {
-
-    private static final int MAX_HISTORY_PAGE_NUMBER = 100;
 
     private final ChatService chatService;
     private final ChatWebSocketTicketService chatWebSocketTicketService;
@@ -37,7 +39,7 @@ public class ChatController {
                 request.getContent(),
                 request.getMsgType(),
                 request.getSessionType(),
-                null,
+                request.getClientMessageId(),
                 request.getMentionAll(),
                 request.getMentionUserIds()
         );
@@ -52,8 +54,8 @@ public class ChatController {
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "50") int size) {
         Long userId = Long.parseLong(userDetails.getUsername());
-        int safeSize = Math.min(Math.max(size, 1), 200);
-        int safePage = Math.min(Math.max(page, 1), MAX_HISTORY_PAGE_NUMBER);
+        int safeSize = ChatHistoryLimits.clampSize(size);
+        int safePage = ChatHistoryLimits.clampPage(page);
         return Result.success(chatService.getChatHistory(userId, targetId, sessionType, safePage, safeSize));
     }
 

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.linkx.server.entity.ImMessage;
 import org.apache.ibatis.annotations.Mapper;
 
+/** {@link com.linkx.server.entity.ImMessage} Mapper。 */
 @Mapper
 public interface ImMessageMapper extends BaseMapper<ImMessage> {
 }

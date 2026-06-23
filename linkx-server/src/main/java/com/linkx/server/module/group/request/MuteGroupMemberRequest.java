@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+/** 设置群成员禁言时长。 */
 @Data
 public class MuteGroupMemberRequest {
     @NotNull(message = "禁言时长不能为空")

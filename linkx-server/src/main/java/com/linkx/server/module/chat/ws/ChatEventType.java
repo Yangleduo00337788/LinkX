@@ -1,5 +1,6 @@
 package com.linkx.server.module.chat.ws;
 
+/** 服务端经 WebSocket 下行推送的事件 type 字段取值。 */
 public final class ChatEventType {
 
     private ChatEventType() {

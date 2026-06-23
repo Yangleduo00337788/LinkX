@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 上传文件元数据：磁盘路径、MIME、大小、上传者。 */
 @Data
 @TableName("sys_file")
 public class SysFile {

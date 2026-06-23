@@ -14,6 +14,9 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+/**
+ * WebSocket 握手：校验 query 中的短期 ticket，将 userId 写入 session 属性 {@link #ATTR_USER_ID}。
+ */
 @Component
 @RequiredArgsConstructor
 public class ChatHandshakeInterceptor implements HandshakeInterceptor {

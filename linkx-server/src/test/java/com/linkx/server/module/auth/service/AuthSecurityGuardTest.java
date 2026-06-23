@@ -35,6 +35,9 @@ class AuthSecurityGuardTest {
     @Mock
     private HttpServletRequest request;
 
+    @Mock
+    private CaptchaService captchaService;
+
     private LinkxSecurityProperties securityProperties;
     private AuthSecurityGuard authSecurityGuard;
 
@@ -44,7 +47,7 @@ class AuthSecurityGuardTest {
         securityProperties.getAuthRateLimit().setEnabled(true);
         securityProperties.getAuthRateLimit().setWindowSeconds(60);
         securityProperties.getAuthRateLimit().setLoginMaxRequests(1);
-        authSecurityGuard = new AuthSecurityGuard(redisTemplate, securityProperties);
+        authSecurityGuard = new AuthSecurityGuard(redisTemplate, securityProperties, captchaService);
     }
 
     @Test
@@ -65,11 +68,14 @@ class AuthSecurityGuardTest {
     @Test
     void should_require_captcha_payload_when_enabled() {
         securityProperties.getCaptcha().setEnabled(true);
+        org.mockito.Mockito.doThrow(new BusinessException(ErrorCode.BAD_REQUEST, "请先完成验证码校验"))
+                .when(captchaService).consume(org.mockito.ArgumentMatchers.eq("login"), org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
 
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> authSecurityGuard.validateLoginCaptcha(null, null));
 
         assertEquals(ErrorCode.BAD_REQUEST, exception.getErrorCode());
+        org.mockito.Mockito.verify(captchaService).consume("login", null, null);
     }
 
     @Test

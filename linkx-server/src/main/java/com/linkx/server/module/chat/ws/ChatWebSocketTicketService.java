@@ -9,6 +9,9 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 
+/**
+ * WebSocket 连接 ticket（Redis，约 60 秒）：REST 签发，握手时一次性消费，避免在 URL 中带 JWT。
+ */
 @Service
 @RequiredArgsConstructor
 public class ChatWebSocketTicketService {

@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
+/** 群成员展示：昵称、角色、禁言截止等。 */
 @Data
 public class GroupMemberDTO {
     private Long id;

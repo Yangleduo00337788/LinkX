@@ -1,0 +1,59 @@
+# Local development: MySQL + Redis only. Run backend with mvn spring-boot:run and frontend with npm run dev.
+#
+#   copy .env.example .env   (or use .env.dev.example values)
+#   docker compose -f docker-compose.dev.yml up -d
+#
+# Then set for IDE / shell:
+#   LINKX_DB_URL=jdbc:mysql://localhost:3306/linkx_im?...
+#   LINKX_DB_USERNAME / LINKX_DB_PASSWORD from .env
+#   LINKX_REDIS_HOST=localhost
+#   LINKX_REDIS_PASSWORD from .env
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: ${LINKX_COMPOSE_PROJECT:-linkx}-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${LINKX_DB_ROOT_PASSWORD:-linkx_dev_root}
+      MYSQL_DATABASE: ${LINKX_DB_NAME:-linkx_im}
+      MYSQL_USER: ${LINKX_DB_USERNAME:-linkx}
+      MYSQL_PASSWORD: ${LINKX_DB_PASSWORD:-linkx_dev_password}
+      TZ: ${LINKX_TIMEZONE:-Asia/Shanghai}
+    command:
+      - --default-authentication-plugin=caching_sha2_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "${LINKX_DB_PORT:-3306}:3306"
+    volumes:
+      - mysql-data-dev:/var/lib/mysql
+      - ./linkx-server/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: ${LINKX_COMPOSE_PROJECT:-linkx}-redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${LINKX_REDIS_PASSWORD:-linkx_dev_redis}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    ports:
+      - "${LINKX_REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data-dev:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  mysql-data-dev:
+  redis-data-dev:

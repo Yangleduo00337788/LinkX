@@ -11,6 +11,9 @@ import org.springframework.web.socket.WebSocketSession;
 import java.io.IOException;
 import java.util.Collection;
 
+/**
+ * 将 {@link ChatRealtimeEvent} 序列化为 JSON 文本帧，推送给指定用户或用户集合的所有在线连接。
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
