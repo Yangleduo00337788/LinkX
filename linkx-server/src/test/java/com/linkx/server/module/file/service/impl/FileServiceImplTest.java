@@ -3,7 +3,9 @@ package com.linkx.server.module.file.service.impl;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.config.LinkxAppProperties;
+import com.linkx.server.config.LinkxMinioProperties;
 import com.linkx.server.entity.SysFile;
+import com.linkx.server.module.file.storage.MinioObjectStorageService;
 import com.linkx.server.mapper.ImGroupMemberMapper;
 import com.linkx.server.mapper.ImMessageMapper;
 import com.linkx.server.mapper.SysFileMapper;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.nio.file.Files;
@@ -46,6 +49,9 @@ class FileServiceImplTest {
     @Mock
     private FileAccessTicketService fileAccessTicketService;
 
+    @Mock
+    private ObjectProvider<MinioObjectStorageService> minioObjectStorageProvider;
+
     @TempDir
     Path tempDir;
 
@@ -58,12 +64,19 @@ class FileServiceImplTest {
         properties.getUpload().setPath(tempDir.toString());
         properties.getUpload().setUrl("http://localhost:8080/uploads/");
 
+        LinkxMinioProperties minioProperties = new LinkxMinioProperties();
+        minioProperties.setEnabled(false);
+
+        when(minioObjectStorageProvider.getIfAvailable()).thenReturn(null);
+
         fileService = new FileServiceImpl(
                 fileMapper,
                 messageMapper,
                 groupMemberMapper,
                 fileAccessTicketService,
-                properties
+                properties,
+                minioProperties,
+                minioObjectStorageProvider
         );
     }
 

@@ -1,353 +1,446 @@
-package com.linkx.server.module.chat.ws;
+package com.linkx.server.module.chat.ws;  // 行注：声明当前文件所在包 com.linkx.server.module.chat.ws
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.linkx.server.entity.ImGroupInfo;
-import com.linkx.server.entity.ImGroupMember;
-import com.linkx.server.entity.ImMessage;
-import com.linkx.server.entity.ImSession;
-import com.linkx.server.entity.SysFile;
-import com.linkx.server.entity.SysUser;
-import com.linkx.server.mapper.ImGroupInfoMapper;
-import com.linkx.server.mapper.ImGroupMemberMapper;
-import com.linkx.server.mapper.ImMessageMapper;
-import com.linkx.server.mapper.ImSessionMapper;
-import com.linkx.server.mapper.SysFileMapper;
-import com.linkx.server.mapper.SysUserMapper;
-import com.linkx.server.module.chat.constant.ChatConstants;
-import com.linkx.server.module.chat.dto.ChatSessionDTO;
-import com.linkx.server.module.chat.dto.MessageDTO;
-import com.linkx.server.module.group.dto.GroupDetailDTO;
-import com.linkx.server.module.group.dto.GroupMemberDTO;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;  // 行注：引入 LambdaQueryWrapper 类型
+import com.linkx.server.entity.ImGroupInfo;  // 行注：引入 ImGroupInfo 类型
+import com.linkx.server.entity.ImGroupMember;  // 行注：引入 ImGroupMember 类型
+import com.linkx.server.entity.ImMessage;  // 行注：引入 ImMessage 类型
+import com.linkx.server.entity.ImSession;  // 行注：引入 ImSession 类型
+import com.linkx.server.entity.SysFile;  // 行注：引入 SysFile 类型
+import com.linkx.server.entity.SysUser;  // 行注：引入 SysUser 类型
+import com.linkx.server.mapper.ImGroupInfoMapper;  // 行注：引入 ImGroupInfoMapper 类型
+import com.linkx.server.mapper.ImGroupMemberMapper;  // 行注：引入 ImGroupMemberMapper 类型
+import com.linkx.server.mapper.ImMessageMapper;  // 行注：引入 ImMessageMapper 类型
+import com.linkx.server.mapper.ImSessionMapper;  // 行注：引入 ImSessionMapper 类型
+import com.linkx.server.mapper.SysFileMapper;  // 行注：引入 SysFileMapper 类型
+import com.linkx.server.mapper.SysUserMapper;  // 行注：引入 SysUserMapper 类型
+import com.linkx.server.module.chat.constant.ChatConstants;  // 行注：引入 ChatConstants 类型
+import com.linkx.server.module.chat.dto.ChatSessionDTO;  // 行注：引入 ChatSessionDTO 类型
+import com.linkx.server.module.chat.dto.MessageDTO;  // 行注：引入 MessageDTO 类型
+import com.linkx.server.module.group.dto.GroupDetailDTO;  // 行注：引入 GroupDetailDTO 类型
+import com.linkx.server.module.group.dto.GroupMemberDTO;  // 行注：引入 GroupMemberDTO 类型
+import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
+import org.springframework.stereotype.Service;  // 行注：引入 Service 类型
+import org.springframework.util.StringUtils;  // 行注：引入 StringUtils 类型
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.time.LocalDateTime;  // 行注：引入 LocalDateTime 类型
+import java.util.ArrayList;  // 行注：引入 ArrayList 类型
+import java.util.Collection;  // 行注：引入 Collection 类型
+import java.util.LinkedHashSet;  // 行注：引入 LinkedHashSet 类型
+import java.util.List;  // 行注：引入 List 类型
+import java.util.Map;  // 行注：引入 Map 类型
+import java.util.Set;  // 行注：引入 Set 类型
+import java.util.stream.Collectors;  // 行注：引入 Collectors 类型
 
 /**
  * 群相关实时推送：群详情变更、成员变动、群会话列表刷新等，推送给群内在线成员。
  */
-@Service
-@RequiredArgsConstructor
+@Service  // 行注：应用 @Service 注解
+@RequiredArgsConstructor  // 行注：应用 @RequiredArgsConstructor 注解
+// 行注：定义 ChatGroupRealtimeService 类
 public class ChatGroupRealtimeService {
 
-    private final ImGroupInfoMapper groupInfoMapper;
-    private final ImGroupMemberMapper groupMemberMapper;
-    private final ImMessageMapper messageMapper;
-    private final ImSessionMapper sessionMapper;
-    private final SysFileMapper sysFileMapper;
-    private final SysUserMapper userMapper;
-    private final ChatEventPushService chatEventPushService;
+    private final ImGroupInfoMapper groupInfoMapper;  // 行注：注入群信息Mapper依赖
+    private final ImGroupMemberMapper groupMemberMapper;  // 行注：注入群成员Mapper依赖
+    private final ImMessageMapper messageMapper;  // 行注：注入消息Mapper依赖
+    private final ImSessionMapper sessionMapper;  // 行注：注入会话Mapper依赖
+    private final SysFileMapper sysFileMapper;  // 行注：注入系统文件Mapper依赖
+    private final SysUserMapper userMapper;  // 行注：注入用户Mapper依赖
+    private final ChatEventPushService chatEventPushService;  // 行注：注入聊天事件推送服务依赖
 
+    /**
+     * 推送群成员变更事件。
+     *
+     * @param groupId 群 ID
+     * @param messageId 消息Id
+     * @param userIds 用户 ID 列表
+     */
+    // 行注：定义推送群Mutation方法
     public void pushGroupMutation(Long groupId, Long messageId, Collection<Long> userIds) {
-        Set<Long> normalizedUserIds = normalizeUserIds(userIds);
+        Set<Long> normalizedUserIds = normalizeUserIds(userIds);  // 行注：初始化规范化后的用户ID列表
+        // 行注：判断是否满足当前条件
         if (groupId == null || messageId == null || normalizedUserIds.isEmpty()) {
-            return;
-        }
+            return;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
 
-        MessageDTO message = buildMessage(messageId);
+        MessageDTO message = buildMessage(messageId);  // 行注：初始化消息
+        // 行注：判断是否满足当前条件
         if (message != null) {
-            chatEventPushService.sendToUsers(normalizedUserIds, ChatEventType.MESSAGE, new ChatMessagePayload(message));
-        }
+            chatEventPushService.sendToUsers(normalizedUserIds, ChatEventType.MESSAGE, new ChatMessagePayload(message));  // 行注：调用发送转为Users
+        }  // 行注：结束当前代码块
 
-        pushGroupSessions(groupId, normalizedUserIds);
-        pushGroupDetails(groupId, normalizedUserIds);
-    }
+        pushGroupSessions(groupId, normalizedUserIds);  // 行注：调用推送群会话列表
+        pushGroupDetails(groupId, normalizedUserIds);  // 行注：调用推送群Details
+    }  // 行注：结束当前代码块
 
+    /**
+     * 推送群详情变更事件。
+     *
+     * @param groupId 群 ID
+     * @param userIds 用户 ID 列表
+     */
+    // 行注：定义推送群Details方法
     public void pushGroupDetails(Long groupId, Collection<Long> userIds) {
-        Set<Long> normalizedUserIds = normalizeUserIds(userIds);
+        Set<Long> normalizedUserIds = normalizeUserIds(userIds);  // 行注：初始化规范化后的用户ID列表
+        // 行注：判断是否满足当前条件
         if (groupId == null || normalizedUserIds.isEmpty()) {
-            return;
-        }
+            return;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        // 行注：遍历当前集合或范围
         for (Long userId : normalizedUserIds) {
-            GroupDetailDTO detail = buildGroupDetail(userId, groupId);
+            GroupDetailDTO detail = buildGroupDetail(userId, groupId);  // 行注：初始化详情
+            // 行注：判断是否满足当前条件
             if (detail == null) {
-                continue;
-            }
-            chatEventPushService.sendToUser(userId, ChatEventType.GROUP_DETAIL, new ChatGroupDetailPayload(detail));
-        }
-    }
+                continue;  // 行注：完成当前语句
+            }  // 行注：结束当前代码块
+            chatEventPushService.sendToUser(userId, ChatEventType.GROUP_DETAIL, new ChatGroupDetailPayload(detail));  // 行注：调用发送转为用户
+        }  // 行注：结束当前代码块
+    }  // 行注：结束当前代码块
 
+    /**
+     * 推送群会话。
+     *
+     * @param groupId 群 ID
+     * @param userIds 用户 ID 列表
+     */
+    // 行注：定义推送群会话列表方法
     public void pushGroupSessions(Long groupId, Collection<Long> userIds) {
-        Set<Long> normalizedUserIds = normalizeUserIds(userIds);
+        Set<Long> normalizedUserIds = normalizeUserIds(userIds);  // 行注：初始化规范化后的用户ID列表
+        // 行注：判断是否满足当前条件
         if (groupId == null || normalizedUserIds.isEmpty()) {
-            return;
-        }
+            return;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        // 行注：遍历当前集合或范围
         for (Long userId : normalizedUserIds) {
-            ChatSessionDTO session = buildGroupSession(userId, groupId);
+            ChatSessionDTO session = buildGroupSession(userId, groupId);  // 行注：初始化会话
+            // 行注：判断是否满足当前条件
             if (session == null) {
-                continue;
-            }
-            chatEventPushService.sendToUser(userId, ChatEventType.SESSION, new ChatSessionPayload(session));
-        }
-    }
+                continue;  // 行注：完成当前语句
+            }  // 行注：结束当前代码块
+            chatEventPushService.sendToUser(userId, ChatEventType.SESSION, new ChatSessionPayload(session));  // 行注：调用发送转为用户
+        }  // 行注：结束当前代码块
+    }  // 行注：结束当前代码块
 
+    /**
+     * 推送群Removed。
+     *
+     * @param groupId 群 ID
+     * @param userIds 用户 ID 列表
+     * @param reason reason
+     */
+    // 行注：定义推送群Removed方法
     public void pushGroupRemoved(Long groupId, Collection<Long> userIds, String reason) {
-        Set<Long> normalizedUserIds = normalizeUserIds(userIds);
+        Set<Long> normalizedUserIds = normalizeUserIds(userIds);  // 行注：初始化规范化后的用户ID列表
+        // 行注：判断是否满足当前条件
         if (groupId == null || normalizedUserIds.isEmpty()) {
-            return;
-        }
+            return;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        // 行注：调用发送转为Users
         chatEventPushService.sendToUsers(normalizedUserIds, ChatEventType.GROUP_REMOVED, new ChatGroupRemovedPayload(groupId, reason));
-    }
+    }  // 行注：结束当前代码块
 
+    // 行注：定义构建消息方法
     private MessageDTO buildMessage(Long messageId) {
-        ImMessage message = messageMapper.selectById(messageId);
+        ImMessage message = messageMapper.selectById(messageId);  // 行注：初始化消息
+        // 行注：判断是否满足当前条件
         if (message == null) {
-            return null;
-        }
-        List<Long> mentionUserIds = parseMentionUserIds(message.getMentionUserIds());
-        Set<Long> relatedUserIds = new LinkedHashSet<>();
-        relatedUserIds.add(message.getFromUserId());
-        relatedUserIds.addAll(mentionUserIds);
-        Map<Long, SysUser> userMap = loadUserMap(relatedUserIds);
-        SysUser fromUser = userMap.get(message.getFromUserId());
-        MessageDTO dto = new MessageDTO();
-        dto.setId(message.getId());
-        dto.setSessionId(message.getSessionId());
-        dto.setFromUserId(message.getFromUserId());
-        dto.setFromNickname(fromUser != null ? fromUser.getNickname() : null);
-        dto.setFromAvatar(fromUser != null ? fromUser.getAvatar() : null);
-        dto.setToUserId(message.getToUserId());
-        dto.setSessionType(ChatConstants.SESSION_TYPE_GROUP);
-        dto.setContent(message.getContent());
-        dto.setMsgType(message.getMsgType());
-        dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));
-        dto.setMentionUserIds(mentionUserIds);
-        dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));
-        SysFile file = resolveFile(message);
-        dto.setFileName(file != null ? file.getOriginalName() : null);
-        dto.setFileSize(file != null ? file.getFileSize() : null);
-        dto.setFileType(file != null ? file.getFileType() : null);
-        dto.setStatus(message.getStatus());
-        dto.setReadTime(message.getReadTime());
-        dto.setCreateTime(message.getCreateTime());
-        return dto;
-    }
+            return null;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        List<Long> mentionUserIds = parseMentionUserIds(message.getMentionUserIds());  // 行注：初始化@提醒用户ID列表
+        Set<Long> relatedUserIds = new LinkedHashSet<>();  // 行注：初始化related用户ID列表
+        relatedUserIds.add(message.getFromUserId());  // 行注：调用添加
+        relatedUserIds.addAll(mentionUserIds);  // 行注：调用添加全部
+        Map<Long, SysUser> userMap = loadUserMap(relatedUserIds);  // 行注：初始化用户映射
+        SysUser fromUser = userMap.get(message.getFromUserId());  // 行注：初始化用户
+        MessageDTO dto = new MessageDTO();  // 行注：初始化DTO
+        dto.setId(message.getId());  // 行注：调用设置ID
+        dto.setSessionId(message.getSessionId());  // 行注：调用设置会话ID
+        dto.setFromUserId(message.getFromUserId());  // 行注：调用设置用户ID
+        dto.setFromNickname(fromUser != null ? fromUser.getNickname() : null);  // 行注：执行初始化操作
+        dto.setFromAvatar(fromUser != null ? fromUser.getAvatar() : null);  // 行注：执行初始化操作
+        dto.setToUserId(message.getToUserId());  // 行注：调用设置转为用户ID
+        dto.setSessionType(ChatConstants.SESSION_TYPE_GROUP);  // 行注：调用设置会话类型
+        dto.setContent(message.getContent());  // 行注：调用设置内容
+        dto.setMsgType(message.getMsgType());  // 行注：调用设置消息类型
+        dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));  // 行注：调用设置@提醒全部
+        dto.setMentionUserIds(mentionUserIds);  // 行注：调用设置@提醒用户ID列表
+        dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));  // 行注：调用设置@提醒DisplayNames
+        SysFile file = resolveFile(message);  // 行注：初始化文件
+        dto.setFileName(file != null ? file.getOriginalName() : null);  // 行注：执行初始化操作
+        dto.setFileSize(file != null ? file.getFileSize() : null);  // 行注：执行初始化操作
+        dto.setFileType(file != null ? file.getFileType() : null);  // 行注：执行初始化操作
+        dto.setStatus(message.getStatus());  // 行注：调用设置状态
+        dto.setReadTime(message.getReadTime());  // 行注：调用设置已读时间
+        dto.setCreateTime(message.getCreateTime());  // 行注：调用设置创建时间
+        return dto;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义构建群详情方法
     private GroupDetailDTO buildGroupDetail(Long userId, Long groupId) {
-        ImGroupInfo groupInfo = groupInfoMapper.selectById(groupId);
+        ImGroupInfo groupInfo = groupInfoMapper.selectById(groupId);  // 行注：初始化群信息
+        // 行注：判断是否满足当前条件
         if (groupInfo == null || Integer.valueOf(1).equals(groupInfo.getDeleted())) {
-            return null;
-        }
+            return null;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
 
-        ImGroupMember currentMember = getMember(groupId, userId);
+        ImGroupMember currentMember = getMember(groupId, userId);  // 行注：初始化当前成员
+        // 行注：判断是否满足当前条件
         if (currentMember == null) {
-            return null;
-        }
+            return null;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
 
-        List<ImGroupMember> members = listMembersByGroupId(groupId);
+        List<ImGroupMember> members = listMembersByGroupId(groupId);  // 行注：初始化members
+        // 行注：初始化用户映射
         Map<Long, SysUser> userMap = loadUserMap(members.stream().map(ImGroupMember::getUserId).collect(Collectors.toSet()));
 
-        GroupDetailDTO detailDTO = new GroupDetailDTO();
-        detailDTO.setId(groupInfo.getId());
-        detailDTO.setGroupName(groupInfo.getGroupName());
-        detailDTO.setGroupAvatar(groupInfo.getGroupAvatar());
-        detailDTO.setGroupRemark(currentMember.getGroupRemark());
-        detailDTO.setNotice(groupInfo.getNotice());
-        detailDTO.setNoticeUpdateTime(groupInfo.getNoticeUpdateTime());
-        detailDTO.setNoticeReadTime(currentMember.getNoticeReadTime());
-        detailDTO.setNoticeUnread(hasUnreadNotice(groupInfo, currentMember));
-        detailDTO.setOwnerId(groupInfo.getOwnerId());
-        detailDTO.setMaxMembers(groupInfo.getMaxMembers());
-        detailDTO.setMemberCount(members.size());
-        detailDTO.setMyRole(currentMember.getRole());
-        detailDTO.setMuted(isMuted(currentMember));
-        detailDTO.setMuteTime(currentMember.getMuteTime());
-        detailDTO.setNotificationMuted(Boolean.TRUE.equals(currentMember.getNotificationMuted()));
-        detailDTO.setCreateTime(groupInfo.getCreateTime());
+        GroupDetailDTO detailDTO = new GroupDetailDTO();  // 行注：初始化详情DTO
+        detailDTO.setId(groupInfo.getId());  // 行注：调用设置ID
+        detailDTO.setGroupName(groupInfo.getGroupName());  // 行注：调用设置群名称
+        detailDTO.setGroupAvatar(groupInfo.getGroupAvatar());  // 行注：调用设置群头像
+        detailDTO.setGroupRemark(currentMember.getGroupRemark());  // 行注：调用设置群Remark
+        detailDTO.setNotice(groupInfo.getNotice());  // 行注：调用设置Notice
+        detailDTO.setNoticeUpdateTime(groupInfo.getNoticeUpdateTime());  // 行注：调用设置Notice更新时间
+        detailDTO.setNoticeReadTime(currentMember.getNoticeReadTime());  // 行注：调用设置Notice已读时间
+        detailDTO.setNoticeUnread(hasUnreadNotice(groupInfo, currentMember));  // 行注：调用设置Notice未读
+        detailDTO.setOwnerId(groupInfo.getOwnerId());  // 行注：调用设置所有者ID
+        detailDTO.setMaxMembers(groupInfo.getMaxMembers());  // 行注：调用设置最大Members
+        detailDTO.setMemberCount(members.size());  // 行注：调用设置成员数量
+        detailDTO.setMyRole(currentMember.getRole());  // 行注：调用设置我的角色
+        detailDTO.setMuted(isMuted(currentMember));  // 行注：调用设置Muted
+        detailDTO.setMuteTime(currentMember.getMuteTime());  // 行注：调用设置Mute时间
+        detailDTO.setNotificationMuted(Boolean.TRUE.equals(currentMember.getNotificationMuted()));  // 行注：调用设置通知Muted
+        detailDTO.setCreateTime(groupInfo.getCreateTime());  // 行注：调用设置创建时间
+        // 行注：调用设置Members
         detailDTO.setMembers(members.stream()
+                // 行注：继续调用排序
                 .sorted((left, right) -> {
-                    int roleCompare = Integer.compare(right.getRole(), left.getRole());
+                    int roleCompare = Integer.compare(right.getRole(), left.getRole());  // 行注：初始化角色Compare
+                    // 行注：判断是否满足当前条件
                     if (roleCompare != 0) {
-                        return roleCompare;
-                    }
-                    LocalDateTime leftTime = left.getCreateTime();
-                    LocalDateTime rightTime = right.getCreateTime();
+                        return roleCompare;  // 行注：返回处理结果
+                    }  // 行注：结束当前代码块
+                    LocalDateTime leftTime = left.getCreateTime();  // 行注：初始化left时间
+                    LocalDateTime rightTime = right.getCreateTime();  // 行注：初始化right时间
+                    // 行注：判断是否满足当前条件
                     if (leftTime == null && rightTime == null) {
-                        return 0;
-                    }
+                        return 0;  // 行注：返回处理结果
+                    }  // 行注：结束当前代码块
+                    // 行注：判断是否满足当前条件
                     if (leftTime == null) {
-                        return 1;
-                    }
+                        return 1;  // 行注：返回处理结果
+                    }  // 行注：结束当前代码块
+                    // 行注：判断是否满足当前条件
                     if (rightTime == null) {
-                        return -1;
-                    }
-                    return leftTime.compareTo(rightTime);
+                        return -1;  // 行注：返回处理结果
+                    }  // 行注：结束当前代码块
+                    return leftTime.compareTo(rightTime);  // 行注：返回处理结果
+                // 行注：补充当前表达式片段
                 })
+                // 行注：继续调用映射
                 .map(member -> toMemberDTO(member, userMap.get(member.getUserId())))
-                .collect(Collectors.toList()));
-        return detailDTO;
-    }
+                .collect(Collectors.toList()));  // 行注：继续调用收集
+        return detailDTO;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义构建群会话方法
     private ChatSessionDTO buildGroupSession(Long userId, Long groupId) {
-        ImGroupInfo groupInfo = groupInfoMapper.selectById(groupId);
+        ImGroupInfo groupInfo = groupInfoMapper.selectById(groupId);  // 行注：初始化群信息
+        // 行注：判断是否满足当前条件
         if (groupInfo == null || Integer.valueOf(1).equals(groupInfo.getDeleted())) {
-            return null;
-        }
+            return null;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
 
-        ImGroupMember member = getMember(groupId, userId);
+        ImGroupMember member = getMember(groupId, userId);  // 行注：初始化成员
+        // 行注：判断是否满足当前条件
         if (member == null) {
-            return null;
-        }
+            return null;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
 
-        ImSession session = getGroupSession(userId, groupId);
+        ImSession session = getGroupSession(userId, groupId);  // 行注：初始化会话
+        // 行注：判断是否满足当前条件
         if (session == null) {
-            return null;
-        }
+            return null;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
 
-        ChatSessionDTO dto = new ChatSessionDTO();
-        dto.setId(session.getId());
-        dto.setUserId(session.getUserId());
-        dto.setTargetId(session.getTargetId());
-        dto.setSessionType(session.getSessionType());
-        dto.setTargetNickname(resolveGroupDisplayName(groupInfo, member));
-        dto.setTargetUsername("group-" + groupInfo.getId());
-        dto.setTargetAvatar(groupInfo.getGroupAvatar());
-        dto.setLastMessage(session.getLastMessage());
-        dto.setLastMessageTime(session.getLastMessageTime());
-        dto.setUnreadCount(session.getUnreadCount());
-        dto.setMemberCount(listMembersByGroupId(groupId).size());
-        dto.setMyRole(member.getRole());
-        dto.setGroupRemark(member.getGroupRemark());
-        dto.setNotice(groupInfo.getNotice());
-        dto.setNoticeUnread(hasUnreadNotice(groupInfo, member));
-        dto.setMuted(isMuted(member));
-        dto.setMuteTime(member.getMuteTime());
-        dto.setNotificationMuted(Boolean.TRUE.equals(member.getNotificationMuted()));
-        dto.setTargetOnline(false);
-        return dto;
-    }
+        ChatSessionDTO dto = new ChatSessionDTO();  // 行注：初始化DTO
+        dto.setId(session.getId());  // 行注：调用设置ID
+        dto.setUserId(session.getUserId());  // 行注：调用设置用户ID
+        dto.setTargetId(session.getTargetId());  // 行注：调用设置TargetID
+        dto.setSessionType(session.getSessionType());  // 行注：调用设置会话类型
+        dto.setTargetNickname(resolveGroupDisplayName(groupInfo, member));  // 行注：调用设置TargetNickname
+        dto.setTargetUsername("group-" + groupInfo.getId());  // 行注：调用设置TargetUsername
+        dto.setTargetAvatar(groupInfo.getGroupAvatar());  // 行注：调用设置Target头像
+        dto.setLastMessage(session.getLastMessage());  // 行注：调用设置最后消息
+        dto.setLastMessageTime(session.getLastMessageTime());  // 行注：调用设置最后消息时间
+        dto.setUnreadCount(session.getUnreadCount());  // 行注：调用设置未读数量
+        dto.setMemberCount(listMembersByGroupId(groupId).size());  // 行注：调用设置成员数量
+        dto.setMyRole(member.getRole());  // 行注：调用设置我的角色
+        dto.setGroupRemark(member.getGroupRemark());  // 行注：调用设置群Remark
+        dto.setNotice(groupInfo.getNotice());  // 行注：调用设置Notice
+        dto.setNoticeUnread(hasUnreadNotice(groupInfo, member));  // 行注：调用设置Notice未读
+        dto.setMuted(isMuted(member));  // 行注：调用设置Muted
+        dto.setMuteTime(member.getMuteTime());  // 行注：调用设置Mute时间
+        dto.setNotificationMuted(Boolean.TRUE.equals(member.getNotificationMuted()));  // 行注：调用设置通知Muted
+        dto.setTargetOnline(false);  // 行注：调用设置Target在线
+        return dto;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义转为成员DTO方法
     private GroupMemberDTO toMemberDTO(ImGroupMember member, SysUser user) {
-        GroupMemberDTO dto = new GroupMemberDTO();
-        dto.setId(member.getId());
-        dto.setGroupId(member.getGroupId());
-        dto.setUserId(member.getUserId());
-        dto.setRole(member.getRole());
-        dto.setMuted(isMuted(member));
-        dto.setMuteTime(member.getMuteTime());
-        dto.setCreateTime(member.getCreateTime());
+        GroupMemberDTO dto = new GroupMemberDTO();  // 行注：初始化DTO
+        dto.setId(member.getId());  // 行注：调用设置ID
+        dto.setGroupId(member.getGroupId());  // 行注：调用设置群ID
+        dto.setUserId(member.getUserId());  // 行注：调用设置用户ID
+        dto.setRole(member.getRole());  // 行注：调用设置角色
+        dto.setMuted(isMuted(member));  // 行注：调用设置Muted
+        dto.setMuteTime(member.getMuteTime());  // 行注：调用设置Mute时间
+        dto.setCreateTime(member.getCreateTime());  // 行注：调用设置创建时间
+        // 行注：判断是否满足当前条件
         if (user != null) {
-            dto.setUsername(user.getUsername());
-            dto.setNickname(user.getNickname());
-            dto.setAvatar(user.getAvatar());
-        }
-        return dto;
-    }
+            dto.setUsername(user.getUsername());  // 行注：调用设置Username
+            dto.setNickname(user.getNickname());  // 行注：调用设置Nickname
+            dto.setAvatar(user.getAvatar());  // 行注：调用设置头像
+        }  // 行注：结束当前代码块
+        return dto;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义获取成员方法
     private ImGroupMember getMember(Long groupId, Long userId) {
-        LambdaQueryWrapper<ImGroupMember> wrapper = new LambdaQueryWrapper<>();
+        LambdaQueryWrapper<ImGroupMember> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
+        // 行注：调用等值条件
         wrapper.eq(ImGroupMember::getGroupId, groupId)
-                .eq(ImGroupMember::getUserId, userId);
-        return groupMemberMapper.selectOne(wrapper);
-    }
+                .eq(ImGroupMember::getUserId, userId);  // 行注：继续调用等值条件
+        return groupMemberMapper.selectOne(wrapper);  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义获取群会话方法
     private ImSession getGroupSession(Long userId, Long groupId) {
-        LambdaQueryWrapper<ImSession> wrapper = new LambdaQueryWrapper<>();
+        LambdaQueryWrapper<ImSession> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
+        // 行注：调用等值条件
         wrapper.eq(ImSession::getUserId, userId)
+                // 行注：继续调用等值条件
                 .eq(ImSession::getTargetId, groupId)
-                .eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_GROUP);
-        return sessionMapper.selectOne(wrapper);
-    }
+                .eq(ImSession::getSessionType, ChatConstants.SESSION_TYPE_GROUP);  // 行注：继续调用等值条件
+        return sessionMapper.selectOne(wrapper);  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义列表Members群ID方法
     private List<ImGroupMember> listMembersByGroupId(Long groupId) {
-        LambdaQueryWrapper<ImGroupMember> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ImGroupMember::getGroupId, groupId);
-        return groupMemberMapper.selectList(wrapper);
-    }
+        LambdaQueryWrapper<ImGroupMember> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
+        wrapper.eq(ImGroupMember::getGroupId, groupId);  // 行注：调用等值条件
+        return groupMemberMapper.selectList(wrapper);  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义加载用户映射方法
     private Map<Long, SysUser> loadUserMap(Set<Long> userIds) {
+        // 行注：判断是否满足当前条件
         if (userIds == null || userIds.isEmpty()) {
-            return Map.of();
-        }
-        return userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, item -> item, (left, right) -> left));
-    }
+            return Map.of();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        return userMapper.selectBatchIds(userIds).stream()  // 行注：返回处理结果
+                .collect(Collectors.toMap(SysUser::getId, item -> item, (left, right) -> left));  // 行注：继续调用收集
+    }  // 行注：结束当前代码块
 
+    // 行注：定义规范化用户ID列表方法
     private Set<Long> normalizeUserIds(Collection<Long> userIds) {
+        // 行注：判断是否满足当前条件
         if (userIds == null || userIds.isEmpty()) {
-            return Set.of();
-        }
-        return userIds.stream()
+            return Set.of();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        return userIds.stream()  // 行注：返回处理结果
+                // 行注：继续调用过滤
                 .filter(id -> id != null)
-                .collect(Collectors.toCollection(LinkedHashSet::new));
-    }
+                .collect(Collectors.toCollection(LinkedHashSet::new));  // 行注：继续调用收集
+    }  // 行注：结束当前代码块
 
+    // 行注：定义是否Muted方法
     private boolean isMuted(ImGroupMember member) {
-        return member.getMuteTime() != null && member.getMuteTime().isAfter(LocalDateTime.now());
-    }
+        return member.getMuteTime() != null && member.getMuteTime().isAfter(LocalDateTime.now());  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义是否包含未读Notice方法
     private boolean hasUnreadNotice(ImGroupInfo groupInfo, ImGroupMember member) {
+        // 行注：判断是否满足当前条件
         if (groupInfo == null || member == null) {
-            return false;
-        }
+            return false;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        // 行注：判断是否满足当前条件
         if (groupInfo.getNotice() == null || groupInfo.getNotice().isBlank() || groupInfo.getNoticeUpdateTime() == null) {
-            return false;
-        }
-        LocalDateTime noticeReadTime = member.getNoticeReadTime();
-        return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());
-    }
+            return false;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        LocalDateTime noticeReadTime = member.getNoticeReadTime();  // 行注：初始化notice已读时间
+        return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义解析文件方法
     private SysFile resolveFile(ImMessage message) {
+        // 行注：判断是否满足当前条件
         if (message == null || !StringUtils.hasText(message.getContent())) {
-            return null;
-        }
+            return null;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        // 行注：判断是否满足当前条件
         if (message.getMsgType() != ChatConstants.MESSAGE_TYPE_FILE && message.getMsgType() != ChatConstants.MESSAGE_TYPE_IMAGE) {
-            return null;
-        }
-        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(SysFile::getFileUrl, message.getContent()).last("LIMIT 1");
-        return sysFileMapper.selectOne(wrapper);
-    }
+            return null;  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
+        wrapper.eq(SysFile::getFileUrl, message.getContent()).last("LIMIT 1");  // 行注：调用等值条件
+        return sysFileMapper.selectOne(wrapper);  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义解析群Display名称方法
     private String resolveGroupDisplayName(ImGroupInfo groupInfo, ImGroupMember member) {
+        // 行注：判断是否满足当前条件
         if (member != null && StringUtils.hasText(member.getGroupRemark())) {
-            return member.getGroupRemark().trim();
-        }
-        return groupInfo.getGroupName();
-    }
+            return member.getGroupRemark().trim();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        return groupInfo.getGroupName();  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义parse@提醒用户ID列表方法
     private List<Long> parseMentionUserIds(String mentionUserIds) {
+        // 行注：判断是否满足当前条件
         if (mentionUserIds == null || mentionUserIds.isBlank()) {
-            return List.of();
-        }
-        List<Long> result = new ArrayList<>();
+            return List.of();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        List<Long> result = new ArrayList<>();  // 行注：初始化结果
+        // 行注：遍历当前集合或范围
         for (String item : mentionUserIds.split(",")) {
+            // 行注：判断是否满足当前条件
             if (item == null || item.isBlank()) {
-                continue;
-            }
+                continue;  // 行注：完成当前语句
+            }  // 行注：结束当前代码块
+            // 行注：尝试执行可能失败的逻辑
             try {
-                result.add(Long.parseLong(item.trim()));
+                result.add(Long.parseLong(item.trim()));  // 行注：调用添加
+            // 行注：执行当前方法调用
             } catch (NumberFormatException ignored) {
                 // Skip malformed legacy values.
-            }
-        }
-        return result;
-    }
+            }  // 行注：结束当前代码块
+        }  // 行注：结束当前代码块
+        return result;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义解析@提醒DisplayNames方法
     private List<String> resolveMentionDisplayNames(List<Long> mentionUserIds, Map<Long, SysUser> userMap) {
+        // 行注：判断是否满足当前条件
         if (mentionUserIds.isEmpty()) {
-            return List.of();
-        }
-        List<String> displayNames = new ArrayList<>();
+            return List.of();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        List<String> displayNames = new ArrayList<>();  // 行注：初始化displayNames
+        // 行注：遍历当前集合或范围
         for (Long mentionUserId : mentionUserIds) {
-            SysUser user = userMap.get(mentionUserId);
+            SysUser user = userMap.get(mentionUserId);  // 行注：初始化用户
+            // 行注：判断是否满足当前条件
             if (user == null) {
-                continue;
-            }
+                continue;  // 行注：完成当前语句
+            }  // 行注：结束当前代码块
+            // 行注：判断是否满足当前条件
             if (user.getNickname() != null && !user.getNickname().isBlank()) {
-                displayNames.add(user.getNickname().trim());
+                displayNames.add(user.getNickname().trim());  // 行注：调用添加
+            // 行注：调用获取Username
             } else if (user.getUsername() != null && !user.getUsername().isBlank()) {
-                displayNames.add(user.getUsername().trim());
-            }
-        }
-        return displayNames;
-    }
-}
+                displayNames.add(user.getUsername().trim());  // 行注：调用添加
+            }  // 行注：结束当前代码块
+        }  // 行注：结束当前代码块
+        return displayNames;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
+}  // 行注：结束当前代码块

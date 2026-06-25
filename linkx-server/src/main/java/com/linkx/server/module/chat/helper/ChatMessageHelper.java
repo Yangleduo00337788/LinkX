@@ -1,122 +1,154 @@
-package com.linkx.server.module.chat.helper;
+package com.linkx.server.module.chat.helper;  // 行注：声明当前文件所在包 com.linkx.server.module.chat.helper
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.linkx.server.entity.ImMessage;
-import com.linkx.server.entity.SysFile;
-import com.linkx.server.entity.SysUser;
-import com.linkx.server.mapper.SysFileMapper;
-import com.linkx.server.mapper.SysUserMapper;
-import com.linkx.server.module.chat.constant.ChatConstants;
-import com.linkx.server.module.chat.dto.MessageDTO;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;  // 行注：引入 LambdaQueryWrapper 类型
+import com.linkx.server.entity.ImMessage;  // 行注：引入 ImMessage 类型
+import com.linkx.server.entity.SysFile;  // 行注：引入 SysFile 类型
+import com.linkx.server.entity.SysUser;  // 行注：引入 SysUser 类型
+import com.linkx.server.mapper.SysFileMapper;  // 行注：引入 SysFileMapper 类型
+import com.linkx.server.mapper.SysUserMapper;  // 行注：引入 SysUserMapper 类型
+import com.linkx.server.module.chat.constant.ChatConstants;  // 行注：引入 ChatConstants 类型
+import com.linkx.server.module.chat.dto.MessageDTO;  // 行注：引入 MessageDTO 类型
+import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
+import org.springframework.stereotype.Component;  // 行注：引入 Component 类型
+import org.springframework.util.StringUtils;  // 行注：引入 StringUtils 类型
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.ArrayList;  // 行注：引入 ArrayList 类型
+import java.util.List;  // 行注：引入 List 类型
+import java.util.Map;  // 行注：引入 Map 类型
+import java.util.Set;  // 行注：引入 Set 类型
+import java.util.stream.Collectors;  // 行注：引入 Collectors 类型
 
 /** 消息实体转 DTO、@ 列表解析、发送者昵称/头像批量填充。 */
-@Component
-@RequiredArgsConstructor
+@Component  // 行注：应用 @Component 注解
+@RequiredArgsConstructor  // 行注：应用 @RequiredArgsConstructor 注解
+// 行注：定义 ChatMessageHelper 类
 public class ChatMessageHelper {
 
-    private final SysFileMapper fileMapper;
-    private final SysUserMapper userMapper;
+    private final SysFileMapper fileMapper;  // 行注：注入文件Mapper依赖
+    private final SysUserMapper userMapper;  // 行注：注入用户Mapper依赖
 
+    /** 将库中逗号分隔的 @ 用户 ID 解析为列表，非法片段跳过 */
+    // 行注：定义parse@提醒用户ID列表方法
     public List<Long> parseMentionUserIds(String mentionUserIds) {
+        // 行注：判断是否满足当前条件
         if (!StringUtils.hasText(mentionUserIds)) {
-            return List.of();
-        }
-        List<Long> result = new ArrayList<>();
+            return List.of();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        List<Long> result = new ArrayList<>();  // 行注：初始化结果
+        // 行注：遍历当前集合或范围
         for (String item : mentionUserIds.split(",")) {
+            // 行注：判断是否满足当前条件
             if (!StringUtils.hasText(item)) {
-                continue;
-            }
+                continue;  // 行注：完成当前语句
+            }  // 行注：结束当前代码块
+            // 行注：尝试执行可能失败的逻辑
             try {
-                result.add(Long.parseLong(item.trim()));
+                result.add(Long.parseLong(item.trim()));  // 行注：调用添加
+            // 行注：执行当前方法调用
             } catch (NumberFormatException ignored) {
-                // Skip malformed legacy values to avoid blocking history loading.
-            }
-        }
-        return result;
-    }
+                // 历史脏数据中的非法 ID 跳过，避免整页历史加载失败
+            }  // 行注：结束当前代码块
+        }  // 行注：结束当前代码块
+        return result;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    /** 批量按消息 content（文件 URL）加载附件元数据 */
+    // 行注：定义加载文件映射方法
     public Map<String, SysFile> loadFileMap(List<ImMessage> messages) {
+        // 行注：调用流
         Set<String> fileUrls = messages.stream()
+                // 行注：继续调用过滤
                 .filter(message -> (message.getMsgType() == ChatConstants.MESSAGE_TYPE_FILE || message.getMsgType() == ChatConstants.MESSAGE_TYPE_IMAGE)
+                        // 行注：调用是否包含文本
                         && StringUtils.hasText(message.getContent()))
+                // 行注：继续调用映射
                 .map(ImMessage::getContent)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toSet());  // 行注：继续调用收集
+        // 行注：判断是否满足当前条件
         if (fileUrls.isEmpty()) {
-            return Map.of();
-        }
-        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();
-        wrapper.in(SysFile::getFileUrl, fileUrls);
-        return fileMapper.selectList(wrapper).stream()
-                .collect(Collectors.toMap(SysFile::getFileUrl, file -> file, (left, right) -> left));
-    }
+            return Map.of();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        LambdaQueryWrapper<SysFile> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
+        wrapper.in(SysFile::getFileUrl, fileUrls);  // 行注：调用in
+        return fileMapper.selectList(wrapper).stream()  // 行注：返回处理结果
+                .collect(Collectors.toMap(SysFile::getFileUrl, file -> file, (left, right) -> left));  // 行注：继续调用收集
+    }  // 行注：结束当前代码块
 
+    /** 批量加载发送者/被 @ 用户资料 */
+    // 行注：定义加载用户映射方法
     public Map<Long, SysUser> loadUserMap(Set<Long> userIds) {
+        // 行注：判断是否满足当前条件
         if (userIds.isEmpty()) {
-            return Map.of();
-        }
-        return userMapper.selectBatchIds(userIds).stream()
-                .collect(Collectors.toMap(SysUser::getId, user -> user, (left, right) -> left));
-    }
+            return Map.of();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        return userMapper.selectBatchIds(userIds).stream()  // 行注：返回处理结果
+                .collect(Collectors.toMap(SysUser::getId, user -> user, (left, right) -> left));  // 行注：继续调用收集
+    }  // 行注：结束当前代码块
 
+    /**
+     * 将持久化消息转为 API/WS 使用的 DTO，并填充昵称、头像与文件信息。
+     */
+    // 行注：定义转为消息DTO方法
     public MessageDTO toMessageDTO(ImMessage message, Integer sessionType, Map<Long, SysUser> userMap, Map<String, SysFile> fileMap) {
-        List<Long> mentionUserIds = parseMentionUserIds(message.getMentionUserIds());
-        MessageDTO dto = new MessageDTO();
-        dto.setId(message.getId());
-        dto.setSessionId(message.getSessionId());
-        dto.setFromUserId(message.getFromUserId());
-        dto.setToUserId(message.getToUserId());
-        dto.setSessionType(sessionType);
-        dto.setContent(message.getContent());
-        dto.setMsgType(message.getMsgType());
-        dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));
-        dto.setMentionUserIds(mentionUserIds);
-        dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));
-        dto.setStatus(message.getStatus());
-        dto.setReadTime(message.getReadTime());
-        dto.setCreateTime(message.getCreateTime());
+        List<Long> mentionUserIds = parseMentionUserIds(message.getMentionUserIds());  // 行注：初始化@提醒用户ID列表
+        MessageDTO dto = new MessageDTO();  // 行注：初始化DTO
+        dto.setId(message.getId());  // 行注：调用设置ID
+        dto.setSessionId(message.getSessionId());  // 行注：调用设置会话ID
+        dto.setFromUserId(message.getFromUserId());  // 行注：调用设置用户ID
+        dto.setToUserId(message.getToUserId());  // 行注：调用设置转为用户ID
+        dto.setSessionType(sessionType);  // 行注：调用设置会话类型
+        dto.setContent(message.getContent());  // 行注：调用设置内容
+        dto.setMsgType(message.getMsgType());  // 行注：调用设置消息类型
+        dto.setMentionAll(Boolean.TRUE.equals(message.getMentionAll()));  // 行注：调用设置@提醒全部
+        dto.setMentionUserIds(mentionUserIds);  // 行注：调用设置@提醒用户ID列表
+        dto.setMentionDisplayNames(resolveMentionDisplayNames(mentionUserIds, userMap));  // 行注：调用设置@提醒DisplayNames
+        dto.setStatus(message.getStatus());  // 行注：调用设置状态
+        dto.setReadTime(message.getReadTime());  // 行注：调用设置已读时间
+        dto.setCreateTime(message.getCreateTime());  // 行注：调用设置创建时间
 
-        SysUser fromUser = userMap.get(message.getFromUserId());
+        SysUser fromUser = userMap.get(message.getFromUserId());  // 行注：初始化用户
+        // 行注：判断是否满足当前条件
         if (fromUser != null) {
-            dto.setFromNickname(fromUser.getNickname());
-            dto.setFromAvatar(fromUser.getAvatar());
-        }
+            dto.setFromNickname(fromUser.getNickname());  // 行注：调用设置Nickname
+            dto.setFromAvatar(fromUser.getAvatar());  // 行注：调用设置头像
+        }  // 行注：结束当前代码块
+        // 行注：判断是否满足当前条件
         if ((message.getMsgType() == ChatConstants.MESSAGE_TYPE_FILE || message.getMsgType() == ChatConstants.MESSAGE_TYPE_IMAGE)
+                // 行注：调用是否包含文本
                 && StringUtils.hasText(message.getContent())) {
-            SysFile file = fileMap.get(message.getContent());
+            SysFile file = fileMap.get(message.getContent());  // 行注：初始化文件
+            // 行注：判断是否满足当前条件
             if (file != null) {
-                dto.setFileName(file.getOriginalName());
-                dto.setFileSize(file.getFileSize());
-                dto.setFileType(file.getFileType());
-            }
-        }
-        return dto;
-    }
+                dto.setFileName(file.getOriginalName());  // 行注：调用设置文件名称
+                dto.setFileSize(file.getFileSize());  // 行注：调用设置文件大小
+                dto.setFileType(file.getFileType());  // 行注：调用设置文件类型
+            }  // 行注：结束当前代码块
+        }  // 行注：结束当前代码块
+        return dto;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
 
+    // 行注：定义解析@提醒DisplayNames方法
     private List<String> resolveMentionDisplayNames(List<Long> mentionUserIds, Map<Long, SysUser> userMap) {
+        // 行注：判断是否满足当前条件
         if (mentionUserIds.isEmpty()) {
-            return List.of();
-        }
-        List<String> displayNames = new ArrayList<>();
+            return List.of();  // 行注：返回处理结果
+        }  // 行注：结束当前代码块
+        List<String> displayNames = new ArrayList<>();  // 行注：初始化displayNames
+        // 行注：遍历当前集合或范围
         for (Long mentionUserId : mentionUserIds) {
-            SysUser user = userMap.get(mentionUserId);
+            SysUser user = userMap.get(mentionUserId);  // 行注：初始化用户
+            // 行注：判断是否满足当前条件
             if (user == null) {
-                continue;
-            }
+                continue;  // 行注：完成当前语句
+            }  // 行注：结束当前代码块
+            // 行注：判断是否满足当前条件
             if (StringUtils.hasText(user.getNickname())) {
-                displayNames.add(user.getNickname().trim());
+                displayNames.add(user.getNickname().trim());  // 行注：调用添加
+            // 行注：调用是否包含文本
             } else if (StringUtils.hasText(user.getUsername())) {
-                displayNames.add(user.getUsername().trim());
-            }
-        }
-        return displayNames;
-    }
-}
+                displayNames.add(user.getUsername().trim());  // 行注：调用添加
+            }  // 行注：结束当前代码块
+        }  // 行注：结束当前代码块
+        return displayNames;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
+}  // 行注：结束当前代码块

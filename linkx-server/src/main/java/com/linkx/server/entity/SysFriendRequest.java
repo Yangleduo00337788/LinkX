@@ -1,26 +1,33 @@
-package com.linkx.server.entity;
+package com.linkx.server.entity;  // 行注：声明当前文件所在包 com.linkx.server.entity
 
-import com.baomidou.mybatisplus.annotation.*;
-import lombok.Data;
+import com.baomidou.mybatisplus.annotation.*;  // 行注：引入 * 类型
+import lombok.Data;  // 行注：引入 Data 类型
 
-import java.time.LocalDateTime;
+import java.time.LocalDateTime;  // 行注：引入 LocalDateTime 类型
 
 /** 好友申请：待处理/已同意/已拒绝。 */
-@Data
-@TableName("sys_friend_request")
+@Data  // 行注：应用 @Data 注解
+@TableName("sys_friend_request")  // 行注：应用 @TableName 注解
+// 行注：定义 SysFriendRequest 类
 public class SysFriendRequest {
 
-    @TableId(type = IdType.ASSIGN_ID)
-    private Long id;
+    /** 主键 ID */
+    @TableId(type = IdType.ASSIGN_ID)  // 行注：应用 @TableId 注解
+    private Long id;  // 行注：声明ID字段
 
-    private Long fromUserId;
+    /** 发起方用户 ID */
+    private Long fromUserId;  // 行注：声明用户ID字段
 
-    private Long toUserId;
+    /** 目标用户 ID */
+    private Long toUserId;  // 行注：声明转为用户ID字段
 
-    private String message;
+    /** 申请或消息附言 */
+    private String message;  // 行注：声明消息字段
 
-    private Integer status;
+    /** 状态 */
+    private Integer status;  // 行注：声明状态字段
 
-    @TableField(fill = FieldFill.INSERT)
-    private LocalDateTime createTime;
-}
+    /** 创建时间 */
+    @TableField(fill = FieldFill.INSERT)  // 行注：应用 @TableField 注解
+    private LocalDateTime createTime;  // 行注：声明创建时间字段
+}  // 行注：结束当前代码块

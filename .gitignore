@@ -26,10 +26,9 @@ log.txt
 # Uploads (local dev runtime data)
 linkx-server/uploads/
 
-# Environment (keep *.example)
+# Environment（本地覆盖用 .env；仓库内开发模板为 .env.dev）
 .env
-!.env.example
-!.env.*.example
+!.env.dev
 
 # Frontend build artifacts (also in linkx-web/.gitignore)
 linkx-web/dist/

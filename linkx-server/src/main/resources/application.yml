@@ -1,59 +1,65 @@
-server:
-  port: ${LINKX_SERVER_PORT:8080}
-
-spring:
-  application:
-    name: linkx-server
-  profiles:
-    active: ${LINKX_PROFILE:dev}
-  servlet:
-    multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
-  datasource:
-    url: ${LINKX_DB_URL:jdbc:mysql://localhost:3306/linkx_im?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${LINKX_DB_USERNAME:root}
-    password: ${LINKX_DB_PASSWORD:}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-  data:
-    redis:
-      host: ${LINKX_REDIS_HOST:localhost}
-      port: ${LINKX_REDIS_PORT:6379}
-      database: 0
-      password: ${LINKX_REDIS_PASSWORD:}
-
-mybatis-plus:
-  mapper-locations: classpath:mapper/*.xml
-  configuration:
-    map-underscore-to-camel-case: true
-
-linkx:
-  api-base-url: ${LINKX_API_BASE_URL:http://localhost:8080}
-  security:
-    auth-rate-limit:
-      enabled: ${LINKX_SECURITY_AUTH_RATE_LIMIT_ENABLED:true}
-      window-seconds: ${LINKX_SECURITY_AUTH_RATE_LIMIT_WINDOW_SECONDS:60}
-      login-max-requests: ${LINKX_SECURITY_AUTH_LOGIN_MAX_REQUESTS:10}
-      register-max-requests: ${LINKX_SECURITY_AUTH_REGISTER_MAX_REQUESTS:5}
-      refresh-max-requests: ${LINKX_SECURITY_AUTH_REFRESH_MAX_REQUESTS:20}
-      captcha-issue-max-requests: ${LINKX_SECURITY_AUTH_CAPTCHA_ISSUE_MAX_REQUESTS:30}
-    captcha:
-      enabled: ${LINKX_SECURITY_CAPTCHA_ENABLED:false}
-    trusted-proxy:
-      enabled: ${LINKX_SECURITY_TRUSTED_PROXY_ENABLED:false}
-    abuse-protection:
-      enabled: ${LINKX_SECURITY_ABUSE_PROTECTION_ENABLED:true}
-      user-search:
-        window-seconds: ${LINKX_SECURITY_USER_SEARCH_WINDOW_SECONDS:60}
-        max-requests-per-user: ${LINKX_SECURITY_USER_SEARCH_MAX_PER_USER:30}
-        max-requests-per-ip: ${LINKX_SECURITY_USER_SEARCH_MAX_PER_IP:60}
-      friend-request:
-        max-per-user-per-day: ${LINKX_SECURITY_FRIEND_REQUEST_MAX_PER_USER_DAY:20}
-        max-per-ip-per-day: ${LINKX_SECURITY_FRIEND_REQUEST_MAX_PER_IP_DAY:50}
-  jwt:
-    secret: ${LINKX_JWT_SECRET:PLEASE_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN}  # required: override via env before startup
-    expiration: ${LINKX_JWT_EXPIRATION:86400000}  # 24小时
-    refresh-expiration: ${LINKX_JWT_REFRESH_EXPIRATION:604800000}  # 7天
+server:  # 行注：配置服务
+  port: ${LINKX_SERVER_PORT:8080}  # 行注：设置服务端口
+# 行注：分隔不同配置段落
+spring:  # 行注：配置 Spring
+  application:  # 行注：配置应用
+    name: linkx-server  # 行注：设置应用名称
+  profiles:  # 行注：配置环境
+    active: ${LINKX_PROFILE:dev}  # 行注：设置启用环境
+  servlet:  # 行注：配置 Servlet
+    multipart:  # 行注：配置文件上传
+      max-file-size: 50MB  # 行注：设置单文件大小上限
+      max-request-size: 50MB  # 行注：设置单次请求大小上限
+  datasource:  # 行注：配置数据源
+    url: ${LINKX_DB_URL:jdbc:mysql://localhost:3306/linkx_im?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}  # 行注：设置数据库连接地址
+    username: ${LINKX_DB_USERNAME:root}  # 行注：设置数据库用户名
+    password: ${LINKX_DB_PASSWORD:root}  # 行注：设置数据库密码
+    driver-class-name: com.mysql.cj.jdbc.Driver  # 行注：设置JDBC 驱动类
+  data:  # 行注：配置数据访问
+    redis:  # 行注：配置 Redis
+      host: ${LINKX_REDIS_HOST:localhost}  # 行注：设置Redis 主机
+      port: ${LINKX_REDIS_PORT:6379}  # 行注：设置Redis 端口
+      database: 0  # 行注：设置Redis 数据库编号
+      password: ${LINKX_REDIS_PASSWORD:redis123}  # 行注：设置Redis 密码
+# 行注：分隔不同配置段落
+mybatis-plus:  # 行注：配置 MyBatis-Plus
+  mapper-locations: classpath:mapper/*.xml  # 行注：设置Mapper XML 路径
+  configuration:  # 行注：配置 MyBatis 配置项
+    map-underscore-to-camel-case: true  # 行注：设置下划线转驼峰开关
+# 行注：分隔不同配置段落
+linkx:  # 行注：配置 LinkX 业务
+  api-base-url: ${LINKX_API_BASE_URL:http://localhost:8080}  # 行注：设置接口基础地址
+  security:  # 行注：配置安全
+    auth-rate-limit:  # 行注：配置认证限流
+      enabled: ${LINKX_SECURITY_AUTH_RATE_LIMIT_ENABLED:true}  # 行注：设置认证限流开关
+      window-seconds: ${LINKX_SECURITY_AUTH_RATE_LIMIT_WINDOW_SECONDS:60}  # 行注：设置认证限流窗口秒数
+      login-max-requests: ${LINKX_SECURITY_AUTH_LOGIN_MAX_REQUESTS:10}  # 行注：设置登录最大请求次数
+      register-max-requests: ${LINKX_SECURITY_AUTH_REGISTER_MAX_REQUESTS:5}  # 行注：设置注册最大请求次数
+      refresh-max-requests: ${LINKX_SECURITY_AUTH_REFRESH_MAX_REQUESTS:20}  # 行注：设置刷新令牌最大请求次数
+      captcha-issue-max-requests: ${LINKX_SECURITY_AUTH_CAPTCHA_ISSUE_MAX_REQUESTS:30}  # 行注：设置验证码申请最大请求次数
+    captcha:  # 行注：配置验证码
+      enabled: ${LINKX_SECURITY_CAPTCHA_ENABLED:true}  # 行注：设置验证码开关
+    trusted-proxy:  # 行注：配置可信代理
+      enabled: ${LINKX_SECURITY_TRUSTED_PROXY_ENABLED:false}  # 行注：设置可信代理开关
+    abuse-protection:  # 行注：配置滥用防护
+      enabled: ${LINKX_SECURITY_ABUSE_PROTECTION_ENABLED:true}  # 行注：设置滥用防护开关
+      user-search:  # 行注：配置用户搜索限流
+        window-seconds: ${LINKX_SECURITY_USER_SEARCH_WINDOW_SECONDS:60}  # 行注：设置用户搜索窗口秒数
+        max-requests-per-user: ${LINKX_SECURITY_USER_SEARCH_MAX_PER_USER:30}  # 行注：设置单用户最大请求次数
+        max-requests-per-ip: ${LINKX_SECURITY_USER_SEARCH_MAX_PER_IP:60}  # 行注：设置单 IP 最大请求次数
+      friend-request:  # 行注：配置好友请求限流
+        max-per-user-per-day: ${LINKX_SECURITY_FRIEND_REQUEST_MAX_PER_USER_DAY:20}  # 行注：设置单用户每日最大次数
+        max-per-ip-per-day: ${LINKX_SECURITY_FRIEND_REQUEST_MAX_PER_IP_DAY:50}  # 行注：设置单 IP 每日最大次数
+  jwt:  # 行注：配置 JWT
+    secret: ${LINKX_JWT_SECRET:ABCDEF_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN}  # required: override via env before startup  # 行注：设置JWT 密钥
+    expiration: ${LINKX_JWT_EXPIRATION:86400000}  # 24小时  # 行注：设置访问令牌过期时间
+    refresh-expiration: ${LINKX_JWT_REFRESH_EXPIRATION:604800000}  # 7天  # 行注：设置刷新令牌过期时间
   upload:
     path: ${LINKX_UPLOAD_PATH:${user.dir}/uploads/}
     url: ${LINKX_UPLOAD_URL:http://localhost:8080/uploads/}
+  minio:
+    enabled: ${LINKX_MINIO_ENABLED:true}
+    endpoint: ${LINKX_MINIO_ENDPOINT:http://127.0.0.1:9000}
+    access-key: ${LINKX_MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${LINKX_MINIO_SECRET_KEY:minioadmin123}
+    bucket: ${LINKX_MINIO_BUCKET:linkx}

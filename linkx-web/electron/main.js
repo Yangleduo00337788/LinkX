@@ -1,9 +1,13 @@
+/**
+ * Electron 主进程入口，负责窗口、托盘、通知和自动更新。
+ */
 const { app, BrowserWindow, ipcMain, Notification, nativeImage, clipboard, shell } = require('electron')
 const fs = require('fs')
 const http = require('http')
 const path = require('path')
 
 let mainWindow = null
+let trayUnreadCount = 0
 let isDev = !!process.env.ELECTRON_DEV_URL
 let localRendererServer = null
 const LOCAL_RENDERER_HOST = '127.0.0.1'
@@ -11,16 +15,19 @@ const LOCAL_RENDERER_PORT = Number(process.env.LINKX_ELECTRON_PORT || 39689)
 const APP_USER_MODEL_ID = 'com.linkx.im'
 const TOAST_ACTIVATOR_CLSID = '2E35D3A8-5D13-4D74-A824-6C6C3D4B8F71'
 
+// 仅在开发环境输出调试日志，避免生产环境日志过于嘈杂。
 function debugLog(...args) {
   if (isDev) {
     console.log(...args)
   }
 }
 
+// Windows 通知依赖 AppUserModelId，开发态和打包态需要使用不同标识。
 function getRuntimeAppUserModelId() {
   return app.isPackaged ? APP_USER_MODEL_ID : process.execPath
 }
 
+// 为 Windows 桌面通知创建快捷方式，保证通知中心能够正确识别应用。
 function ensureWindowsNotificationShortcut() {
   if (process.platform !== 'win32') {
     return
@@ -54,10 +61,12 @@ const STATIC_MIME_TYPES = {
   '.woff2': 'font/woff2'
 }
 
+// 根据扩展名推导静态资源响应头，供本地渲染服务使用。
 function resolveContentType(filePath) {
   return STATIC_MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream'
 }
 
+// 只允许打开 http/https 外链，避免渲染进程借此执行危险协议。
 function resolveSafeExternalUrl(rawUrl) {
   const normalized = typeof rawUrl === 'string' ? rawUrl.trim() : ''
   if (!normalized) {
@@ -74,6 +83,7 @@ function resolveSafeExternalUrl(rawUrl) {
   }
 }
 
+// 生产态用本地 HTTP 服务托管前端构建产物，并阻止目录穿越访问。
 function createStaticRequestHandler(distDir) {
   return (request, response) => {
     const requestUrl = new URL(request.url || '/', `http://${LOCAL_RENDERER_HOST}:${LOCAL_RENDERER_PORT}`)
@@ -109,6 +119,7 @@ function createStaticRequestHandler(distDir) {
   }
 }
 
+// 打包后启动本地静态服务，再让窗口加载本地地址。
 function startLocalRendererServer() {
   if (localRendererServer?.url) {
     return Promise.resolve(localRendererServer.url)
@@ -138,6 +149,7 @@ function startLocalRendererServer() {
   })
 }
 
+// 应用退出前优雅关闭本地静态服务，释放端口。
 function stopLocalRendererServer() {
   if (!localRendererServer?.server) {
     return Promise.resolve()
@@ -150,6 +162,7 @@ function stopLocalRendererServer() {
   })
 }
 
+// 创建主窗口并串联菜单、托盘、更新器和 IPC 初始化。
 async function createWindow() {
   debugLog('Creating window...', { isDev, url: process.env.ELECTRON_DEV_URL })
 
@@ -227,11 +240,119 @@ async function createWindow() {
     console.error('Updater load error:', e.message)
   }
 
+  setupFileDropOnWindow(mainWindow)
   ensureWindowsNotificationShortcut()
   setupIPC()
   debugLog('IPC setup complete')
 }
 
+const MAX_DROP_FILE_BYTES = 80 * 1024 * 1024
+
+function normalizeDroppedPaths(filePaths) {
+  if (!Array.isArray(filePaths)) {
+    return []
+  }
+  return filePaths.filter(p => typeof p === 'string' && p.length > 0)
+}
+
+function readDroppedFilesPayload(filePaths) {
+  const paths = normalizeDroppedPaths(filePaths)
+  const result = []
+  for (const filePath of paths) {
+    try {
+      const stat = fs.statSync(filePath)
+      if (!stat.isFile()) {
+        continue
+      }
+      if (stat.size > MAX_DROP_FILE_BYTES) {
+        continue
+      }
+      const buffer = fs.readFileSync(filePath)
+      const name = path.basename(filePath)
+      const ext = path.extname(name).toLowerCase()
+      let mimeType = 'application/octet-stream'
+      if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(ext)) {
+        mimeType = ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : `image/${ext.slice(1)}`
+      } else if (ext === '.svg') {
+        mimeType = 'image/svg+xml'
+      }
+      result.push({
+        name,
+        mimeType,
+        size: stat.size,
+        data: buffer.toString('base64')
+      })
+    } catch (error) {
+      console.warn('readDroppedFilesPayload skip:', filePath, error.message)
+    }
+  }
+  return result
+}
+
+function focusMainWindowFromNotification() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return
+  }
+  if (mainWindow.isMinimized()) {
+    mainWindow.restore()
+  }
+  mainWindow.show()
+  mainWindow.focus()
+  try {
+    const { stopWindowAttention } = require('./tray')
+    stopWindowAttention()
+  } catch {
+    /* ignore */
+  }
+}
+
+function setupFileDropOnWindow(window) {
+  if (!window?.webContents) {
+    return
+  }
+  window.webContents.on('will-navigate', (event, url) => {
+    if (url && !url.startsWith('devtools://')) {
+      const parsed = resolveSafeExternalUrl(url)
+      if (parsed) {
+        event.preventDefault()
+        shell.openExternal(parsed)
+      }
+    }
+  })
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    const safe = resolveSafeExternalUrl(url)
+    if (safe) {
+      shell.openExternal(safe)
+    }
+    return { action: 'deny' }
+  })
+  window.webContents.on('dom-ready', () => {
+    window.webContents.executeJavaScript(`
+      (function() {
+        if (window.__linkxFileDropBound) return;
+        window.__linkxFileDropBound = true;
+        document.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); });
+        document.addEventListener('drop', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const paths = [];
+          for (const file of e.dataTransfer?.files || []) {
+            if (file.path) paths.push(file.path);
+          }
+          if (paths.length && window.electronAPI?.readDroppedFiles) {
+            window.electronAPI.readDroppedFiles(paths).then((files) => {
+              if (files?.length) {
+                window.dispatchEvent(new CustomEvent('linkx-electron-file-drop', { detail: files }));
+              }
+            }).catch(() => {});
+          }
+        });
+      })();
+    `).catch(err => console.warn('file drop inject failed:', err.message))
+  })
+}
+
+// 将窗口控制、通知、剪贴板和系统能力通过 IPC 暴露给渲染进程。
 function setupIPC() {
   ipcMain.handle('window:minimize', () => {
     if (mainWindow) mainWindow.minimize()
@@ -263,10 +384,11 @@ function setupIPC() {
     mainWindow.webContents.send('window:maximized', false)
   })
 
-  ipcMain.handle('notification:show', (_, title, body, icon) => {
+  ipcMain.handle('notification:show', (_, title, body, icon, payload) => {
     const supported = Notification.isSupported()
     const shouldUseTrayBalloonFallback = process.platform === 'win32' && !app.isPackaged
     let shown = false
+    const navPayload = payload && typeof payload === 'object' ? payload : null
     if (supported) {
       const notification = new Notification({
         title,
@@ -275,14 +397,14 @@ function setupIPC() {
         icon: icon || path.join(__dirname, 'icons', 'tray.png')
       })
       notification.on('click', () => {
-        if (!mainWindow) {
-          return
+        focusMainWindowFromNotification()
+        if (mainWindow && !mainWindow.isDestroyed() && navPayload?.targetId) {
+          mainWindow.webContents.send('notification:navigate', {
+            targetId: String(navPayload.targetId),
+            sessionType: navPayload.sessionType != null ? Number(navPayload.sessionType) : undefined,
+            messageId: navPayload.messageId != null ? String(navPayload.messageId) : undefined
+          })
         }
-        if (mainWindow.isMinimized()) {
-          mainWindow.restore()
-        }
-        mainWindow.show()
-        mainWindow.focus()
       })
       notification.show()
       shown = true
@@ -330,6 +452,33 @@ function setupIPC() {
 
   ipcMain.handle('clipboard:read', () => clipboard.readText())
   ipcMain.handle('clipboard:write', (_, text) => clipboard.writeText(text))
+
+  ipcMain.handle('clipboard:readImage', () => {
+    const image = clipboard.readImage()
+    if (image.isEmpty()) {
+      return null
+    }
+    const png = image.toPNG()
+    return {
+      mimeType: 'image/png',
+      data: png.toString('base64'),
+      size: png.length
+    }
+  })
+
+  ipcMain.handle('file:readDropped', (_, filePaths) => readDroppedFilesPayload(filePaths))
+
+  ipcMain.handle('tray:setUnreadCount', (_, count) => {
+    const next = Math.max(0, Math.min(999, Number(count) || 0))
+    trayUnreadCount = next
+    try {
+      const { setTrayUnreadCount } = require('./tray')
+      setTrayUnreadCount(next)
+    } catch (error) {
+      console.warn('tray:setUnreadCount failed:', error)
+    }
+    return next
+  })
   ipcMain.handle('shell:openExternal', (_, url) => {
     const safeUrl = resolveSafeExternalUrl(url)
     if (!safeUrl) {

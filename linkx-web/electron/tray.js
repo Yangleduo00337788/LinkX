@@ -1,3 +1,6 @@
+/**
+ * 配置系统托盘、托盘菜单和窗口提醒行为。
+ */
 const { Tray, Menu, nativeImage, app } = require('electron')
 const path = require('path')
 const fs = require('fs')
@@ -5,7 +8,9 @@ const fs = require('fs')
 let tray = null
 let mainWindow = null
 let trayIcon = null
+let trayUnreadCount = 0
 const MAX_BALLOON_CONTENT_LENGTH = 160
+const TRAY_TOOLTIP_BASE = 'LinkX IM'
 
 function focusMainWindow() {
   if (!mainWindow || mainWindow.isDestroyed()) {
@@ -45,6 +50,7 @@ function normalizeBalloonContent(content) {
   return `${text.slice(0, MAX_BALLOON_CONTENT_LENGTH - 1)}...`
 }
 
+// 创建系统托盘图标和托盘菜单，支持最小化驻留与快速操作。
 function createTray(window) {
   mainWindow = window
 
@@ -59,7 +65,7 @@ function createTray(window) {
   trayIcon = icon
 
   tray = new Tray(icon)
-  tray.setToolTip('LinkX IM')
+  applyTrayTooltip()
 
   updateTrayMenu()
 
@@ -80,20 +86,50 @@ function createTray(window) {
   return tray
 }
 
+function applyTrayTooltip() {
+  if (!tray) {
+    return
+  }
+  if (trayUnreadCount > 0) {
+    tray.setToolTip(`${TRAY_TOOLTIP_BASE}（${trayUnreadCount > 99 ? '99+' : trayUnreadCount} 条未读）`)
+  } else {
+    tray.setToolTip(TRAY_TOOLTIP_BASE)
+  }
+}
+
+function setTrayUnreadCount(count) {
+  trayUnreadCount = Math.max(0, Math.min(999, Number(count) || 0))
+  applyTrayTooltip()
+  updateTrayMenu()
+}
+
 function updateTrayMenu() {
+  if (!tray) {
+    return
+  }
+  const unreadLabel = trayUnreadCount > 0
+    ? `未读消息：${trayUnreadCount > 99 ? '99+' : trayUnreadCount} 条`
+    : '暂无未读消息'
+
   const contextMenu = Menu.buildFromTemplate([
+    { label: unreadLabel, enabled: false },
+    { type: 'separator' },
     {
-      label: '显示窗口',
+      label: '显示主窗口',
+      click: () => focusMainWindow()
+    },
+    {
+      label: '打开聊天',
       click: () => {
-        if (mainWindow) {
-          mainWindow.show()
-          mainWindow.focus()
+        focusMainWindow()
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('tray:action', { action: 'open-chat' })
         }
       }
     },
     { type: 'separator' },
     {
-      label: '退出',
+      label: '退出 LinkX',
       click: () => {
         app.isQuitting = true
         app.quit()
@@ -131,4 +167,12 @@ function showTrayBalloon(title, body) {
   }
 }
 
-module.exports = { createTray, destroyTray, showTrayBalloon, startWindowAttention, stopWindowAttention }
+module.exports = {
+  createTray,
+  destroyTray,
+  showTrayBalloon,
+  startWindowAttention,
+  stopWindowAttention,
+  setTrayUnreadCount,
+  focusMainWindow
+}

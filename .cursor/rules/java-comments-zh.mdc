@@ -1,0 +1,15 @@
+---
+description: LinkX Java 中文注释规范（Javadoc + 关键行内说明）
+globs: **/*.java
+alwaysApply: false
+---
+
+# Java 中文注释规范
+
+- **语言**：注释与 Javadoc 使用简体中文。
+- **类/接口/枚举**：文件顶部必须有类级 `/** ... */`，说明职责、与上下游模块关系。
+- **public / protected 方法**：必须有 Javadoc，含 `@param`、`@return`（有返回值时）、业务副作用（事务、Redis、WS 推送）。
+- **DTO / Entity 字段**：每个业务字段一行 `/** ... */`；仅技术字段（如 `deleted`）可简短说明。
+- **常量**：`public static final` 需说明含义与使用场景。
+- **不写**：不对 `import`、单独大括号、Lombok 生成代码逐行加 `//`。
+- **复杂逻辑**：分支、幂等、事务提交后回调、安全校验处用行内 `//` 说明「为什么」。

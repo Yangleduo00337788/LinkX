@@ -1,3 +1,3 @@
-linkx:
-  security:
-    allowed-origin-patterns: ${LINKX_SECURITY_ALLOWED_ORIGIN_PATTERNS:}
+linkx:  # 行注：配置 LinkX 业务
+  security:  # 行注：配置安全
+    allowed-origin-patterns: ${LINKX_SECURITY_ALLOWED_ORIGIN_PATTERNS:}  # 行注：设置允许的来源模式

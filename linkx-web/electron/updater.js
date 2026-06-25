@@ -1,3 +1,6 @@
+/**
+ * 封装桌面端自动更新检查、下载与安装流程。
+ */
 const { autoUpdater } = require('electron-updater')
 const { app, ipcMain, dialog } = require('electron')
 

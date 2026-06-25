@@ -1,5 +1,9 @@
+/**
+ * 配置桌面端菜单结构与菜单事件。
+ */
 const { Menu, shell, app } = require('electron')
 
+// 构建桌面端应用菜单，并把菜单动作绑定到主窗口行为。
 function createMenu(mainWindow) {
   const template = [
     {

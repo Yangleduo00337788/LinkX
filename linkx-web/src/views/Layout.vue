@@ -1,601 +1,704 @@
+<!-- 行注：开始定义模板区域 -->
 <template>
+  <!-- 行注：渲染容器 -->
   <div class="app-layout">
+    <!-- 行注：渲染 TitleBar 组件 -->
     <TitleBar />
+    <!-- 行注：渲染容器 -->
     <div class="app-content">
+      <!-- 行注：渲染容器 -->
       <div class="sidebar">
+        <!-- 行注：渲染容器 -->
         <div class="sidebar-top">
+          <!-- 行注：渲染容器 -->
           <div class="sidebar-avatar" @click="goTo('profile')">
-            <img v-if="userStore.avatar" :src="userStore.avatar" class="sidebar-avatar-img" />
+            <!-- 行注：渲染图片 -->
+            <ProtectedImage v-if="userStore.avatar" :src="userStore.avatar" class="sidebar-avatar-img" />
+            <!-- 行注：渲染文本节点 -->
             <span v-else class="sidebar-avatar-text">{{ userStore.nickname?.charAt(0) || 'L' }}</span>
+          <!-- 行注：结束容器 -->
           </div>
+        <!-- 行注：结束容器 -->
         </div>
-
+        <!-- 行注：渲染容器 -->
         <div class="sidebar-menu">
+          <!-- 行注：渲染容器 -->
           <div
             class="sidebar-item"
             :class="{ active: currentTab === 'chat' }"
             @click="goTo('chat')"
           >
+            <!-- 行注：渲染容器 -->
             <div class="sidebar-icon">
+              <!-- 行注：渲染n-icon 节点 -->
               <n-icon size="22"><ChatbubblesOutline /></n-icon>
+            <!-- 行注：结束容器 -->
             </div>
+            <!-- 行注：展示“聊天”文案 -->
             <span class="sidebar-label">聊天</span>
+          <!-- 行注：结束容器 -->
           </div>
-
+          <!-- 行注：渲染容器 -->
           <div
             class="sidebar-item"
             :class="{ active: currentTab === 'friends' }"
             @click="goTo('friends')"
           >
+            <!-- 行注：渲染容器 -->
             <div class="sidebar-icon">
+              <!-- 行注：渲染n-icon 节点 -->
               <n-icon size="22"><PeopleOutline /></n-icon>
+            <!-- 行注：结束容器 -->
             </div>
+            <!-- 行注：展示“联系人”文案 -->
             <span class="sidebar-label">联系人</span>
+          <!-- 行注：结束容器 -->
           </div>
-
+          <!-- 行注：渲染容器 -->
           <div
             class="sidebar-item"
             :class="{ active: currentTab === 'files' }"
             @click="goTo('files')"
           >
+            <!-- 行注：渲染容器 -->
             <div class="sidebar-icon">
+              <!-- 行注：渲染n-icon 节点 -->
               <n-icon size="22"><FolderOpenOutline /></n-icon>
+            <!-- 行注：结束容器 -->
             </div>
+            <!-- 行注：展示“文件”文案 -->
             <span class="sidebar-label">文件</span>
+          <!-- 行注：结束容器 -->
           </div>
-
+          <!-- 行注：渲染容器 -->
           <div
             class="sidebar-item"
             :class="{ active: currentTab === 'blacklist' }"
             @click="goTo('blacklist')"
           >
+            <!-- 行注：渲染容器 -->
             <div class="sidebar-icon">
+              <!-- 行注：渲染n-icon 节点 -->
               <n-icon size="22"><BanOutline /></n-icon>
+            <!-- 行注：结束容器 -->
             </div>
+            <!-- 行注：展示“黑名单”文案 -->
             <span class="sidebar-label">黑名单</span>
+          <!-- 行注：结束容器 -->
           </div>
+        <!-- 行注：结束容器 -->
         </div>
-
+        <!-- 行注：渲染容器 -->
         <div class="sidebar-bottom">
+          <!-- 行注：渲染容器 -->
           <div class="sidebar-divider"></div>
+          <!-- 行注：渲染容器 -->
           <div class="sidebar-item logout" @click="handleLogout">
+            <!-- 行注：渲染容器 -->
             <div class="sidebar-icon">
+              <!-- 行注：渲染n-icon 节点 -->
               <n-icon size="20"><LogOutOutline /></n-icon>
+            <!-- 行注：结束容器 -->
             </div>
+          <!-- 行注：结束容器 -->
           </div>
+        <!-- 行注：结束容器 -->
         </div>
+      <!-- 行注：结束容器 -->
       </div>
-
+      <!-- 行注：渲染容器 -->
       <div class="main-content">
+        <!-- 行注：渲染路由视图 -->
         <router-view />
+      <!-- 行注：结束容器 -->
       </div>
+    <!-- 行注：结束容器 -->
     </div>
-
+    <!-- 行注：渲染 Teleport 组件 -->
     <Teleport to="body">
+      <!-- 行注：渲染容器 -->
       <div v-if="showProfile" class="profile-overlay" @click.self="showProfile = false">
+        <!-- 行注：渲染容器 -->
         <div class="profile-popup">
+          <!-- 行注：渲染按钮 -->
           <button class="profile-close" @click="showProfile = false">
+            <!-- 行注：渲染图标容器 -->
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <!-- 行注：补充图标线段 -->
               <line x1="18" y1="6" x2="6" y2="18"/>
+              <!-- 行注：补充图标线段 -->
               <line x1="6" y1="6" x2="18" y2="18"/>
+            <!-- 行注：结束图标容器 -->
             </svg>
+          <!-- 行注：结束按钮 -->
           </button>
+          <!-- 行注：渲染容器 -->
           <div class="profile-popup-header">
+            <!-- 行注：渲染容器 -->
             <div class="profile-popup-cover"></div>
+            <!-- 行注：渲染容器 -->
             <div class="profile-popup-avatar-wrapper">
+              <!-- 行注：渲染容器 -->
               <div class="profile-popup-avatar">
-                <img v-if="userStore.avatar" :src="userStore.avatar" class="profile-popup-avatar-img" />
+                <!-- 行注：渲染图片 -->
+                <ProtectedImage v-if="userStore.avatar" :src="userStore.avatar" class="profile-popup-avatar-img" />
+                <!-- 行注：渲染文本节点 -->
                 <span v-else>{{ userStore.nickname?.charAt(0) || '?' }}</span>
+              <!-- 行注：结束容器 -->
               </div>
+            <!-- 行注：结束容器 -->
             </div>
+          <!-- 行注：结束容器 -->
           </div>
+          <!-- 行注：渲染容器 -->
           <div class="profile-popup-content">
+            <!-- 行注：渲染容器 -->
             <div class="profile-popup-name">
+              <!-- 行注：渲染二级标题 -->
               <h2>{{ userStore.nickname || '未设置昵称' }}</h2>
+              <!-- 行注：展示“@{{ userStore.user”文案 -->
               <span class="profile-popup-username">@{{ userStore.username }}</span>
+            <!-- 行注：结束容器 -->
             </div>
+            <!-- 行注：渲染容器 -->
             <div class="profile-popup-info">
+              <!-- 行注：渲染容器 -->
               <div class="profile-popup-info-item">
+                <!-- 行注：展示“昵称”文案 -->
                 <span class="info-label">昵称</span>
+                <!-- 行注：渲染文本节点 -->
                 <span class="info-value">{{ profile.nickname || '-' }}</span>
+              <!-- 行注：结束容器 -->
               </div>
+              <!-- 行注：渲染容器 -->
               <div class="profile-popup-info-item">
+                <!-- 行注：展示“性别”文案 -->
                 <span class="info-label">性别</span>
+                <!-- 行注：渲染文本节点 -->
                 <span class="info-value">{{ profile.gender === 1 ? '男' : profile.gender === 2 ? '女' : '未知' }}</span>
+              <!-- 行注：结束容器 -->
               </div>
+              <!-- 行注：渲染容器 -->
               <div class="profile-popup-info-item">
+                <!-- 行注：展示“注册时间”文案 -->
                 <span class="info-label">注册时间</span>
+                <!-- 行注：渲染文本节点 -->
                 <span class="info-value">{{ profile.createTime?.substring(0, 10) || '-' }}</span>
+              <!-- 行注：结束容器 -->
               </div>
+              <!-- 行注：渲染容器 -->
               <div class="profile-popup-info-item">
+                <!-- 行注：展示“用户名”文案 -->
                 <span class="info-label">用户名</span>
+                <!-- 行注：渲染文本节点 -->
                 <span class="info-value">{{ profile.username }}</span>
+              <!-- 行注：结束容器 -->
               </div>
+            <!-- 行注：结束容器 -->
             </div>
+            <!-- 行注：渲染容器 -->
             <div class="profile-popup-theme">
+              <!-- 行注：展示“主题”文案 -->
               <span class="theme-label">主题</span>
+              <!-- 行注：渲染容器 -->
               <div class="theme-options">
+                <!-- 行注：展示“浅色”文案 -->
                 <button class="theme-btn" :class="{ active: themeMode === 'light' }" @click="setThemeMode('light')">浅色</button>
+                <!-- 行注：展示“深色”文案 -->
                 <button class="theme-btn" :class="{ active: themeMode === 'dark' }" @click="setThemeMode('dark')">深色</button>
+                <!-- 行注：展示“跟随系统”文案 -->
                 <button class="theme-btn" :class="{ active: themeMode === 'system' }" @click="setThemeMode('system')">跟随系统</button>
+              <!-- 行注：结束容器 -->
               </div>
+            <!-- 行注：结束容器 -->
             </div>
+          <!-- 行注：结束容器 -->
           </div>
+        <!-- 行注：结束容器 -->
         </div>
+      <!-- 行注：结束容器 -->
       </div>
+    <!-- 行注：结束Teleport 节点 -->
     </Teleport>
+  <!-- 行注：结束容器 -->
   </div>
+<!-- 行注：结束模板区域 -->
 </template>
-
+<!-- 行注：开始定义脚本逻辑区域 -->
 <script setup lang="ts">
+/**
+ * 主布局页面，提供侧边导航和公共应用壳层。
+ */
 import { ref, watch, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
-import { userApi } from '../api/client'
-import { NIcon, useMessage } from 'naive-ui'
-import { ChatbubblesOutline, PeopleOutline, FolderOpenOutline, BanOutline, LogOutOutline } from '@vicons/ionicons5'
-import TitleBar from '../components/TitleBar.vue'
-import { useTheme } from '../utils/theme'
+import ProtectedImage from '../components/ProtectedImage.vue'
+import { userApi } from '../api/client'  // 行注：引入 userApi 能力
+import { NIcon, useMessage } from 'naive-ui'  // 行注：引入 NIcon, useMessage 能力
+import { ChatbubblesOutline, PeopleOutline, FolderOpenOutline, BanOutline, LogOutOutline } from '@vicons/ionicons5'  // 行注：引入 ChatbubblesOutline, PeopleOutline, FolderOpenOutline, BanOutline, LogOutOutline 能力
+import TitleBar from '../components/TitleBar.vue'  // 行注：引入 TitleBar 组件
+import { useTheme } from '../utils/theme'  // 行注：引入 useTheme 能力
 
-const router = useRouter()
-const route = useRoute()
+const router = useRouter()  // 行注：获取路由实例
+const route = useRoute()  // 行注：获取 route 组合式能力
 const userStore = useUserStore()
 const message = useMessage()
-const currentTab = ref('chat')
-const showProfile = ref(false)
-const { mode: themeMode, setMode: setThemeMode } = useTheme()
-const profile = reactive({
-  username: '',
-  nickname: '',
-  gender: 0,
-  createTime: '',
-  avatar: ''
-})
+const currentTab = ref('chat')  // 行注：初始化 currentTab 响应式状态
+const showProfile = ref(false)  // 行注：初始化 showProfile 响应式状态
+const { mode: themeMode, setMode: setThemeMode } = useTheme()  // 行注：声明当前变量
+const profile = reactive({  // 行注：开始解构当前返回值
+  username: '',  // 行注：设置 username 配置项
+  nickname: '',  // 行注：设置 nickname 配置项
+  gender: 0,  // 行注：设置 gender 配置项
+  createTime: '',  // 行注：设置 createTime 配置项
+  avatar: ''  // 行注：设置 avatar 配置项
+})  // 行注：结束当前调用配置
 
-watch(() => route.path, (path) => {
-  if (path.startsWith('/chat')) currentTab.value = 'chat'
-  else if (path.startsWith('/groups')) currentTab.value = 'chat'
-  else if (path.startsWith('/friends')) currentTab.value = 'friends'
-  else if (path.startsWith('/files')) currentTab.value = 'files'
-  else if (path.startsWith('/blacklist')) currentTab.value = 'blacklist'
-  else if (path.startsWith('/profile')) currentTab.value = 'profile'
-}, { immediate: true })
+watch(() => route.path, (path) => {  // 行注：监听状态变化
+  if (path.startsWith('/chat')) currentTab.value = 'chat'  // 行注：判断当前条件是否成立
+  else if (path.startsWith('/groups')) currentTab.value = 'chat'  // 行注：继续判断其他分支条件
+  else if (path.startsWith('/friends')) currentTab.value = 'friends'  // 行注：继续判断其他分支条件
+  else if (path.startsWith('/files')) currentTab.value = 'files'  // 行注：继续判断其他分支条件
+  else if (path.startsWith('/blacklist')) currentTab.value = 'blacklist'  // 行注：继续判断其他分支条件
+  else if (path.startsWith('/profile')) currentTab.value = 'profile'  // 行注：继续判断其他分支条件
+}, { immediate: true })  // 行注：补充当前表达式
 
-watch(showProfile, async (val) => {
-  if (val) {
-    try {
-      const res: any = await userApi.getProfile()
-      const d = res.data
-      profile.username = d.username
-      profile.nickname = d.nickname
-      profile.gender = d.gender || 0
-      profile.createTime = d.createTime
-      profile.avatar = d.avatar || ''
-    } catch (e: any) {
-      console.error('loadProfilePreview error:', e)
-      message.error(e.response?.data?.message || '获取资料失败')
-    }
-  }
-})
+watch(showProfile, async (val) => {  // 行注：监听状态变化
+  if (val) {  // 行注：判断当前条件是否成立
+    try {  // 行注：尝试执行可能失败的逻辑
+      const res: any = await userApi.getProfile()  // 行注：接收 res 异步结果
+      const d = res.data  // 行注：初始化 d 变量
+      profile.username = d.username  // 行注：更新 profile.username 值
+      profile.nickname = d.nickname  // 行注：更新 profile.nickname 值
+      profile.gender = d.gender || 0  // 行注：更新 profile.gender 值
+      profile.createTime = d.createTime  // 行注：更新 profile.createTime 值
+      profile.avatar = d.avatar || ''  // 行注：更新 profile.avatar 值
+    } catch (e: any) {  // 行注：捕获并处理异常
+      console.error('loadProfilePreview error:', e)  // 行注：输出错误日志
+      message.error(e.response?.data?.message || '获取资料失败')  // 行注：提示错误信息
+    }  // 行注：结束当前代码块
+  }  // 行注：结束当前代码块
+})  // 行注：结束当前调用配置
 
-function goTo(tab: string) {
-  currentTab.value = tab
-  router.push(`/${tab}`)
-}
+function goTo(tab: string) {  // 行注：定义 goTo 方法
+  currentTab.value = tab  // 行注：更新 currentTab 状态
+  router.push(`/${tab}`)  // 行注：跳转到目标路由
+}  // 行注：结束当前代码块
 
-function handleLogout() {
-  userStore.logout()
-  router.push('/login')
-}
+function handleLogout() {  // 行注：定义 handleLogout 方法
+  userStore.logout()  // 行注：调用 logout 方法
+  router.push('/login')  // 行注：跳转到目标路由
+}  // 行注：结束当前代码块
 </script>
-
+<!-- 行注：开始定义样式区域 -->
 <style scoped>
-.app-layout {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-}
+.app-layout {  /* 行注：定义 .app-layout 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
+  height: 100vh;  /* 行注：设置 height 样式 */
+  height: 100dvh;  /* 行注：设置 height 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+}  /* 行注：结束当前样式块 */
 
-.app-content {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-}
+.app-content {  /* 行注：定义 .app-content 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  flex: 1;  /* 行注：设置 flex 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar {
-  width: var(--linkx-sidebar-width);
-  background: var(--linkx-sidebar-bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 12px 0;
-  border-right: 1px solid var(--linkx-border);
-  position: relative;
-  z-index: 10;
-}
+.sidebar {  /* 行注：定义 .sidebar 样式 */
+  width: var(--linkx-sidebar-width);  /* 行注：设置 width 样式 */
+  background: var(--linkx-sidebar-bg);  /* 行注：设置 background 样式 */
+  backdrop-filter: blur(12px);
+  display: flex;  /* 行注：设置 display 样式 */
+  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  padding: 12px 0;  /* 行注：设置 padding 样式 */
+  border-right: 1px solid var(--linkx-border);  /* 行注：设置 border-right 样式 */
+  position: relative;  /* 行注：设置 position 样式 */
+  z-index: 10;  /* 行注：设置 z-index 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-top {
-  margin-bottom: 16px;
-}
+.sidebar-top {  /* 行注：定义 .sidebar-top 样式 */
+  margin-bottom: 16px;  /* 行注：设置 margin-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-avatar {
-  width: 42px;
-  height: 42px;
-  border-radius: var(--linkx-radius);
-  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 18px;
-  font-weight: 700;
-  box-shadow: 0 4px 16px rgba(0, 214, 143, 0.3);
-  transition: var(--linkx-transition);
-  cursor: pointer;
-  overflow: hidden;
-}
+.sidebar-avatar {  /* 行注：定义 .sidebar-avatar 样式 */
+  width: 42px;  /* 行注：设置 width 样式 */
+  height: 42px;  /* 行注：设置 height 样式 */
+  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
+  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);  /* 行注：设置 background 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  color: white;  /* 行注：设置 color 样式 */
+  font-size: 18px;  /* 行注：设置 font-size 样式 */
+  font-weight: 700;  /* 行注：设置 font-weight 样式 */
+  box-shadow: 0 4px 16px rgba(0, 214, 143, 0.3);  /* 行注：设置 box-shadow 样式 */
+  transition: var(--linkx-transition);  /* 行注：设置 transition 样式 */
+  cursor: pointer;  /* 行注：设置 cursor 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-avatar:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 24px rgba(0, 214, 143, 0.4);
-}
+.sidebar-avatar:hover {  /* 行注：定义 .sidebar-avatar:hover 样式 */
+  transform: scale(1.05);  /* 行注：设置 transform 样式 */
+  box-shadow: 0 6px 24px rgba(0, 214, 143, 0.4);  /* 行注：设置 box-shadow 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.sidebar-avatar-img {  /* 行注：定义 .sidebar-avatar-img 样式 */
+  width: 100%;  /* 行注：设置 width 样式 */
+  height: 100%;  /* 行注：设置 height 样式 */
+  object-fit: cover;  /* 行注：设置 object-fit 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-avatar-text {
-  color: white;
-}
+.sidebar-avatar-text {  /* 行注：定义 .sidebar-avatar-text 样式 */
+  color: white;  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-menu {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-}
+.sidebar-menu {  /* 行注：定义 .sidebar-menu 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
+  gap: 4px;  /* 行注：设置 gap 样式 */
+  flex: 1;  /* 行注：设置 flex 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-item {
-  width: 52px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 0;
-  color: var(--linkx-text-secondary);
-  cursor: pointer;
-  transition: var(--linkx-transition);
-  position: relative;
-  border-radius: var(--linkx-radius);
-}
+.sidebar-item {  /* 行注：定义 .sidebar-item 样式 */
+  width: 52px;  /* 行注：设置 width 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  gap: 4px;  /* 行注：设置 gap 样式 */
+  padding: 10px 0;  /* 行注：设置 padding 样式 */
+  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
+  cursor: pointer;  /* 行注：设置 cursor 样式 */
+  transition: var(--linkx-transition);  /* 行注：设置 transition 样式 */
+  position: relative;  /* 行注：设置 position 样式 */
+  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-item:hover {
-  color: var(--linkx-text);
-}
+.sidebar-item:hover {  /* 行注：定义 .sidebar-item:hover 样式 */
+  color: var(--linkx-text);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-item.active {
-  color: var(--linkx-primary);
-}
+.sidebar-item.active {  /* 行注：定义 .sidebar-item.active 样式 */
+  color: var(--linkx-primary);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-icon {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--linkx-radius-sm);
-  transition: var(--linkx-transition);
-}
+.sidebar-icon {  /* 行注：定义 .sidebar-icon 样式 */
+  width: 36px;  /* 行注：设置 width 样式 */
+  height: 36px;  /* 行注：设置 height 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  border-radius: var(--linkx-radius-sm);  /* 行注：设置 border-radius 样式 */
+  transition: var(--linkx-transition);  /* 行注：设置 transition 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-item:hover .sidebar-icon {
-  background: var(--linkx-bg-hover);
-}
+.sidebar-item:hover .sidebar-icon {  /* 行注：定义 .sidebar-item:hover .sidebar-icon 样式 */
+  background: var(--linkx-bg-hover);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-item.active .sidebar-icon {
-  background: var(--linkx-primary-glow);
-}
+.sidebar-item.active .sidebar-icon {  /* 行注：定义 .sidebar-item.active .sidebar-icon 样式 */
+  background: var(--linkx-primary-glow);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-}
+.sidebar-label {  /* 行注：定义 .sidebar-label 样式 */
+  font-size: 10px;  /* 行注：设置 font-size 样式 */
+  font-weight: 600;  /* 行注：设置 font-weight 样式 */
+  letter-spacing: 0.3px;  /* 行注：设置 letter-spacing 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-bottom {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
+.sidebar-bottom {  /* 行注：定义 .sidebar-bottom 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  gap: 4px;  /* 行注：设置 gap 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-divider {
-  width: 24px;
-  height: 1px;
-  background: var(--linkx-border);
-  margin-bottom: 8px;
-}
+.sidebar-divider {  /* 行注：定义 .sidebar-divider 样式 */
+  width: 24px;  /* 行注：设置 width 样式 */
+  height: 1px;  /* 行注：设置 height 样式 */
+  background: var(--linkx-border);  /* 行注：设置 background 样式 */
+  margin-bottom: 8px;  /* 行注：设置 margin-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-item.logout {
-  color: var(--linkx-text-muted);
-}
+.sidebar-item.logout {  /* 行注：定义 .sidebar-item.logout 样式 */
+  color: var(--linkx-text-muted);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-item.logout:hover {
-  color: var(--linkx-error);
-}
+.sidebar-item.logout:hover {  /* 行注：定义 .sidebar-item.logout:hover 样式 */
+  color: var(--linkx-error);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.sidebar-item.logout:hover .sidebar-icon {
-  background: rgba(255, 61, 113, 0.1);
-}
+.sidebar-item.logout:hover .sidebar-icon {  /* 行注：定义 .sidebar-item.logout:hover .sidebar-icon 样式 */
+  background: rgba(255, 61, 113, 0.1);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.main-content {
-  flex: 1;
-  overflow: hidden;
-  background: var(--linkx-bg);
-  min-width: 0;
-  min-height: 0;
-}
+.main-content {  /* 行注：定义 .main-content 样式 */
+  flex: 1;  /* 行注：设置 flex 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
+  min-width: 0;  /* 行注：设置 min-width 样式 */
+  min-height: 0;  /* 行注：设置 min-height 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
+.profile-overlay {  /* 行注：定义 .profile-overlay 样式 */
+  position: fixed;  /* 行注：设置 position 样式 */
+  inset: 0;  /* 行注：设置 inset 样式 */
+  background: rgba(0, 0, 0, 0.5);  /* 行注：设置 background 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  z-index: 1000;  /* 行注：设置 z-index 样式 */
+  backdrop-filter: blur(4px);  /* 行注：设置 backdrop-filter 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup {
-  width: min(360px, calc(100vw - 24px));
-  max-height: calc(100vh - 32px);
-  background: var(--linkx-bg-card);
-  border-radius: var(--linkx-radius-lg);
-  overflow: hidden;
-  border: 1px solid var(--linkx-border);
-  box-shadow: var(--linkx-shadow-lg);
-  position: relative;
-  overflow-y: auto;
-}
+.profile-popup {  /* 行注：定义 .profile-popup 样式 */
+  width: min(360px, calc(100vw - 24px));  /* 行注：设置 width 样式 */
+  max-height: calc(100vh - 32px);  /* 行注：设置 max-height 样式 */
+  background: var(--linkx-bg-card);  /* 行注：设置 background 样式 */
+  border-radius: var(--linkx-radius-lg);  /* 行注：设置 border-radius 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+  border: 1px solid var(--linkx-border);  /* 行注：设置 border 样式 */
+  box-shadow: var(--linkx-shadow-lg);  /* 行注：设置 box-shadow 样式 */
+  position: relative;  /* 行注：设置 position 样式 */
+  overflow-y: auto;  /* 行注：设置 overflow-y 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.3);
-  border: none;
-  border-radius: 50%;
-  color: white;
-  cursor: pointer;
-  z-index: 10;
-  transition: var(--linkx-transition);
-}
+.profile-close {  /* 行注：定义 .profile-close 样式 */
+  position: absolute;  /* 行注：设置 position 样式 */
+  top: 12px;  /* 行注：设置 top 样式 */
+  right: 12px;  /* 行注：设置 right 样式 */
+  width: 32px;  /* 行注：设置 width 样式 */
+  height: 32px;  /* 行注：设置 height 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  background: rgba(0, 0, 0, 0.3);  /* 行注：设置 background 样式 */
+  border: none;  /* 行注：设置 border 样式 */
+  border-radius: 50%;  /* 行注：设置 border-radius 样式 */
+  color: white;  /* 行注：设置 color 样式 */
+  cursor: pointer;  /* 行注：设置 cursor 样式 */
+  z-index: 10;  /* 行注：设置 z-index 样式 */
+  transition: var(--linkx-transition);  /* 行注：设置 transition 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-close:hover {
-  background: rgba(0, 0, 0, 0.5);
-}
+.profile-close:hover {  /* 行注：定义 .profile-close:hover 样式 */
+  background: rgba(0, 0, 0, 0.5);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-header {
-  position: relative;
-  height: 90px;
-}
+.profile-popup-header {  /* 行注：定义 .profile-popup-header 样式 */
+  position: relative;  /* 行注：设置 position 样式 */
+  height: 90px;  /* 行注：设置 height 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-cover {
-  height: 100%;
-  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 50%, #0095ff 100%);
-}
+.profile-popup-cover {  /* 行注：定义 .profile-popup-cover 样式 */
+  height: 100%;  /* 行注：设置 height 样式 */
+  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 50%, #0095ff 100%);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-avatar-wrapper {
-  position: absolute;
-  bottom: -36px;
-  left: 50%;
-  transform: translateX(-50%);
-}
+.profile-popup-avatar-wrapper {  /* 行注：定义 .profile-popup-avatar-wrapper 样式 */
+  position: absolute;  /* 行注：设置 position 样式 */
+  bottom: -36px;  /* 行注：设置 bottom 样式 */
+  left: 50%;  /* 行注：设置 left 样式 */
+  transform: translateX(-50%);  /* 行注：设置 transform 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-avatar {
-  width: 72px;
-  height: 72px;
-  border-radius: var(--linkx-radius-lg);
-  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  font-weight: 700;
-  color: white;
-  border: 4px solid var(--linkx-bg-card);
-  box-shadow: 0 4px 16px var(--linkx-primary-glow);
-  overflow: hidden;
-}
+.profile-popup-avatar {  /* 行注：定义 .profile-popup-avatar 样式 */
+  width: 72px;  /* 行注：设置 width 样式 */
+  height: 72px;  /* 行注：设置 height 样式 */
+  border-radius: var(--linkx-radius-lg);  /* 行注：设置 border-radius 样式 */
+  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);  /* 行注：设置 background 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  font-size: 28px;  /* 行注：设置 font-size 样式 */
+  font-weight: 700;  /* 行注：设置 font-weight 样式 */
+  color: white;  /* 行注：设置 color 样式 */
+  border: 4px solid var(--linkx-bg-card);  /* 行注：设置 border 样式 */
+  box-shadow: 0 4px 16px var(--linkx-primary-glow);  /* 行注：设置 box-shadow 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.profile-popup-avatar-img {  /* 行注：定义 .profile-popup-avatar-img 样式 */
+  width: 100%;  /* 行注：设置 width 样式 */
+  height: 100%;  /* 行注：设置 height 样式 */
+  object-fit: cover;  /* 行注：设置 object-fit 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-content {
-  padding: 44px 20px 20px;
-}
+.profile-popup-content {  /* 行注：定义 .profile-popup-content 样式 */
+  padding: 44px 20px 20px;  /* 行注：设置 padding 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-name {
-  text-align: center;
-  margin-bottom: 16px;
-}
+.profile-popup-name {  /* 行注：定义 .profile-popup-name 样式 */
+  text-align: center;  /* 行注：设置 text-align 样式 */
+  margin-bottom: 16px;  /* 行注：设置 margin-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-name h2 {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--linkx-text);
-  margin-bottom: 2px;
-}
+.profile-popup-name h2 {  /* 行注：定义 .profile-popup-name h2 样式 */
+  font-size: 18px;  /* 行注：设置 font-size 样式 */
+  font-weight: 700;  /* 行注：设置 font-weight 样式 */
+  color: var(--linkx-text);  /* 行注：设置 color 样式 */
+  margin-bottom: 2px;  /* 行注：设置 margin-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-username {
-  font-size: 13px;
-  color: var(--linkx-text-secondary);
-}
+.profile-popup-username {  /* 行注：定义 .profile-popup-username 样式 */
+  font-size: 13px;  /* 行注：设置 font-size 样式 */
+  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-info {
-  background: var(--linkx-bg);
-  border-radius: var(--linkx-radius);
-  overflow: hidden;
-  margin-bottom: 12px;
-}
+.profile-popup-info {  /* 行注：定义 .profile-popup-info 样式 */
+  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
+  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+  margin-bottom: 12px;  /* 行注：设置 margin-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-info-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-}
+.profile-popup-info-item {  /* 行注：定义 .profile-popup-info-item 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: space-between;  /* 行注：设置 justify-content 样式 */
+  padding: 12px 16px;  /* 行注：设置 padding 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-info-item:not(:last-child) {
-  border-bottom: 1px solid var(--linkx-border);
-}
+.profile-popup-info-item:not(:last-child) {  /* 行注：定义 .profile-popup-info-item:not(:last-child) 样式 */
+  border-bottom: 1px solid var(--linkx-border);  /* 行注：设置 border-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.info-label {
-  font-size: 13px;
-  color: var(--linkx-text-secondary);
-}
+.info-label {  /* 行注：定义 .info-label 样式 */
+  font-size: 13px;  /* 行注：设置 font-size 样式 */
+  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.info-value {
-  font-size: 13px;
-  color: var(--linkx-text);
-}
+.info-value {  /* 行注：定义 .info-value 样式 */
+  font-size: 13px;  /* 行注：设置 font-size 样式 */
+  color: var(--linkx-text);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.profile-popup-theme {
-  background: var(--linkx-bg);
-  border-radius: var(--linkx-radius);
-  padding: 12px 16px;
-}
+.profile-popup-theme {  /* 行注：定义 .profile-popup-theme 样式 */
+  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
+  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
+  padding: 12px 16px;  /* 行注：设置 padding 样式 */
+}  /* 行注：结束当前样式块 */
 
-.theme-label {
-  font-size: 13px;
-  color: var(--linkx-text-secondary);
-  display: block;
-  margin-bottom: 8px;
-}
+.theme-label {  /* 行注：定义 .theme-label 样式 */
+  font-size: 13px;  /* 行注：设置 font-size 样式 */
+  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
+  display: block;  /* 行注：设置 display 样式 */
+  margin-bottom: 8px;  /* 行注：设置 margin-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.theme-options {
-  display: flex;
-  gap: 8px;
-}
+.theme-options {  /* 行注：定义 .theme-options 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  gap: 8px;  /* 行注：设置 gap 样式 */
+}  /* 行注：结束当前样式块 */
 
-.theme-btn {
-  flex: 1;
-  padding: 8px;
-  background: var(--linkx-bg-card);
-  border: 1px solid var(--linkx-border);
-  border-radius: var(--linkx-radius-sm);
-  color: var(--linkx-text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-  transition: var(--linkx-transition-fast);
-}
+.theme-btn {  /* 行注：定义 .theme-btn 样式 */
+  flex: 1;  /* 行注：设置 flex 样式 */
+  padding: 8px;  /* 行注：设置 padding 样式 */
+  background: var(--linkx-bg-card);  /* 行注：设置 background 样式 */
+  border: 1px solid var(--linkx-border);  /* 行注：设置 border 样式 */
+  border-radius: var(--linkx-radius-sm);  /* 行注：设置 border-radius 样式 */
+  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
+  font-size: 12px;  /* 行注：设置 font-size 样式 */
+  cursor: pointer;  /* 行注：设置 cursor 样式 */
+  transition: var(--linkx-transition-fast);  /* 行注：设置 transition 样式 */
+}  /* 行注：结束当前样式块 */
 
-.theme-btn:hover {
-  border-color: var(--linkx-primary);
-  color: var(--linkx-text);
-}
+.theme-btn:hover {  /* 行注：定义 .theme-btn:hover 样式 */
+  border-color: var(--linkx-primary);  /* 行注：设置 border-color 样式 */
+  color: var(--linkx-text);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.theme-btn.active {
-  border-color: var(--linkx-primary);
-  background: var(--linkx-primary-glow);
-  color: var(--linkx-primary);
-}
+.theme-btn.active {  /* 行注：定义 .theme-btn.active 样式 */
+  border-color: var(--linkx-primary);  /* 行注：设置 border-color 样式 */
+  background: var(--linkx-primary-glow);  /* 行注：设置 background 样式 */
+  color: var(--linkx-primary);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-@media (max-width: 760px) {
-  .app-content {
-    flex-direction: column-reverse;
-  }
+@media (max-width: 760px) {  /* 行注：声明响应式样式区块 */
+  .app-content {  /* 行注：定义 .app-content 样式 */
+    flex-direction: column-reverse;  /* 行注：设置 flex-direction 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .sidebar {
-    width: 100%;
-    min-height: 72px;
-    flex-direction: row;
-    justify-content: space-between;
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
-    border-right: none;
-    border-top: 1px solid var(--linkx-border);
-  }
+  .sidebar {  /* 行注：定义 .sidebar 样式 */
+    width: 100%;  /* 行注：设置 width 样式 */
+    min-height: 72px;  /* 行注：设置 min-height 样式 */
+    flex-direction: row;  /* 行注：设置 flex-direction 样式 */
+    justify-content: space-between;  /* 行注：设置 justify-content 样式 */
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));  /* 行注：设置 padding 样式 */
+    border-right: none;  /* 行注：设置 border-right 样式 */
+    border-top: 1px solid var(--linkx-border);  /* 行注：设置 border-top 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .sidebar-top,
-  .sidebar-bottom {
-    margin: 0;
-    display: flex;
-    align-items: center;
-  }
+  .sidebar-top,  /* 行注：补充 .sidebar-top 选择器 */
+  .sidebar-bottom {  /* 行注：定义 .sidebar-bottom 样式 */
+    margin: 0;  /* 行注：设置 margin 样式 */
+    display: flex;  /* 行注：设置 display 样式 */
+    align-items: center;  /* 行注：设置 align-items 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .sidebar-menu {
-    flex: 1;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    min-width: 0;
-  }
+  .sidebar-menu {  /* 行注：定义 .sidebar-menu 样式 */
+    flex: 1;  /* 行注：设置 flex 样式 */
+    flex-direction: row;  /* 行注：设置 flex-direction 样式 */
+    align-items: center;  /* 行注：设置 align-items 样式 */
+    justify-content: center;  /* 行注：设置 justify-content 样式 */
+    gap: 8px;  /* 行注：设置 gap 样式 */
+    min-width: 0;  /* 行注：设置 min-width 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .sidebar-item {
-    width: 60px;
-    padding: 6px 0;
-  }
+  .sidebar-item {  /* 行注：定义 .sidebar-item 样式 */
+    width: 60px;  /* 行注：设置 width 样式 */
+    padding: 6px 0;  /* 行注：设置 padding 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .sidebar-divider {
-    display: none;
-  }
+  .sidebar-divider {  /* 行注：定义 .sidebar-divider 样式 */
+    display: none;  /* 行注：设置 display 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .main-content {
-    min-height: 0;
-  }
+  .main-content {  /* 行注：定义 .main-content 样式 */
+    min-height: 0;  /* 行注：设置 min-height 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .profile-popup-content {
-    padding: 44px 16px 16px;
-  }
+  .profile-popup-content {  /* 行注：定义 .profile-popup-content 样式 */
+    padding: 44px 16px 16px;  /* 行注：设置 padding 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .theme-options {
-    flex-wrap: wrap;
-  }
+  .theme-options {  /* 行注：定义 .theme-options 样式 */
+    flex-wrap: wrap;  /* 行注：设置 flex-wrap 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .theme-btn {
-    min-width: 84px;
-  }
-}
+  .theme-btn {  /* 行注：定义 .theme-btn 样式 */
+    min-width: 84px;  /* 行注：设置 min-width 样式 */
+  }  /* 行注：结束当前样式块 */
+}  /* 行注：结束当前样式块 */
 
-@media (max-width: 520px) {
-  .sidebar {
-    padding-inline: 8px;
-  }
+@media (max-width: 520px) {  /* 行注：声明响应式样式区块 */
+  .sidebar {  /* 行注：定义 .sidebar 样式 */
+    padding-inline: 8px;  /* 行注：设置 padding-inline 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .sidebar-item {
-    width: 54px;
-  }
+  .sidebar-item {  /* 行注：定义 .sidebar-item 样式 */
+    width: 54px;  /* 行注：设置 width 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .sidebar-label {
-    font-size: 9px;
-  }
+  .sidebar-label {  /* 行注：定义 .sidebar-label 样式 */
+    font-size: 9px;  /* 行注：设置 font-size 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .profile-popup {
-    width: calc(100vw - 16px);
-    max-height: calc(100vh - 16px);
-  }
+  .profile-popup {  /* 行注：定义 .profile-popup 样式 */
+    width: calc(100vw - 16px);  /* 行注：设置 width 样式 */
+    max-height: calc(100vh - 16px);  /* 行注：设置 max-height 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .profile-popup-info-item {
-    align-items: flex-start;
-    gap: 12px;
-  }
+  .profile-popup-info-item {  /* 行注：定义 .profile-popup-info-item 样式 */
+    align-items: flex-start;  /* 行注：设置 align-items 样式 */
+    gap: 12px;  /* 行注：设置 gap 样式 */
+  }  /* 行注：结束当前样式块 */
 
-  .info-value {
-    text-align: right;
-    word-break: break-word;
-  }
-}
+  .info-value {  /* 行注：定义 .info-value 样式 */
+    text-align: right;  /* 行注：设置 text-align 样式 */
+    word-break: break-word;  /* 行注：设置 word-break 样式 */
+  }  /* 行注：结束当前样式块 */
+}  /* 行注：结束当前样式块 */
 </style>

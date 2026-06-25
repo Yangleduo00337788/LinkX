@@ -1,109 +1,208 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<!-- 行注：声明 XML 文档版本与编码 -->
+<!-- 行注：开始定义项目根节点 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <!-- 行注：设置modelVersion -->
     <modelVersion>4.0.0</modelVersion>
-
+    <!-- 行注：开始定义父工程 -->
     <parent>
+        <!-- 行注：设置groupId -->
         <groupId>com.linkx</groupId>
+        <!-- 行注：设置artifactId -->
         <artifactId>linkx</artifactId>
+        <!-- 行注：设置版本 -->
         <version>1.0.0-SNAPSHOT</version>
+    <!-- 行注：结束父工程 -->
     </parent>
-
+    <!-- 行注：设置artifactId -->
     <artifactId>linkx-server</artifactId>
+    <!-- 行注：设置项目名称 -->
     <name>LinkX Server</name>
-
+    <!-- 行注：开始定义依赖列表 -->
     <dependencies>
+        <!-- 行注：保留原有说明注释 -->
         <!-- Spring Boot -->
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>org.springframework.boot</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>spring-boot-starter-web</artifactId>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>org.springframework.boot</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>spring-boot-starter-security</artifactId>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>org.springframework.boot</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>spring-boot-starter-data-redis</artifactId>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>org.springframework.boot</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>spring-boot-starter-validation</artifactId>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>org.springframework.boot</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>spring-boot-starter-websocket</artifactId>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
-
+        <!-- 行注：保留原有说明注释 -->
         <!-- MyBatis-Plus -->
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>com.baomidou</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+            <!-- 行注：设置版本 -->
             <version>${mybatis-plus.version}</version>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
-
+        <!-- 行注：保留原有说明注释 -->
         <!-- MySQL -->
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>com.mysql</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>mysql-connector-j</artifactId>
+            <!-- 行注：设置作用域 -->
             <scope>runtime</scope>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
-
+        <!-- 行注：保留原有说明注释 -->
         <!-- JWT -->
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>io.jsonwebtoken</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>jjwt-api</artifactId>
+            <!-- 行注：设置版本 -->
             <version>${jjwt.version}</version>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>io.jsonwebtoken</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>jjwt-impl</artifactId>
+            <!-- 行注：设置版本 -->
             <version>${jjwt.version}</version>
+            <!-- 行注：设置作用域 -->
             <scope>runtime</scope>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>io.jsonwebtoken</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>jjwt-jackson</artifactId>
+            <!-- 行注：设置版本 -->
             <version>${jjwt.version}</version>
+            <!-- 行注：设置作用域 -->
             <scope>runtime</scope>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
-
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>${minio.version}</version>
+        </dependency>
+        <!-- 行注：保留原有说明注释 -->
         <!-- Lombok -->
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>org.projectlombok</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>lombok</artifactId>
+            <!-- 行注：设置可选标记 -->
             <optional>true</optional>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
-
+        <!-- 行注：保留原有说明注释 -->
         <!-- Test -->
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>org.springframework.boot</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>spring-boot-starter-test</artifactId>
+            <!-- 行注：设置作用域 -->
             <scope>test</scope>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
+        <!-- 行注：开始定义单个依赖 -->
         <dependency>
+            <!-- 行注：设置groupId -->
             <groupId>com.h2database</groupId>
+            <!-- 行注：设置artifactId -->
             <artifactId>h2</artifactId>
+            <!-- 行注：设置作用域 -->
             <scope>test</scope>
+        <!-- 行注：结束单个依赖 -->
         </dependency>
+    <!-- 行注：结束依赖列表 -->
     </dependencies>
-
+    <!-- 行注：开始定义构建配置 -->
     <build>
+        <!-- 行注：开始定义插件列表 -->
         <plugins>
+            <!-- 行注：开始定义插件 -->
             <plugin>
+                <!-- 行注：设置groupId -->
                 <groupId>org.springframework.boot</groupId>
+                <!-- 行注：设置artifactId -->
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!-- 行注：设置版本 -->
                 <version>${spring-boot.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <!-- 行注：开始定义配置项 -->
                 <configuration>
+                    <!-- 行注：开始定义排除列表 -->
                     <excludes>
+                        <!-- 行注：开始定义排除项 -->
                         <exclude>
+                            <!-- 行注：设置groupId -->
                             <groupId>org.projectlombok</groupId>
+                            <!-- 行注：设置artifactId -->
                             <artifactId>lombok</artifactId>
+                        <!-- 行注：结束排除项 -->
                         </exclude>
+                    <!-- 行注：结束排除列表 -->
                     </excludes>
+                <!-- 行注：结束配置项 -->
                 </configuration>
+            <!-- 行注：结束插件 -->
             </plugin>
+        <!-- 行注：结束插件列表 -->
         </plugins>
+    <!-- 行注：结束构建配置 -->
     </build>
+<!-- 行注：结束项目根节点 -->
 </project>

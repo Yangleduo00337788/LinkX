@@ -1,23 +1,37 @@
-package com.linkx.server.module.group.dto;
+package com.linkx.server.module.group.dto;  // 行注：声明当前文件所在包 com.linkx.server.module.group.dto
 
-import lombok.Data;
+import lombok.Data;  // 行注：引入 Data 类型
 
-import java.time.LocalDateTime;
+import java.time.LocalDateTime;  // 行注：引入 LocalDateTime 类型
 
 /** 待处理的入群/邀请申请。 */
-@Data
+@Data  // 行注：应用 @Data 注解
+// 行注：定义 GroupRequestDTO 类
 public class GroupRequestDTO {
-    private Long id;
-    private Long groupId;
-    private String groupName;
-    private String groupAvatar;
-    private Long fromUserId;
-    private String fromUsername;
-    private String fromNickname;
-    private String fromAvatar;
-    private Long toUserId;
-    private Integer requestType;
-    private String message;
-    private Integer status;
-    private LocalDateTime createTime;
-}
+    /** 主键 ID */
+    private Long id;  // 行注：声明ID字段
+    /** 群 ID */
+    private Long groupId;  // 行注：声明群ID字段
+    /** 群名称 */
+    private String groupName;  // 行注：声明群名称字段
+    /** 群头像 URL */
+    private String groupAvatar;  // 行注：声明群头像字段
+    /** 发起方用户 ID */
+    private Long fromUserId;  // 行注：声明用户ID字段
+    /** 发起方用户名 */
+    private String fromUsername;  // 行注：声明Username字段
+    /** 发起方昵称 */
+    private String fromNickname;  // 行注：声明Nickname字段
+    /** 发起方头像 URL */
+    private String fromAvatar;  // 行注：声明头像字段
+    /** 目标用户 ID */
+    private Long toUserId;  // 行注：声明转为用户ID字段
+    /** 申请类型 */
+    private Integer requestType;  // 行注：声明请求类型字段
+    /** 申请或消息附言 */
+    private String message;  // 行注：声明消息字段
+    /** 状态 */
+    private Integer status;  // 行注：声明状态字段
+    /** 创建时间 */
+    private LocalDateTime createTime;  // 行注：声明创建时间字段
+}  // 行注：结束当前代码块

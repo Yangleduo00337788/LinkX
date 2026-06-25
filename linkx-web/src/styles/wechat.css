@@ -3,162 +3,329 @@
    ============================================ */
 
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+  margin: 0;  /* 行注：设置 margin 样式 */
+  padding: 0;  /* 行注：设置 padding 样式 */
+  box-sizing: border-box;  /* 行注：设置 box-sizing 样式 */
+}  /* 行注：结束当前样式块 */
 
-:root {
+:root {  /* 行注：定义 :root 样式 */
   /* Primary Colors */
-  --linkx-primary: #00d68f;
-  --linkx-primary-hover: #00e69d;
-  --linkx-primary-pressed: #00b377;
-  --linkx-primary-suppl: #00c9a7;
-  --linkx-primary-glow: rgba(0, 214, 143, 0.15);
-  --linkx-primary-glow-strong: rgba(0, 214, 143, 0.25);
+  --linkx-primary: #00d68f;  /* 行注：设置 CSS 变量 --linkx-primary */
+  --linkx-primary-hover: #00e69d;  /* 行注：设置 CSS 变量 --linkx-primary-hover */
+  --linkx-primary-pressed: #00b377;  /* 行注：设置 CSS 变量 --linkx-primary-pressed */
+  --linkx-primary-suppl: #00c9a7;  /* 行注：设置 CSS 变量 --linkx-primary-suppl */
+  --linkx-primary-glow: rgba(0, 214, 143, 0.15);  /* 行注：设置 CSS 变量 --linkx-primary-glow */
+  --linkx-primary-glow-strong: rgba(0, 214, 143, 0.25);  /* 行注：设置 CSS 变量 --linkx-primary-glow-strong */
 
   /* Radius */
-  --linkx-radius-xs: 6px;
-  --linkx-radius-sm: 8px;
-  --linkx-radius: 12px;
-  --linkx-radius-lg: 16px;
-  --linkx-radius-xl: 20px;
-  --linkx-radius-full: 9999px;
+  --linkx-radius-xs: 6px;  /* 行注：设置 CSS 变量 --linkx-radius-xs */
+  --linkx-radius-sm: 8px;  /* 行注：设置 CSS 变量 --linkx-radius-sm */
+  --linkx-radius: 12px;  /* 行注：设置 CSS 变量 --linkx-radius */
+  --linkx-radius-lg: 16px;  /* 行注：设置 CSS 变量 --linkx-radius-lg */
+  --linkx-radius-xl: 20px;  /* 行注：设置 CSS 变量 --linkx-radius-xl */
+  --linkx-radius-full: 9999px;  /* 行注：设置 CSS 变量 --linkx-radius-full */
 
   /* Status */
-  --linkx-success: #00d68f;
-  --linkx-warning: #ffaa00;
-  --linkx-error: #ff3d71;
-  --linkx-info: #0095ff;
+  --linkx-success: #00d68f;  /* 行注：设置 CSS 变量 --linkx-success */
+  --linkx-warning: #ffaa00;  /* 行注：设置 CSS 变量 --linkx-warning */
+  --linkx-error: #ff3d71;  /* 行注：设置 CSS 变量 --linkx-error */
+  --linkx-info: #0095ff;  /* 行注：设置 CSS 变量 --linkx-info */
 
   /* Shadows */
-  --linkx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);
-  --linkx-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  --linkx-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.2);
+  --linkx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.1);  /* 行注：设置 CSS 变量 --linkx-shadow-sm */
+  --linkx-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);  /* 行注：设置 CSS 变量 --linkx-shadow */
+  --linkx-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.2);  /* 行注：设置 CSS 变量 --linkx-shadow-lg */
 
   /* Transitions */
-  --linkx-transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  --linkx-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --linkx-transition-slow: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  --linkx-transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);  /* 行注：设置 CSS 变量 --linkx-transition-fast */
+  --linkx-transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);  /* 行注：设置 CSS 变量 --linkx-transition */
+  --linkx-transition-slow: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);  /* 行注：设置 CSS 变量 --linkx-transition-slow */
 
   /* Sidebar */
-  --linkx-sidebar-width: 68px;
-}
+  --linkx-sidebar-width: 72px;
+
+  /* Brand gradients */
+  --linkx-gradient-brand: linear-gradient(135deg, #00d68f 0%, #00b894 48%, #00a381 100%);
+  --linkx-gradient-brand-soft: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
+  --linkx-gradient-mesh-dark: radial-gradient(ellipse 120% 80% at 0% 0%, rgba(0, 214, 143, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse 80% 60% at 100% 100%, rgba(0, 149, 255, 0.04) 0%, transparent 45%);
+  --linkx-gradient-mesh-light: radial-gradient(ellipse 100% 70% at 0% 0%, rgba(0, 214, 143, 0.08) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 100% 80%, rgba(0, 149, 255, 0.05) 0%, transparent 50%);
+  --linkx-avatar-gradient: var(--linkx-gradient-brand-soft);
+}  /* 行注：结束当前样式块 */
 
 /* Dark Theme (default) */
 [data-theme="dark"] {
-  --linkx-bg: #0f0f12;
-  --linkx-bg-card: #18181d;
-  --linkx-bg-hover: #1f1f26;
-  --linkx-bg-active: #25252d;
-  --linkx-bg-input: #1a1a22;
-  --linkx-bg-elevated: #1e1e27;
-  --linkx-sidebar-bg: rgba(15, 15, 18, 0.95);
-  --linkx-text: #f0f0f5;
-  --linkx-text-secondary: #8b8b96;
-  --linkx-text-muted: #5a5a66;
-  --linkx-border: rgba(255, 255, 255, 0.06);
-  --linkx-border-light: rgba(255, 255, 255, 0.03);
-  --linkx-bubble-self: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
-  --linkx-bubble-self-text: #ffffff;
-  --linkx-bubble-other: #1e1e27;
-  --linkx-bubble-other-text: #e8e8ed;
-  --linkx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --linkx-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  --linkx-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.35);
-}
+  --linkx-bg: #0c0c0f;
+  --linkx-bg-card: #16161c;
+  --linkx-bg-hover: #1f1f26;  /* 行注：设置 CSS 变量 --linkx-bg-hover */
+  --linkx-bg-active: #25252d;  /* 行注：设置 CSS 变量 --linkx-bg-active */
+  --linkx-bg-input: #1a1a22;  /* 行注：设置 CSS 变量 --linkx-bg-input */
+  --linkx-bg-elevated: #1e1e27;  /* 行注：设置 CSS 变量 --linkx-bg-elevated */
+  --linkx-sidebar-bg: rgba(15, 15, 18, 0.95);  /* 行注：设置 CSS 变量 --linkx-sidebar-bg */
+  --linkx-text: #f0f0f5;  /* 行注：设置 CSS 变量 --linkx-text */
+  --linkx-text-secondary: #8b8b96;  /* 行注：设置 CSS 变量 --linkx-text-secondary */
+  --linkx-text-muted: #5a5a66;  /* 行注：设置 CSS 变量 --linkx-text-muted */
+  --linkx-border: rgba(255, 255, 255, 0.06);  /* 行注：设置 CSS 变量 --linkx-border */
+  --linkx-border-light: rgba(255, 255, 255, 0.03);  /* 行注：设置 CSS 变量 --linkx-border-light */
+  --linkx-bubble-self: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);  /* 行注：设置 CSS 变量 --linkx-bubble-self */
+  --linkx-bubble-self-text: #ffffff;  /* 行注：设置 CSS 变量 --linkx-bubble-self-text */
+  --linkx-bubble-other: #1e1e27;  /* 行注：设置 CSS 变量 --linkx-bubble-other */
+  --linkx-bubble-other-text: #e8e8ed;  /* 行注：设置 CSS 变量 --linkx-bubble-other-text */
+  --linkx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);  /* 行注：设置 CSS 变量 --linkx-shadow-sm */
+  --linkx-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);  /* 行注：设置 CSS 变量 --linkx-shadow */
+  --linkx-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.35);  /* 行注：设置 CSS 变量 --linkx-shadow-lg */
+}  /* 行注：结束当前样式块 */
 
 /* Light Theme */
-[data-theme="light"] {
-  --linkx-bg: #f5f5f7;
-  --linkx-bg-card: #ffffff;
-  --linkx-bg-hover: #f0f0f2;
-  --linkx-bg-active: #e8e8ec;
-  --linkx-bg-input: #f0f0f2;
-  --linkx-bg-elevated: #ffffff;
-  --linkx-sidebar-bg: rgba(255, 255, 255, 0.95);
-  --linkx-text: #1a1a2e;
-  --linkx-text-secondary: #6b6b76;
-  --linkx-text-muted: #9b9ba6;
-  --linkx-border: rgba(0, 0, 0, 0.08);
-  --linkx-border-light: rgba(0, 0, 0, 0.04);
-  --linkx-bubble-self: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
-  --linkx-bubble-self-text: #ffffff;
-  --linkx-bubble-other: #f0f0f2;
-  --linkx-bubble-other-text: #1a1a2e;
-  --linkx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --linkx-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+[data-theme="light"] {  /* 行注：定义 [data-theme="light"] 样式 */
+  --linkx-bg: #f5f5f7;  /* 行注：设置 CSS 变量 --linkx-bg */
+  --linkx-bg-card: #ffffff;  /* 行注：设置 CSS 变量 --linkx-bg-card */
+  --linkx-bg-hover: #f0f0f2;  /* 行注：设置 CSS 变量 --linkx-bg-hover */
+  --linkx-bg-active: #e8e8ec;  /* 行注：设置 CSS 变量 --linkx-bg-active */
+  --linkx-bg-input: #f0f0f2;  /* 行注：设置 CSS 变量 --linkx-bg-input */
+  --linkx-bg-elevated: #ffffff;  /* 行注：设置 CSS 变量 --linkx-bg-elevated */
+  --linkx-sidebar-bg: rgba(255, 255, 255, 0.95);  /* 行注：设置 CSS 变量 --linkx-sidebar-bg */
+  --linkx-text: #1a1a2e;  /* 行注：设置 CSS 变量 --linkx-text */
+  --linkx-text-secondary: #6b6b76;  /* 行注：设置 CSS 变量 --linkx-text-secondary */
+  --linkx-text-muted: #9b9ba6;  /* 行注：设置 CSS 变量 --linkx-text-muted */
+  --linkx-border: rgba(0, 0, 0, 0.08);  /* 行注：设置 CSS 变量 --linkx-border */
+  --linkx-border-light: rgba(0, 0, 0, 0.04);  /* 行注：设置 CSS 变量 --linkx-border-light */
+  --linkx-bubble-self: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);  /* 行注：设置 CSS 变量 --linkx-bubble-self */
+  --linkx-bubble-self-text: #ffffff;  /* 行注：设置 CSS 变量 --linkx-bubble-self-text */
+  --linkx-bubble-other: #f0f0f2;  /* 行注：设置 CSS 变量 --linkx-bubble-other */
+  --linkx-bubble-other-text: #1a1a2e;  /* 行注：设置 CSS 变量 --linkx-bubble-other-text */
+  --linkx-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);  /* 行注：设置 CSS 变量 --linkx-shadow-sm */
+  --linkx-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);  /* 行注：设置 CSS 变量 --linkx-shadow */
   --linkx-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.12);
 }
 
-html, body {
-  height: 100%;
-  overflow: hidden;
+[data-theme="light"] body {
+  background-image: var(--linkx-gradient-mesh-light);
 }
+
+html, body {  /* 行注：定义 html, body 样式 */
+  height: 100%;  /* 行注：设置 height 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+}  /* 行注：结束当前样式块 */
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
-  background: var(--linkx-bg);
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Microsoft YaHei", "PingFang SC", "Helvetica Neue", sans-serif;
+  background-color: var(--linkx-bg);
+  background-image: var(--linkx-gradient-mesh-dark);
   color: var(--linkx-text);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  letter-spacing: 0.2px;
-  transition: background-color 0.3s, color 0.3s;
-}
+  -webkit-font-smoothing: antialiased;  /* 行注：设置 -webkit-font-smoothing 样式 */
+  -moz-osx-font-smoothing: grayscale;  /* 行注：设置 -moz-osx-font-smoothing 样式 */
+  letter-spacing: 0.2px;  /* 行注：设置 letter-spacing 样式 */
+  transition: background-color 0.3s, color 0.3s;  /* 行注：设置 transition 样式 */
+}  /* 行注：结束当前样式块 */
 
-#app {
-  height: 100%;
-}
+#app {  /* 行注：定义 #app 样式 */
+  height: 100%;  /* 行注：设置 height 样式 */
+}  /* 行注：结束当前样式块 */
 
 /* Scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
+::-webkit-scrollbar {  /* 行注：定义 ::-webkit-scrollbar 样式 */
+  width: 5px;  /* 行注：设置 width 样式 */
+  height: 5px;  /* 行注：设置 height 样式 */
+}  /* 行注：结束当前样式块 */
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+::-webkit-scrollbar-track {  /* 行注：定义 ::-webkit-scrollbar-track 样式 */
+  background: transparent;  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-::-webkit-scrollbar-thumb {
-  background: rgba(128, 128, 128, 0.3);
-  border-radius: 10px;
-}
+::-webkit-scrollbar-thumb {  /* 行注：定义 ::-webkit-scrollbar-thumb 样式 */
+  background: rgba(128, 128, 128, 0.3);  /* 行注：设置 background 样式 */
+  border-radius: 10px;  /* 行注：设置 border-radius 样式 */
+}  /* 行注：结束当前样式块 */
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(128, 128, 128, 0.5);
-}
+::-webkit-scrollbar-thumb:hover {  /* 行注：定义 ::-webkit-scrollbar-thumb:hover 样式 */
+  background: rgba(128, 128, 128, 0.5);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
 /* Selection */
-::selection {
-  background: var(--linkx-primary-glow-strong);
-  color: var(--linkx-text);
-}
+::selection {  /* 行注：定义 ::selection 样式 */
+  background: var(--linkx-primary-glow-strong);  /* 行注：设置 background 样式 */
+  color: var(--linkx-text);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
 /* Focus */
-:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--linkx-bg), 0 0 0 4px var(--linkx-primary);
-}
+:focus-visible {  /* 行注：定义 :focus-visible 样式 */
+  outline: none;  /* 行注：设置 outline 样式 */
+  box-shadow: 0 0 0 2px var(--linkx-bg), 0 0 0 4px var(--linkx-primary);  /* 行注：设置 box-shadow 样式 */
+}  /* 行注：结束当前样式块 */
 
 /* Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+@keyframes fadeIn {  /* 行注：声明关键帧动画 */
+  from { opacity: 0; transform: translateY(6px); }  /* 行注：定义 from 样式 */
+  to { opacity: 1; transform: translateY(0); }  /* 行注：定义 to 样式 */
+}  /* 行注：结束当前样式块 */
 
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
 
+@keyframes linkxFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes linkxOrbFloat {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(8px, -12px) scale(1.03); }
+}
+
 /* Utility Classes */
-.text-primary { color: var(--linkx-primary); }
-.text-secondary { color: var(--linkx-text-secondary); }
-.text-muted { color: var(--linkx-text-muted); }
+.text-primary { color: var(--linkx-primary); }  /* 行注：定义 .text-primary 样式 */
+.text-secondary { color: var(--linkx-text-secondary); }  /* 行注：定义 .text-secondary 样式 */
+.text-muted { color: var(--linkx-text-muted); }  /* 行注：定义 .text-muted 样式 */
 
 /* Override focus-visible for message input */
-.message-input:focus,
+.message-input:focus,  /* 行注：补充 .message-input:focus 选择器 */
 .message-input:focus-visible {
   box-shadow: none;
   outline: none;
+}
+
+/* —— App shell (main views) —— */
+.content-area {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
+  animation: linkxFadeUp 0.35s ease both;
+}
+
+.panel-header {
+  height: 56px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--linkx-border);
+  background: var(--linkx-bg-card);
+  flex-shrink: 0;
+}
+
+.header-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--linkx-text);
+  letter-spacing: -0.02em;
+}
+
+.refresh-btn,
+.icon-btn-ghost {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--linkx-radius-sm);
+  color: var(--linkx-text-secondary);
+  cursor: pointer;
+  transition: var(--linkx-transition-fast);
+}
+
+.refresh-btn:hover,
+.icon-btn-ghost:hover {
+  background: var(--linkx-bg-hover);
+  color: var(--linkx-primary);
+}
+
+.search-input,
+.linkx-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 36px;
+  background: var(--linkx-bg-input);
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius);
+  color: var(--linkx-text);
+  font-size: 13px;
+  transition: var(--linkx-transition);
+  outline: none;
+}
+
+.search-input::placeholder,
+.linkx-input::placeholder {
+  color: var(--linkx-text-muted);
+}
+
+.search-input:focus,
+.linkx-input:focus {
+  border-color: var(--linkx-primary);
+  box-shadow: 0 0 0 3px var(--linkx-primary-glow);
+  background: var(--linkx-bg-card);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--linkx-text-secondary);
+}
+
+.empty-state .empty-icon {
+  margin-bottom: 16px;
+  color: var(--linkx-text-muted);
+  opacity: 0.85;
+}
+
+.empty-state .empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--linkx-text);
+  margin-bottom: 6px;
+}
+
+.empty-state .empty-subtitle {
+  font-size: 13px;
+  color: var(--linkx-text-muted);
+}
+
+.linkx-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--linkx-gradient-brand-soft);
+  border: none;
+  border-radius: var(--linkx-radius);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--linkx-transition);
+  box-shadow: 0 4px 16px var(--linkx-primary-glow);
+}
+
+.linkx-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px var(--linkx-primary-glow-strong);
+}
+
+.linkx-btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.linkx-card {
+  background: var(--linkx-bg-card);
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius-lg);
+  box-shadow: var(--linkx-shadow-sm);
 }

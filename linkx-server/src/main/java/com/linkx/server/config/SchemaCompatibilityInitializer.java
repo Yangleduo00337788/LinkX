@@ -34,20 +34,9 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
     }
 
     private void ensureImMessageReadTimeColumn() {
-        Integer columnCount = jdbcTemplate.queryForObject(
-                """
-                SELECT COUNT(1)
-                FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'im_message'
-                  AND COLUMN_NAME = 'read_time'
-                """,
-                Integer.class
-        );
-        if (columnCount != null && columnCount > 0) {
+        if (hasColumn("im_message", "read_time")) {
             return;
         }
-
         jdbcTemplate.execute("ALTER TABLE im_message ADD COLUMN read_time DATETIME NULL COMMENT '已读时间'");
         log.info("Schema compatibility repaired: added im_message.read_time column");
     }

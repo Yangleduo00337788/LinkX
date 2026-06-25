@@ -1,13 +1,22 @@
+<!-- 行注：开始定义模板区域 -->
 <template>
+  <!-- 行注：渲染容器 -->
   <div class="session-panel">
+    <!-- 行注：渲染容器 -->
     <div class="panel-header">
+      <!-- 行注：展示“消息”文案 -->
       <span class="header-title">消息</span>
+      <!-- 行注：展示“建群”文案 -->
       <button class="create-group-btn" @click="$emit('create-group')">建群</button>
+    <!-- 行注：结束容器 -->
     </div>
-
+    <!-- 行注：渲染容器 -->
     <div class="session-search">
+      <!-- 行注：渲染容器 -->
       <div class="search-input-wrapper">
+        <!-- 行注：渲染n-icon 节点 -->
         <n-icon :component="SearchOutline" class="search-icon" />
+        <!-- 行注：渲染输入框 -->
         <input
           :value="searchText"
           type="text"
@@ -15,16 +24,25 @@
           class="search-input"
           @input="handleSearchInput"
         />
+        <!-- 行注：渲染容器 -->
         <div v-if="searchText" class="search-clear" @click="$emit('update:searchText', '')">
+          <!-- 行注：渲染图标容器 -->
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <!-- 行注：补充图标圆形路径 -->
             <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2" />
+            <!-- 行注：补充图标路径 -->
             <path d="M15 9L9 15M9 9L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <!-- 行注：结束图标容器 -->
           </svg>
+        <!-- 行注：结束容器 -->
         </div>
+      <!-- 行注：结束容器 -->
       </div>
+    <!-- 行注：结束容器 -->
     </div>
-
+    <!-- 行注：渲染容器 -->
     <div class="session-list">
+      <!-- 行注：渲染容器 -->
       <div
         v-for="session in filteredSessions"
         :key="buildSessionKey(session.targetId, session.sessionType)"
@@ -35,382 +53,423 @@
         }"
         @click="$emit('select-session', session)"
       >
+        <!-- 行注：渲染容器 -->
         <div class="session-avatar" :class="{ 'has-unread': session.unreadCount > 0, group: session.sessionType === SESSION_TYPE_GROUP }">
-          <img v-if="session.targetAvatar" :src="session.targetAvatar" class="avatar-img" />
+          <!-- 行注：渲染图片 -->
+          <ProtectedImage v-if="session.targetAvatar" :src="session.targetAvatar" class="avatar-img" />
+          <!-- 行注：渲染文本节点 -->
           <span v-else class="avatar-text">{{ session.targetNickname?.charAt(0) || (session.sessionType === SESSION_TYPE_GROUP ? '群' : '聊') }}</span>
+          <!-- 行注：渲染容器 -->
           <div class="session-type-badge" :class="{ group: session.sessionType === SESSION_TYPE_GROUP }">
+            <!-- 行注：渲染动态文本 -->
             {{ session.sessionType === SESSION_TYPE_GROUP ? '群' : '单' }}
+          <!-- 行注：结束容器 -->
           </div>
+          <!-- 行注：渲染容器 -->
           <div v-if="session.sessionType === SESSION_TYPE_SINGLE" class="online-indicator" :class="{ active: session.targetOnline }"></div>
+          <!-- 行注：渲染容器 -->
           <div v-if="session.unreadCount > 0" class="unread-badge">
+            <!-- 行注：渲染动态文本 -->
             {{ session.unreadCount > 99 ? '99+' : session.unreadCount }}
+          <!-- 行注：结束容器 -->
           </div>
+        <!-- 行注：结束容器 -->
         </div>
+        <!-- 行注：渲染容器 -->
         <div class="session-info">
+          <!-- 行注：渲染容器 -->
           <div class="session-header">
+            <!-- 行注：渲染容器 -->
             <div class="session-title-row">
+              <!-- 行注：渲染文本节点 -->
               <span class="session-name">{{ session.targetNickname }}</span>
+              <!-- 行注：渲染文本节点 -->
               <span v-if="session.sessionType === SESSION_TYPE_GROUP" class="session-tag">{{ session.memberCount || 0 }}人</span>
+              <!-- 行注：展示“新公告”文案 -->
               <span v-if="session.sessionType === SESSION_TYPE_GROUP && session.noticeUnread" class="session-tag notice">新公告</span>
+            <!-- 行注：结束容器 -->
             </div>
+            <!-- 行注：渲染文本节点 -->
             <span class="session-time">{{ formatTime(session.lastMessageTime) }}</span>
+          <!-- 行注：结束容器 -->
           </div>
+          <!-- 行注：渲染容器 -->
           <div class="session-preview-row">
+            <!-- 行注：渲染文本节点 -->
             <span class="session-preview">{{ session.lastMessage || (session.sessionType === SESSION_TYPE_GROUP ? '群聊已创建' : '暂无消息') }}</span>
+            <!-- 行注：展示“已禁言”文案 -->
             <span v-if="session.sessionType === SESSION_TYPE_GROUP && session.muted" class="session-muted">已禁言</span>
+          <!-- 行注：结束容器 -->
           </div>
+        <!-- 行注：结束容器 -->
         </div>
+      <!-- 行注：结束容器 -->
       </div>
-
+      <!-- 行注：渲染容器 -->
       <div v-if="sessions.length === 0 && !loadingSessions" class="empty-state">
+        <!-- 行注：渲染容器 -->
         <div class="empty-icon">
+          <!-- 行注：渲染图标容器 -->
           <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <!-- 行注：补充图标路径 -->
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          <!-- 行注：结束图标容器 -->
           </svg>
+        <!-- 行注：结束容器 -->
         </div>
+        <!-- 行注：展示“暂无会话”文案 -->
         <div class="empty-title">暂无会话</div>
+        <!-- 行注：展示“创建群聊或找好友开始聊天”文案 -->
         <div class="empty-subtitle">创建群聊或找好友开始聊天</div>
+      <!-- 行注：结束容器 -->
       </div>
+    <!-- 行注：结束容器 -->
     </div>
+  <!-- 行注：结束容器 -->
   </div>
+<!-- 行注：结束模板区域 -->
 </template>
-
+<!-- 行注：开始定义脚本逻辑区域 -->
 <script setup lang="ts">
-import { computed } from 'vue'
-import { NIcon } from 'naive-ui'
-import { SearchOutline } from '@vicons/ionicons5'
-import { SESSION_TYPE_GROUP, SESSION_TYPE_SINGLE, type ChatSession } from '../../types/chat'
+/**
+ * SessionSidebar 组件，负责当前界面片段的展示与交互。
+ */
+import { computed } from 'vue'  // 行注：引入 computed 能力
+import { NIcon } from 'naive-ui'  // 行注：引入 NIcon 能力
+import { SearchOutline } from '@vicons/ionicons5'  // 行注：引入 SearchOutline 能力
+import { SESSION_TYPE_GROUP, SESSION_TYPE_SINGLE, type ChatSession } from '../../types/chat'  // 行注：引入 SESSION_TYPE_GROUP, SESSION_TYPE_SINGLE, type ChatSession 能力
+import ProtectedImage from '../ProtectedImage.vue'
 import { buildSessionKey, formatTime } from '../../utils/chat'
 
-const props = defineProps<{
-  sessions: ChatSession[]
-  loadingSessions: boolean
-  currentTargetId: string | null
-  currentSessionType: number
-  searchText: string
-  flashSessionKey: string | null
-}>()
+const props = defineProps<{  // 行注：开始解构当前返回值
+  sessions: ChatSession[]  // 行注：设置 sessions 配置项
+  loadingSessions: boolean  // 行注：设置 loadingSessions 配置项
+  currentTargetId: string | null  // 行注：设置 currentTargetId 配置项
+  currentSessionType: number  // 行注：设置 currentSessionType 配置项
+  searchText: string  // 行注：设置 searchText 配置项
+  flashSessionKey: string | null  // 行注：设置 flashSessionKey 配置项
+}>()  // 行注：执行当前调用逻辑
 
-const emit = defineEmits<{
-  (event: 'create-group'): void
-  (event: 'select-session', session: ChatSession): void
-  (event: 'update:searchText', value: string): void
-}>()
+const emit = defineEmits<{  // 行注：开始解构当前返回值
+  (event: 'create-group'): void  // 行注：执行当前调用逻辑
+  (event: 'select-session', session: ChatSession): void  // 行注：执行当前调用逻辑
+  (event: 'update:searchText', value: string): void  // 行注：执行当前调用逻辑
+}>()  // 行注：执行当前调用逻辑
 
-const filteredSessions = computed(() => {
-  if (!props.searchText.trim()) {
-    return props.sessions
-  }
-  const keyword = props.searchText.trim().toLowerCase()
-  return props.sessions.filter(session =>
-    session.targetNickname?.toLowerCase().includes(keyword)
-    || session.lastMessage?.toLowerCase().includes(keyword)
-  )
-})
+const filteredSessions = computed(() => {  // 行注：开始解构当前返回值
+  if (!props.searchText.trim()) {  // 行注：判断当前条件是否成立
+    return props.sessions  // 行注：返回当前结果
+  }  // 行注：结束当前代码块
+  const keyword = props.searchText.trim().toLowerCase()  // 行注：初始化 keyword 状态
+  return props.sessions.filter(session =>  // 行注：返回当前结果
+    session.targetNickname?.toLowerCase().includes(keyword)  // 行注：调用 toLowerCase 方法
+    || session.lastMessage?.toLowerCase().includes(keyword)  // 行注：调用 toLowerCase 方法
+  )  // 行注：结束当前调用
+})  // 行注：结束当前调用配置
 
-function isCurrentSession(session: ChatSession) {
-  if (!props.currentTargetId) {
-    return false
-  }
-  return buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(props.currentTargetId, props.currentSessionType)
-}
+function isCurrentSession(session: ChatSession) {  // 行注：定义 isCurrentSession 方法
+  if (!props.currentTargetId) {  // 行注：判断当前条件是否成立
+    return false  // 行注：返回当前结果
+  }  // 行注：结束当前代码块
+  return buildSessionKey(session.targetId, session.sessionType) === buildSessionKey(props.currentTargetId, props.currentSessionType)  // 行注：返回当前结果
+}  // 行注：结束当前代码块
 
-function handleSearchInput(event: Event) {
-  const target = event.target as HTMLInputElement
-  const value = target.value || ''
-  emit('update:searchText', value)
-}
+function handleSearchInput(event: Event) {  // 行注：定义 handleSearchInput 方法
+  const target = event.target as HTMLInputElement  // 行注：初始化 target 变量
+  const value = target.value || ''  // 行注：初始化 value 状态
+  emit('update:searchText', value)  // 行注：调用 emit 方法
+}  // 行注：结束当前代码块
 </script>
-
+<!-- 行注：开始定义样式区域 -->
 <style scoped>
-.session-panel {
-  width: 320px;
-  background: var(--linkx-bg-card);
-  border-right: 1px solid var(--linkx-border);
-  display: flex;
-  flex-direction: column;
-  min-width: 280px;
-}
+.session-panel {  /* 行注：定义 .session-panel 样式 */
+  width: 320px;  /* 行注：设置 width 样式 */
+  background: var(--linkx-bg-card);  /* 行注：设置 background 样式 */
+  border-right: 1px solid var(--linkx-border);  /* 行注：设置 border-right 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
+  min-width: 280px;  /* 行注：设置 min-width 样式 */
+}  /* 行注：结束当前样式块 */
 
-.panel-header {
-  height: 56px;
-  padding: 0 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--linkx-border);
-}
+.panel-header {  /* 行注：定义 .panel-header 样式 */
+  height: 56px;  /* 行注：设置 height 样式 */
+  padding: 0 16px;  /* 行注：设置 padding 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: space-between;  /* 行注：设置 justify-content 样式 */
+  border-bottom: 1px solid var(--linkx-border);  /* 行注：设置 border-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.header-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--linkx-text);
-}
+.header-title {  /* 行注：定义 .header-title 样式 */
+  font-size: 16px;  /* 行注：设置 font-size 样式 */
+  font-weight: 700;  /* 行注：设置 font-weight 样式 */
+  color: var(--linkx-text);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.create-group-btn {
-  height: 32px;
-  padding: 0 14px;
-  border: none;
-  border-radius: var(--linkx-radius-sm);
-  background: var(--linkx-primary);
-  color: white;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--linkx-transition-fast);
-}
+.create-group-btn {  /* 行注：定义 .create-group-btn 样式 */
+  height: 32px;  /* 行注：设置 height 样式 */
+  padding: 0 14px;  /* 行注：设置 padding 样式 */
+  border: none;  /* 行注：设置 border 样式 */
+  border-radius: var(--linkx-radius-sm);  /* 行注：设置 border-radius 样式 */
+  background: var(--linkx-primary);  /* 行注：设置 background 样式 */
+  color: white;  /* 行注：设置 color 样式 */
+  font-size: 12px;  /* 行注：设置 font-size 样式 */
+  font-weight: 600;  /* 行注：设置 font-weight 样式 */
+  cursor: pointer;  /* 行注：设置 cursor 样式 */
+  transition: var(--linkx-transition-fast);  /* 行注：设置 transition 样式 */
+}  /* 行注：结束当前样式块 */
 
-.create-group-btn:hover {
-  background: var(--linkx-primary-hover);
-}
+.create-group-btn:hover {  /* 行注：定义 .create-group-btn:hover 样式 */
+  background: var(--linkx-primary-hover);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-search {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--linkx-border);
-}
+.session-search {  /* 行注：定义 .session-search 样式 */
+  padding: 12px 16px;  /* 行注：设置 padding 样式 */
+  border-bottom: 1px solid var(--linkx-border);  /* 行注：设置 border-bottom 样式 */
+}  /* 行注：结束当前样式块 */
 
-.search-input-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
+.search-input-wrapper {  /* 行注：定义 .search-input-wrapper 样式 */
+  position: relative;  /* 行注：设置 position 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+}  /* 行注：结束当前样式块 */
 
-.search-icon {
-  position: absolute;
-  left: 12px;
-  color: var(--linkx-text-muted);
-  font-size: 16px;
-  pointer-events: none;
-}
+.search-icon {  /* 行注：定义 .search-icon 样式 */
+  position: absolute;  /* 行注：设置 position 样式 */
+  left: 12px;  /* 行注：设置 left 样式 */
+  color: var(--linkx-text-muted);  /* 行注：设置 color 样式 */
+  font-size: 16px;  /* 行注：设置 font-size 样式 */
+  pointer-events: none;  /* 行注：设置 pointer-events 样式 */
+}  /* 行注：结束当前样式块 */
 
-.search-input {
-  width: 100%;
-  height: 36px;
-  padding: 0 36px;
-  background: var(--linkx-bg);
-  border: 1px solid var(--linkx-border);
-  border-radius: var(--linkx-radius);
-  color: var(--linkx-text);
-  font-size: 13px;
-  transition: var(--linkx-transition);
-  outline: none;
-}
+.search-input {  /* 行注：定义 .search-input 样式 */
+  width: 100%;  /* 行注：设置 width 样式 */
+  height: 36px;  /* 行注：设置 height 样式 */
+  padding: 0 36px;  /* 行注：设置 padding 样式 */
+  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
+  border: 1px solid var(--linkx-border);  /* 行注：设置 border 样式 */
+  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
+  color: var(--linkx-text);  /* 行注：设置 color 样式 */
+  font-size: 13px;  /* 行注：设置 font-size 样式 */
+  transition: var(--linkx-transition);  /* 行注：设置 transition 样式 */
+  outline: none;  /* 行注：设置 outline 样式 */
+}  /* 行注：结束当前样式块 */
 
-.search-input::placeholder,
-.session-time,
-.session-muted {
-  color: var(--linkx-text-muted);
-}
+.search-input::placeholder,  /* 行注：补充 .search-input::placeholder 选择器 */
+.session-time,  /* 行注：补充 .session-time 选择器 */
+.session-muted {  /* 行注：定义 .session-muted 样式 */
+  color: var(--linkx-text-muted);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.search-input:focus {
-  border-color: var(--linkx-primary);
-  box-shadow: 0 0 0 3px var(--linkx-primary-glow);
-}
+.search-input:focus {  /* 行注：定义 .search-input:focus 样式 */
+  border-color: var(--linkx-primary);  /* 行注：设置 border-color 样式 */
+  box-shadow: 0 0 0 3px var(--linkx-primary-glow);  /* 行注：设置 box-shadow 样式 */
+}  /* 行注：结束当前样式块 */
 
-.search-clear {
-  position: absolute;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--linkx-text-muted);
-  cursor: pointer;
-}
+.search-clear {  /* 行注：定义 .search-clear 样式 */
+  position: absolute;  /* 行注：设置 position 样式 */
+  right: 8px;  /* 行注：设置 right 样式 */
+  width: 24px;  /* 行注：设置 width 样式 */
+  height: 24px;  /* 行注：设置 height 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  color: var(--linkx-text-muted);  /* 行注：设置 color 样式 */
+  cursor: pointer;  /* 行注：设置 cursor 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
-}
+.session-list {  /* 行注：定义 .session-list 样式 */
+  flex: 1;  /* 行注：设置 flex 样式 */
+  overflow-y: auto;  /* 行注：设置 overflow-y 样式 */
+  padding: 8px;  /* 行注：设置 padding 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border-radius: var(--linkx-radius);
-  cursor: pointer;
-  transition: var(--linkx-transition-fast);
-}
+.session-item {  /* 行注：定义 .session-item 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  gap: 12px;  /* 行注：设置 gap 样式 */
+  padding: 12px;  /* 行注：设置 padding 样式 */
+  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
+  cursor: pointer;  /* 行注：设置 cursor 样式 */
+  transition: var(--linkx-transition-fast);  /* 行注：设置 transition 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-item:hover {
-  background: var(--linkx-bg-hover);
-}
+.session-item:hover {  /* 行注：定义 .session-item:hover 样式 */
+  background: var(--linkx-bg-hover);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-item.active {
-  background: var(--linkx-bg-active);
-}
+.session-item.active {  /* 行注：定义 .session-item.active 样式 */
+  background: var(--linkx-bg-active);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-item.flash {
-  animation: flashHighlight 2s ease-out;
-}
+.session-item.flash {  /* 行注：定义 .session-item.flash 样式 */
+  animation: flashHighlight 2s ease-out;  /* 行注：设置 animation 样式 */
+}  /* 行注：结束当前样式块 */
 
-@keyframes flashHighlight {
-  0%,
-  100% {
-    background: transparent;
-  }
-  15%,
-  45%,
-  75% {
-    background: var(--linkx-primary-glow);
-  }
-}
+@keyframes flashHighlight {  /* 行注：声明关键帧动画 */
+  0%,  /* 行注：补充 0% 选择器 */
+  100% {  /* 行注：定义 100% 样式 */
+    background: transparent;  /* 行注：设置 background 样式 */
+  }  /* 行注：结束当前样式块 */
+  15%,  /* 行注：补充 15% 选择器 */
+  45%,  /* 行注：补充 45% 选择器 */
+  75% {  /* 行注：定义 75% 样式 */
+    background: var(--linkx-primary-glow);  /* 行注：设置 background 样式 */
+  }  /* 行注：结束当前样式块 */
+}  /* 行注：结束当前样式块 */
 
-.session-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: var(--linkx-radius);
-  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  flex-shrink: 0;
-  overflow: hidden;
-  color: white;
-  font-size: 18px;
-  font-weight: 700;
-}
+.session-avatar {  /* 行注：定义 .session-avatar 样式 */
+  width: 48px;  /* 行注：设置 width 样式 */
+  height: 48px;  /* 行注：设置 height 样式 */
+  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
+  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);  /* 行注：设置 background 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  position: relative;  /* 行注：设置 position 样式 */
+  flex-shrink: 0;  /* 行注：设置 flex-shrink 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+  color: white;  /* 行注：设置 color 样式 */
+  font-size: 18px;  /* 行注：设置 font-size 样式 */
+  font-weight: 700;  /* 行注：设置 font-weight 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-avatar.group {
-  background: linear-gradient(135deg, #4d6bff 0%, #7f57ff 100%);
-}
+.session-avatar.group {  /* 行注：定义 .session-avatar.group 样式 */
+  background: linear-gradient(135deg, #4d6bff 0%, #7f57ff 100%);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.avatar-img {  /* 行注：定义 .avatar-img 样式 */
+  width: 100%;  /* 行注：设置 width 样式 */
+  height: 100%;  /* 行注：设置 height 样式 */
+  object-fit: cover;  /* 行注：设置 object-fit 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-type-badge,
-.session-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--linkx-radius-full);
-  font-size: 11px;
-  font-weight: 700;
-}
+.session-type-badge,  /* 行注：补充 .session-type-badge 选择器 */
+.session-tag {  /* 行注：定义 .session-tag 样式 */
+  display: inline-flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  border-radius: var(--linkx-radius-full);  /* 行注：设置 border-radius 样式 */
+  font-size: 11px;  /* 行注：设置 font-size 样式 */
+  font-weight: 700;  /* 行注：设置 font-weight 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-type-badge {
-  position: absolute;
-  left: -2px;
-  bottom: -2px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  background: rgba(0, 0, 0, 0.56);
-  color: white;
-}
+.session-type-badge {  /* 行注：定义 .session-type-badge 样式 */
+  position: absolute;  /* 行注：设置 position 样式 */
+  left: -2px;  /* 行注：设置 left 样式 */
+  bottom: -2px;  /* 行注：设置 bottom 样式 */
+  min-width: 18px;  /* 行注：设置 min-width 样式 */
+  height: 18px;  /* 行注：设置 height 样式 */
+  padding: 0 5px;  /* 行注：设置 padding 样式 */
+  background: rgba(0, 0, 0, 0.56);  /* 行注：设置 background 样式 */
+  color: white;  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-type-badge.group {
-  background: rgba(77, 107, 255, 0.18);
-  color: #90a7ff;
-}
+.session-type-badge.group {  /* 行注：定义 .session-type-badge.group 样式 */
+  background: rgba(77, 107, 255, 0.18);  /* 行注：设置 background 样式 */
+  color: #90a7ff;  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-tag {
-  padding: 2px 8px;
-  background: rgba(77, 107, 255, 0.12);
-  color: #90a7ff;
-}
+.session-tag {  /* 行注：定义 .session-tag 样式 */
+  padding: 2px 8px;  /* 行注：设置 padding 样式 */
+  background: rgba(77, 107, 255, 0.12);  /* 行注：设置 background 样式 */
+  color: #90a7ff;  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-tag.notice {
-  background: rgba(0, 214, 143, 0.14);
-  color: var(--linkx-primary);
-}
+.session-tag.notice {  /* 行注：定义 .session-tag.notice 样式 */
+  background: rgba(0, 214, 143, 0.14);  /* 行注：设置 background 样式 */
+  color: var(--linkx-primary);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.unread-badge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  background: var(--linkx-error);
-  color: white;
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: var(--linkx-radius-full);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.unread-badge {  /* 行注：定义 .unread-badge 样式 */
+  position: absolute;  /* 行注：设置 position 样式 */
+  top: -4px;  /* 行注：设置 top 样式 */
+  right: -4px;  /* 行注：设置 right 样式 */
+  min-width: 20px;  /* 行注：设置 min-width 样式 */
+  height: 20px;  /* 行注：设置 height 样式 */
+  padding: 0 6px;  /* 行注：设置 padding 样式 */
+  background: var(--linkx-error);  /* 行注：设置 background 样式 */
+  color: white;  /* 行注：设置 color 样式 */
+  font-size: 11px;  /* 行注：设置 font-size 样式 */
+  font-weight: 700;  /* 行注：设置 font-weight 样式 */
+  border-radius: var(--linkx-radius-full);  /* 行注：设置 border-radius 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+}  /* 行注：结束当前样式块 */
 
-.online-indicator {
-  position: absolute;
-  right: -2px;
-  bottom: 2px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--linkx-bg-card);
-  background: #64748b;
-}
+.online-indicator {  /* 行注：定义 .online-indicator 样式 */
+  position: absolute;  /* 行注：设置 position 样式 */
+  right: -2px;  /* 行注：设置 right 样式 */
+  bottom: 2px;  /* 行注：设置 bottom 样式 */
+  width: 12px;  /* 行注：设置 width 样式 */
+  height: 12px;  /* 行注：设置 height 样式 */
+  border-radius: 50%;  /* 行注：设置 border-radius 样式 */
+  border: 2px solid var(--linkx-bg-card);  /* 行注：设置 border 样式 */
+  background: #64748b;  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.online-indicator.active {
-  background: var(--linkx-primary);
-}
+.online-indicator.active {  /* 行注：定义 .online-indicator.active 样式 */
+  background: var(--linkx-primary);  /* 行注：设置 background 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+.session-info {  /* 行注：定义 .session-info 样式 */
+  flex: 1;  /* 行注：设置 flex 样式 */
+  min-width: 0;  /* 行注：设置 min-width 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
+  gap: 4px;  /* 行注：设置 gap 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+.session-header {  /* 行注：定义 .session-header 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: space-between;  /* 行注：设置 justify-content 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-title-row,
-.session-preview-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
+.session-title-row,  /* 行注：补充 .session-title-row 选择器 */
+.session-preview-row {  /* 行注：定义 .session-preview-row 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  gap: 8px;  /* 行注：设置 gap 样式 */
+  min-width: 0;  /* 行注：设置 min-width 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-name {
-  color: var(--linkx-text);
-  font-weight: 700;
-  font-size: 14px;
-}
+.session-name {  /* 行注：定义 .session-name 样式 */
+  color: var(--linkx-text);  /* 行注：设置 color 样式 */
+  font-weight: 700;  /* 行注：设置 font-weight 样式 */
+  font-size: 14px;  /* 行注：设置 font-size 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-preview,
-.empty-subtitle {
-  font-size: 13px;
-  color: var(--linkx-text-secondary);
-}
+.session-preview,  /* 行注：补充 .session-preview 选择器 */
+.empty-subtitle {  /* 行注：定义 .empty-subtitle 样式 */
+  font-size: 13px;  /* 行注：设置 font-size 样式 */
+  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.session-preview {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.session-preview {  /* 行注：定义 .session-preview 样式 */
+  white-space: nowrap;  /* 行注：设置 white-space 样式 */
+  overflow: hidden;  /* 行注：设置 overflow 样式 */
+  text-overflow: ellipsis;  /* 行注：设置 text-overflow 样式 */
+}  /* 行注：结束当前样式块 */
 
-.empty-state {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: var(--linkx-text-muted);
-}
+.empty-state {  /* 行注：定义 .empty-state 样式 */
+  display: flex;  /* 行注：设置 display 样式 */
+  flex: 1;  /* 行注：设置 flex 样式 */
+  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
+  align-items: center;  /* 行注：设置 align-items 样式 */
+  justify-content: center;  /* 行注：设置 justify-content 样式 */
+  gap: 12px;  /* 行注：设置 gap 样式 */
+  color: var(--linkx-text-muted);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 
-.empty-icon {
-  opacity: 0.2;
-}
+.empty-icon {  /* 行注：定义 .empty-icon 样式 */
+  opacity: 0.2;  /* 行注：设置 opacity 样式 */
+}  /* 行注：结束当前样式块 */
 
-.empty-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--linkx-text-secondary);
-}
+.empty-title {  /* 行注：定义 .empty-title 样式 */
+  font-size: 16px;  /* 行注：设置 font-size 样式 */
+  font-weight: 600;  /* 行注：设置 font-weight 样式 */
+  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
+}  /* 行注：结束当前样式块 */
 </style>

@@ -1,51 +1,89 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<!-- 行注：声明 XML 文档版本与编码 -->
+<!-- 行注：开始定义项目根节点 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <!-- 行注：设置modelVersion -->
     <modelVersion>4.0.0</modelVersion>
-
+    <!-- 行注：设置groupId -->
     <groupId>com.linkx</groupId>
+    <!-- 行注：设置artifactId -->
     <artifactId>linkx</artifactId>
+    <!-- 行注：设置版本 -->
     <version>1.0.0-SNAPSHOT</version>
+    <!-- 行注：设置打包方式 -->
     <packaging>pom</packaging>
+    <!-- 行注：设置项目名称 -->
     <name>LinkX IM</name>
-
+    <!-- 行注：开始定义模块列表 -->
     <modules>
+        <!-- 行注：设置模块 -->
         <module>linkx-server</module>
+    <!-- 行注：结束模块列表 -->
     </modules>
-
+    <!-- 行注：开始定义属性配置 -->
     <properties>
+        <!-- 行注：设置Java 版本 -->
         <java.version>21</java.version>
+        <!-- 行注：设置编译源码版本 -->
         <maven.compiler.source>21</maven.compiler.source>
+        <!-- 行注：设置编译目标版本 -->
         <maven.compiler.target>21</maven.compiler.target>
+        <!-- 行注：设置源码编码 -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- 行注：设置Spring Boot 版本 -->
         <spring-boot.version>3.2.5</spring-boot.version>
+        <!-- 行注：设置MyBatis-Plus 版本 -->
         <mybatis-plus.version>3.5.6</mybatis-plus.version>
+        <!-- 行注：设置JJWT 版本 -->
         <jjwt.version>0.12.5</jjwt.version>
+        <minio.version>8.5.12</minio.version>
+    <!-- 行注：结束属性配置 -->
     </properties>
-
+    <!-- 行注：开始定义依赖管理 -->
     <dependencyManagement>
+        <!-- 行注：开始定义依赖列表 -->
         <dependencies>
+            <!-- 行注：开始定义单个依赖 -->
             <dependency>
+                <!-- 行注：设置groupId -->
                 <groupId>org.springframework.boot</groupId>
+                <!-- 行注：设置artifactId -->
                 <artifactId>spring-boot-dependencies</artifactId>
+                <!-- 行注：设置版本 -->
                 <version>${spring-boot.version}</version>
+                <!-- 行注：设置类型 -->
                 <type>pom</type>
+                <!-- 行注：设置作用域 -->
                 <scope>import</scope>
+            <!-- 行注：结束单个依赖 -->
             </dependency>
+        <!-- 行注：结束依赖列表 -->
         </dependencies>
+    <!-- 行注：结束依赖管理 -->
     </dependencyManagement>
-
+    <!-- 行注：开始定义构建配置 -->
     <build>
+        <!-- 行注：开始定义插件列表 -->
         <plugins>
+            <!-- 行注：开始定义插件 -->
             <plugin>
+                <!-- 行注：设置groupId -->
                 <groupId>org.apache.maven.plugins</groupId>
+                <!-- 行注：设置artifactId -->
                 <artifactId>maven-compiler-plugin</artifactId>
+                <!-- 行注：设置版本 -->
                 <version>3.11.0</version>
+                <!-- 行注：开始定义配置项 -->
                 <configuration>
+                    <!-- 行注：设置参数元数据开关 -->
                     <parameters>true</parameters>
+                <!-- 行注：结束配置项 -->
                 </configuration>
+            <!-- 行注：结束插件 -->
             </plugin>
+        <!-- 行注：结束插件列表 -->
         </plugins>
+    <!-- 行注：结束构建配置 -->
     </build>
+<!-- 行注：结束项目根节点 -->
 </project>
