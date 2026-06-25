@@ -140,17 +140,21 @@
             </template>
             <!-- 行注：开始定义模板区域 -->
             <template v-else>
-              <!-- 行注：渲染文本节点 -->
-              <span
+              <template
                 v-for="(segment, segmentIndex) in getMessageTextSegments(msg.content)"
                 :key="`${getMessageAnchorKey(msg)}-${segmentIndex}`"
-                :class="{ 'mention-text': segment.mention }"
               >
-                <!-- 行注：渲染动态文本 -->
-                {{ segment.text }}
-              <!-- 行注：结束文本节点 -->
-              </span>
-            <!-- 行注：结束模板区域 -->
+                <span v-if="segment.type === 'text'">{{ segment.text }}</span>
+                <span v-else-if="segment.type === 'mention'" class="mention-text">{{ segment.text }}</span>
+                <button
+                  v-else-if="segment.type === 'link'"
+                  type="button"
+                  class="msg-link"
+                  @click.stop="$emit('open-external-link', segment.href)"
+                >
+                  {{ segment.text }}
+                </button>
+              </template>
             </template>
           <!-- 行注：结束容器 -->
           </div>
@@ -239,18 +243,19 @@ defineProps<{  // 行注：开始当前逻辑块
   mentionBannerText: string  // 行注：设置 mentionBannerText 配置项
   mentionBannerActionText: string  // 行注：设置 mentionBannerActionText 配置项
   getResolvedMessageFileUrl: (message: DisplayMessage) => string  // 行注：设置 getResolvedMessageFileUrl 配置项
-  getMessageTextSegments: (content: string) => Array<{ text: string; mention: boolean }>  // 行注：设置 getMessageTextSegments 配置项
-}>()  // 行注：执行当前调用逻辑
+  getMessageTextSegments: (content: string) => import('../../utils/chatText').ChatTextSegment[]
+}>()
 
-defineEmits<{  // 行注：开始当前逻辑块
+defineEmits<{
   (event: 'mention-banner-click'): void  // 行注：执行当前调用逻辑
   (event: 'dismiss-mention-banner'): void  // 行注：执行当前调用逻辑
   (event: 'show-message-menu', eventObj: MouseEvent, message: DisplayMessage): void  // 行注：执行当前调用逻辑
   (event: 'message-media-load'): void  // 行注：执行当前调用逻辑
   (event: 'preview-image', message: DisplayMessage): void  // 行注：执行当前调用逻辑
   (event: 'download-file', message: DisplayMessage): void  // 行注：执行当前调用逻辑
-  (event: 'retry-failed-message', message: DisplayMessage): void  // 行注：执行当前调用逻辑
-}>()  // 行注：执行当前调用逻辑
+  (event: 'retry-failed-message', message: DisplayMessage): void
+  (event: 'open-external-link', href: string): void
+}>()
 
 function getFileSizeText(message: DisplayMessage) {  // 行注：定义 getFileSizeText 方法
   return formatSize(message.fileSize)  // 行注：返回当前结果
@@ -449,10 +454,21 @@ function getFileSizeText(message: DisplayMessage) {  // 行注：定义 getFileS
   background: var(--linkx-bg-hover) !important;  /* 行注：设置 background 样式 */
 }  /* 行注：结束当前样式块 */
 
-.mention-text {  /* 行注：定义 .mention-text 样式 */
-  color: #e45252;  /* 行注：设置 color 样式 */
-  font-weight: 600;  /* 行注：设置 font-weight 样式 */
-}  /* 行注：结束当前样式块 */
+.mention-text {
+  color: #e45252;
+  font-weight: 600;
+}
+
+.msg-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--linkx-primary, #00a8ff);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+  word-break: break-all;
+}
 
 .recalled-text {  /* 行注：定义 .recalled-text 样式 */
   font-style: italic;  /* 行注：设置 font-style 样式 */

@@ -20,7 +20,9 @@
 import { NMessageProvider } from 'naive-ui'  // 行注：引入 NMessageProvider 能力
 import ErrorToast from './components/ErrorToast.vue'  // 行注：引入 ErrorToast 组件
 import InAppNotificationCenter from './components/InAppNotificationCenter.vue'  // 行注：引入 InAppNotificationCenter 组件
-import { useTheme } from './utils/theme'  // 行注：引入 useTheme 能力
+import { useTheme } from './utils/theme'
+import { useDesktopIntegration } from './hooks/useDesktopIntegration'
 
-useTheme()  // 行注：调用 useTheme 方法
+useTheme()
+useDesktopIntegration()
 </script>

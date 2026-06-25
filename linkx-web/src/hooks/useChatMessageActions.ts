@@ -262,6 +262,53 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
     }  // 行注：结束当前代码块
   }  // 行注：结束当前代码块
 
+  async function sendFileFromComposer(file: File) {
+    if (!file || !options.currentTargetId.value) {
+      return
+    }
+    if (options.currentMuted.value) {
+      options.message.warning('你已被禁言，暂时无法发送文件')
+      return
+    }
+    const isImage = file.type.startsWith('image/')
+    try {
+      if (isImage) {
+        const localPreviewUrl = URL.createObjectURL(file)
+        const localMessage = createPendingMessage({
+          content: localPreviewUrl,
+          msgType: MESSAGE_TYPE_IMAGE,
+          fileName: file.name,
+          fileSize: file.size,
+          retryFile: file
+        })
+        options.scrollMessagesToBottom(true)
+        await executePendingMessage(localMessage, () => sendPendingFileMessage(localMessage, file, MESSAGE_TYPE_IMAGE), '发送图片失败')
+      } else {
+        const localMessage = createPendingMessage({
+          content: file.name,
+          msgType: MESSAGE_TYPE_FILE,
+          fileName: file.name,
+          fileSize: file.size,
+          retryFile: file
+        })
+        options.scrollMessagesToBottom(true)
+        await executePendingMessage(localMessage, () => sendPendingFileMessage(localMessage, file, MESSAGE_TYPE_FILE), '发送文件失败')
+      }
+    } catch (error: any) {
+      console.error('sendFileFromComposer error:', error)
+      options.message.error(error?.message || '发送失败')
+    }
+  }
+
+  async function handleDroppedFiles(files: File[]) {
+    if (!files.length) {
+      return
+    }
+    for (const file of files) {
+      await sendFileFromComposer(file)
+    }
+  }
+
   async function handleImageUpload(event: Event) {  // 行注：定义异步 handleImageUpload 方法
     const input = event.target as HTMLInputElement  // 行注：初始化 input 变量
     const file = input.files?.[0]  // 行注：初始化 file 变量
@@ -436,8 +483,10 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
     downloadFileSize,  // 行注：补充当前配置项
     downloadProgress,  // 行注：补充当前配置项
     handleSend,  // 行注：补充当前配置项
-    handleFileUpload,  // 行注：补充当前配置项
-    handleImageUpload,  // 行注：补充当前配置项
+    handleFileUpload,
+    handleImageUpload,
+    handleDroppedFiles,
+    sendFileFromComposer,
     retryFailedMessage,  // 行注：补充当前配置项
     previewImage,  // 行注：补充当前配置项
     closeImagePreview,  // 行注：补充当前配置项

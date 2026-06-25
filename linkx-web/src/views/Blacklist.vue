@@ -2,12 +2,21 @@
 <template>
   <!-- 行注：渲染容器 -->
   <div class="content-area">
-    <!-- 行注：渲染容器 -->
     <div class="blacklist-panel">
-      <!-- 行注：渲染容器 -->
       <div class="panel-header">
-        <!-- 行注：展示“黑名单”文案 -->
-        <span class="header-title">黑名单</span>
+        <div class="header-text">
+          <span class="header-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+            </svg>
+          </span>
+          <div class="header-titles">
+            <span class="header-title">黑名单</span>
+            <span class="header-sub">已屏蔽的用户</span>
+          </div>
+          <span v-if="blacklist.length" class="header-count">{{ blacklist.length }}</span>
+        </div>
         <!-- 行注：渲染按钮 -->
         <button class="refresh-btn" @click="loadBlacklist" title="刷新">
           <!-- 行注：渲染图标容器 -->
@@ -24,9 +33,13 @@
       </div>
       <!-- 行注：渲染容器 -->
       <div class="blacklist-list">
-        <!-- 行注：渲染容器 -->
+        <div v-if="loading" class="list-loading">
+          <div class="list-loading-spinner" />
+          <span>加载中…</span>
+        </div>
         <div
           v-for="user in blacklist"
+          v-show="!loading"
           :key="user.id"
           class="blacklist-item"
         >
@@ -183,21 +196,92 @@ async function handleRemove(userId: number) {  // 行注：定义异步 handleRe
   min-width: 300px;  /* 行注：设置 min-width 样式 */
 }  /* 行注：结束当前样式块 */
 
-.panel-header {  /* 行注：定义 .panel-header 样式 */
-  height: 56px;  /* 行注：设置 height 样式 */
-  padding: 0 16px;  /* 行注：设置 padding 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  align-items: center;  /* 行注：设置 align-items 样式 */
-  justify-content: space-between;  /* 行注：设置 justify-content 样式 */
-  border-bottom: 1px solid var(--linkx-border);  /* 行注：设置 border-bottom 样式 */
-}  /* 行注：结束当前样式块 */
+.panel-header {
+  min-height: 64px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--linkx-border);
+  background: var(--linkx-bg-card);
+}
 
-.header-title {  /* 行注：定义 .header-title 样式 */
-  font-size: 16px;  /* 行注：设置 font-size 样式 */
-  font-weight: 700;  /* 行注：设置 font-weight 样式 */
-  color: var(--linkx-text);  /* 行注：设置 color 样式 */
-  letter-spacing: 0.3px;  /* 行注：设置 letter-spacing 样式 */
-}  /* 行注：结束当前样式块 */
+.header-text {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.header-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.12) 0%, rgba(238, 90, 90, 0.08) 100%);
+  color: #ee5a5a;
+  border: 1px solid var(--linkx-border);
+  flex-shrink: 0;
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--linkx-text);
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.header-sub {
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+}
+
+.header-count {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--linkx-bg);
+  color: var(--linkx-text-secondary);
+  border: 1px solid var(--linkx-border);
+}
+
+.list-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 16px;
+  color: var(--linkx-text-muted);
+  font-size: 13px;
+}
+
+.list-loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--linkx-border);
+  border-top-color: var(--linkx-primary);
+  border-radius: 50%;
+  animation: blacklist-spin 0.75s linear infinite;
+}
+
+@keyframes blacklist-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 
 .refresh-btn {  /* 行注：定义 .refresh-btn 样式 */
   width: 32px;  /* 行注：设置 width 样式 */
@@ -224,18 +308,21 @@ async function handleRemove(userId: number) {  // 行注：定义异步 handleRe
   padding: 8px;  /* 行注：设置 padding 样式 */
 }  /* 行注：结束当前样式块 */
 
-.blacklist-item {  /* 行注：定义 .blacklist-item 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  align-items: center;  /* 行注：设置 align-items 样式 */
-  padding: 12px;  /* 行注：设置 padding 样式 */
-  gap: 12px;  /* 行注：设置 gap 样式 */
-  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
-  transition: var(--linkx-transition-fast);  /* 行注：设置 transition 样式 */
-}  /* 行注：结束当前样式块 */
+.blacklist-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 14px;
+  gap: 12px;
+  margin-bottom: 6px;
+  border-radius: var(--linkx-radius);
+  border: 1px solid transparent;
+  transition: var(--linkx-transition-fast);
+}
 
-.blacklist-item:hover {  /* 行注：定义 .blacklist-item:hover 样式 */
-  background: var(--linkx-bg-hover);  /* 行注：设置 background 样式 */
-}  /* 行注：结束当前样式块 */
+.blacklist-item:hover {
+  background: var(--linkx-bg-hover);
+  border-color: var(--linkx-border);
+}
 
 .user-avatar {  /* 行注：定义 .user-avatar 样式 */
   width: 44px;  /* 行注：设置 width 样式 */
@@ -318,25 +405,37 @@ async function handleRemove(userId: number) {  // 行注：定义异步 handleRe
   font-size: 13px;  /* 行注：设置 font-size 样式 */
 }  /* 行注：结束当前样式块 */
 
-.right-panel {  /* 行注：定义 .right-panel 样式 */
-  flex: 1;  /* 行注：设置 flex 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  align-items: center;  /* 行注：设置 align-items 样式 */
-  justify-content: center;  /* 行注：设置 justify-content 样式 */
-  padding: 40px;  /* 行注：设置 padding 样式 */
-  min-width: 0;  /* 行注：设置 min-width 样式 */
-}  /* 行注：结束当前样式块 */
+.right-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  min-width: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(0, 214, 143, 0.04) 0%, transparent 70%);
+}
 
-.info-card {  /* 行注：定义 .info-card 样式 */
-  max-width: 320px;  /* 行注：设置 max-width 样式 */
-  text-align: center;  /* 行注：设置 text-align 样式 */
-}  /* 行注：结束当前样式块 */
+.info-card {
+  max-width: 380px;
+  padding: 32px 36px;
+  text-align: center;
+  background: var(--linkx-bg-card);
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius-lg, 14px);
+  box-shadow: var(--linkx-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.06));
+}
 
-.info-icon {  /* 行注：定义 .info-icon 样式 */
-  color: var(--linkx-text-muted);  /* 行注：设置 color 样式 */
-  margin-bottom: 16px;  /* 行注：设置 margin-bottom 样式 */
-  opacity: 0.5;  /* 行注：设置 opacity 样式 */
-}  /* 行注：结束当前样式块 */
+.info-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(0, 214, 143, 0.12) 0%, rgba(0, 149, 255, 0.08) 100%);
+  color: var(--linkx-primary);
+}
 
 .info-card h3 {  /* 行注：定义 .info-card h3 样式 */
   font-size: 18px;  /* 行注：设置 font-size 样式 */

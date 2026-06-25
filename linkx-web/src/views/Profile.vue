@@ -2,8 +2,23 @@
 <template>
   <!-- 行注：渲染容器 -->
   <div class="content-area">
-    <!-- 行注：渲染容器 -->
     <div class="profile-panel">
+      <div class="panel-header">
+        <div class="header-text">
+          <span class="header-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </span>
+          <div class="header-titles">
+            <span class="header-title">个人资料</span>
+            <span class="header-sub">管理头像、昵称与账号信息</span>
+          </div>
+        </div>
+      </div>
+      <div class="profile-scroll">
+    <div class="profile-card">
       <!-- 行注：渲染容器 -->
       <div class="profile-header">
         <!-- 行注：渲染容器 -->
@@ -152,111 +167,11 @@
           </div>
         <!-- 行注：结束容器 -->
         </div>
-        <!-- 行注：渲染容器 -->
-        <div class="theme-section">
-          <!-- 行注：渲染容器 -->
-          <div class="info-label" style="margin-bottom: 12px;">
-            <!-- 行注：渲染图标容器 -->
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <!-- 行注：补充图标圆形路径 -->
-              <circle cx="12" cy="12" r="5"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="12" y1="1" x2="12" y2="3"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="12" y1="21" x2="12" y2="23"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="1" y1="12" x2="3" y2="12"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="21" y1="12" x2="23" y2="12"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-            <!-- 行注：结束图标容器 -->
-            </svg>
-            <!-- 行注：展示“主题”文案 -->
-            主题
-          <!-- 行注：结束容器 -->
-          </div>
-          <!-- 行注：渲染容器 -->
-          <div class="theme-options">
-            <!-- 行注：渲染按钮 -->
-            <button
-              class="theme-btn"
-              :class="{ active: themeMode === 'light' }"
-              @click="setTheme('light')"
-            >
-              <!-- 行注：渲染图标容器 -->
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <!-- 行注：补充图标圆形路径 -->
-                <circle cx="12" cy="12" r="5"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="12" y1="1" x2="12" y2="3"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="12" y1="21" x2="12" y2="23"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="1" y1="12" x2="3" y2="12"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="21" y1="12" x2="23" y2="12"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-              <!-- 行注：结束图标容器 -->
-              </svg>
-              <!-- 行注：展示“浅色”文案 -->
-              浅色
-            <!-- 行注：结束按钮 -->
-            </button>
-            <!-- 行注：渲染按钮 -->
-            <button
-              class="theme-btn"
-              :class="{ active: themeMode === 'dark' }"
-              @click="setTheme('dark')"
-            >
-              <!-- 行注：渲染图标容器 -->
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <!-- 行注：补充图标路径 -->
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-              <!-- 行注：结束图标容器 -->
-              </svg>
-              <!-- 行注：展示“深色”文案 -->
-              深色
-            <!-- 行注：结束按钮 -->
-            </button>
-            <!-- 行注：渲染按钮 -->
-            <button
-              class="theme-btn"
-              :class="{ active: themeMode === 'system' }"
-              @click="setTheme('system')"
-            >
-              <!-- 行注：渲染图标容器 -->
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <!-- 行注：补充图标矩形路径 -->
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="8" y1="21" x2="16" y2="21"/>
-                <!-- 行注：补充图标线段 -->
-                <line x1="12" y1="17" x2="12" y2="21"/>
-              <!-- 行注：结束图标容器 -->
-              </svg>
-              <!-- 行注：展示“跟随系统”文案 -->
-              跟随系统
-            <!-- 行注：结束按钮 -->
-            </button>
-          <!-- 行注：结束容器 -->
-          </div>
-        <!-- 行注：结束容器 -->
-        </div>
         <!-- 行注：渲染按钮 -->
+        <p class="profile-settings-hint">
+          主题、开机自启等请前往
+          <router-link to="/settings" class="profile-settings-link">设置</router-link>
+        </p>
         <button class="save-btn" :class="{ saving }" :disabled="saving" @click="handleSave">
           <!-- 行注：渲染图标容器 -->
           <svg v-if="!saving" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -270,13 +185,27 @@
           {{ saving ? '保存中...' : '保存修改' }}
         <!-- 行注：结束按钮 -->
         </button>
-      <!-- 行注：结束容器 -->
       </div>
-    <!-- 行注：结束容器 -->
     </div>
-  <!-- 行注：结束容器 -->
+      </div>
+    </div>
+    <div class="right-panel">
+      <div class="info-card">
+        <div class="info-icon">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </div>
+        <h3>账号提示</h3>
+        <ul>
+          <li>头像与昵称会展示在聊天与联系人中</li>
+          <li>用户名注册后不可修改</li>
+          <li>主题、开机自启等请前往侧栏「设置」</li>
+        </ul>
+        <router-link to="/settings" class="info-link">打开设置</router-link>
+      </div>
+    </div>
   </div>
-<!-- 行注：结束模板区域 -->
 </template>
 <!-- 行注：开始定义脚本逻辑区域 -->
 <script setup lang="ts">
@@ -287,13 +216,11 @@ import { ref, reactive, onMounted } from 'vue'
 import { userApi, fileApi } from '../api/client'
 import { useUserStore } from '../stores/user'
 import ProtectedImage from '../components/ProtectedImage.vue'
-import { useMessage } from 'naive-ui'  // 行注：引入 useMessage 能力
-import { useTheme, type ThemeMode } from '../utils/theme'  // 行注：引入 useTheme, type ThemeMode 能力
+import { useMessage } from 'naive-ui'
 
-const userStore = useUserStore()  // 行注：获取 userStore 组合式能力
-const message = useMessage()  // 行注：获取全局消息实例
-const { mode: themeMode, setMode: setThemeMode } = useTheme()  // 行注：声明当前变量
-const saving = ref(false)  // 行注：初始化 saving 响应式状态
+const userStore = useUserStore()
+const message = useMessage()
+const saving = ref(false)
 const profile = reactive({  // 行注：开始解构当前返回值
   username: '',  // 行注：设置 username 配置项
   nickname: '',  // 行注：设置 nickname 配置项
@@ -301,10 +228,6 @@ const profile = reactive({  // 行注：开始解构当前返回值
   createTime: '',  // 行注：设置 createTime 配置项
   avatar: ''
 })
-
-function setTheme(val: ThemeMode) {
-  setThemeMode(val)  // 行注：调用 setThemeMode 方法
-}  // 行注：结束当前代码块
 
 onMounted(async () => {  // 行注：注册组件挂载后的初始化逻辑
   try {  // 行注：尝试执行可能失败的逻辑
@@ -380,25 +303,172 @@ function handleChangeAvatar() {  // 行注：定义 handleChangeAvatar 方法
 </script>
 <!-- 行注：开始定义样式区域 -->
 <style scoped>
-.content-area {  /* 行注：定义 .content-area 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  height: 100%;  /* 行注：设置 height 样式 */
-  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
-  justify-content: center;  /* 行注：设置 justify-content 样式 */
-  align-items: flex-start;  /* 行注：设置 align-items 样式 */
-  padding: 24px;  /* 行注：设置 padding 样式 */
-  overflow-y: auto;  /* 行注：设置 overflow-y 样式 */
-}  /* 行注：结束当前样式块 */
+.content-area {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  background: var(--linkx-bg);
+}
 
-.profile-panel {  /* 行注：定义 .profile-panel 样式 */
-  width: 100%;  /* 行注：设置 width 样式 */
-  max-width: 420px;  /* 行注：设置 max-width 样式 */
-  background: var(--linkx-bg-card);  /* 行注：设置 background 样式 */
-  border-radius: var(--linkx-radius-lg);  /* 行注：设置 border-radius 样式 */
-  overflow: hidden;  /* 行注：设置 overflow 样式 */
-  border: 1px solid var(--linkx-border);  /* 行注：设置 border 样式 */
-  box-shadow: var(--linkx-shadow-lg);  /* 行注：设置 box-shadow 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-panel {
+  width: 420px;
+  min-width: 320px;
+  max-width: 48%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--linkx-bg-card);
+  border-right: 1px solid var(--linkx-border);
+}
+
+.panel-header {
+  min-height: 64px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--linkx-border);
+  flex-shrink: 0;
+}
+
+.header-text {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(0, 214, 143, 0.14) 0%, rgba(0, 201, 167, 0.1) 100%);
+  color: var(--linkx-primary);
+  border: 1px solid var(--linkx-border);
+  flex-shrink: 0;
+}
+
+.header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.header-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--linkx-text);
+  letter-spacing: -0.01em;
+}
+
+.header-sub {
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+}
+
+.profile-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 16px 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.profile-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--linkx-bg-card);
+  border-radius: var(--linkx-radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--linkx-border);
+  box-shadow: var(--linkx-shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.06));
+}
+
+.right-panel {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  min-width: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 40%, rgba(0, 214, 143, 0.04) 0%, transparent 70%);
+}
+
+.info-card {
+  max-width: 380px;
+  padding: 32px 36px;
+  text-align: center;
+  background: var(--linkx-bg-card);
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius-lg, 14px);
+  box-shadow: var(--linkx-shadow-lg, 0 8px 24px rgba(0, 0, 0, 0.06));
+}
+
+.info-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 18px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(0, 214, 143, 0.12) 0%, rgba(0, 149, 255, 0.08) 100%);
+  color: var(--linkx-primary);
+}
+
+.info-card h3 {
+  margin: 0 0 16px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--linkx-text);
+}
+
+.info-card ul {
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+  font-size: 13px;
+  color: var(--linkx-text-secondary);
+  line-height: 1.7;
+}
+
+.info-card li {
+  position: relative;
+  padding-left: 16px;
+  margin-bottom: 8px;
+}
+
+.info-card li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--linkx-primary);
+  opacity: 0.6;
+}
+
+.info-link {
+  display: inline-block;
+  padding: 10px 20px;
+  border-radius: 10px;
+  border: 1px solid var(--linkx-border);
+  color: var(--linkx-primary);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: var(--linkx-transition-fast);
+}
+
+.info-link:hover {
+  border-color: var(--linkx-primary);
+  background: var(--linkx-primary-glow);
+}
 
 .profile-header {  /* 行注：定义 .profile-header 样式 */
   position: relative;  /* 行注：设置 position 样式 */
@@ -499,11 +569,12 @@ function handleChangeAvatar() {  // 行注：定义 handleChangeAvatar 方法
   color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
 }  /* 行注：结束当前样式块 */
 
-.info-section {  /* 行注：定义 .info-section 样式 */
-  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
-  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
-  overflow: hidden;  /* 行注：设置 overflow 样式 */
-}  /* 行注：结束当前样式块 */
+.info-section {
+  background: var(--linkx-bg);
+  border-radius: var(--linkx-radius);
+  overflow: hidden;
+  border: 1px solid var(--linkx-border);
+}
 
 .info-group {  /* 行注：定义 .info-group 样式 */
   display: flex;  /* 行注：设置 display 样式 */
@@ -574,52 +645,31 @@ function handleChangeAvatar() {  // 行注：定义 handleChangeAvatar 方法
   color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
 }  /* 行注：结束当前样式块 */
 
-.info-divider {  /* 行注：定义 .info-divider 样式 */
-  height: 1px;  /* 行注：设置 height 样式 */
-  background: var(--linkx-border);  /* 行注：设置 background 样式 */
-  margin: 0 16px;  /* 行注：设置 margin 样式 */
-}  /* 行注：结束当前样式块 */
+.info-divider {
+  height: 1px;
+  background: var(--linkx-border);
+  margin: 0 16px;
+}
 
-.theme-section {  /* 行注：定义 .theme-section 样式 */
-  padding: 16px;  /* 行注：设置 padding 样式 */
-  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
-  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-settings-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+  text-align: center;
+  line-height: 1.6;
+}
 
-.theme-options {  /* 行注：定义 .theme-options 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  gap: 8px;  /* 行注：设置 gap 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-settings-link {
+  color: var(--linkx-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
 
-.theme-btn {  /* 行注：定义 .theme-btn 样式 */
-  flex: 1;  /* 行注：设置 flex 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  flex-direction: column;  /* 行注：设置 flex-direction 样式 */
-  align-items: center;  /* 行注：设置 align-items 样式 */
-  gap: 6px;  /* 行注：设置 gap 样式 */
-  padding: 12px 8px;  /* 行注：设置 padding 样式 */
-  background: var(--linkx-bg-card);  /* 行注：设置 background 样式 */
-  border: 2px solid var(--linkx-border);  /* 行注：设置 border 样式 */
-  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
-  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
-  font-size: 12px;  /* 行注：设置 font-size 样式 */
-  font-weight: 600;  /* 行注：设置 font-weight 样式 */
-  cursor: pointer;  /* 行注：设置 cursor 样式 */
-  transition: var(--linkx-transition-fast);  /* 行注：设置 transition 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-settings-link:hover {
+  text-decoration: underline;
+}
 
-.theme-btn:hover {  /* 行注：定义 .theme-btn:hover 样式 */
-  border-color: var(--linkx-primary);  /* 行注：设置 border-color 样式 */
-  color: var(--linkx-text);  /* 行注：设置 color 样式 */
-}  /* 行注：结束当前样式块 */
-
-.theme-btn.active {  /* 行注：定义 .theme-btn.active 样式 */
-  border-color: var(--linkx-primary);  /* 行注：设置 border-color 样式 */
-  background: var(--linkx-primary-glow);  /* 行注：设置 background 样式 */
-  color: var(--linkx-primary);  /* 行注：设置 color 样式 */
-}  /* 行注：结束当前样式块 */
-
-.save-btn {  /* 行注：定义 .save-btn 样式 */
+.save-btn {
   width: 100%;  /* 行注：设置 width 样式 */
   height: 44px;  /* 行注：设置 height 样式 */
   display: flex;  /* 行注：设置 display 样式 */
@@ -668,39 +718,53 @@ function handleChangeAvatar() {  // 行注：定义 handleChangeAvatar 方法
   to { transform: rotate(360deg); }  /* 行注：定义 to 样式 */
 }  /* 行注：结束当前样式块 */
 
-@media (max-width: 640px) {  /* 行注：声明响应式样式区块 */
-  .content-area {  /* 行注：定义 .content-area 样式 */
-    padding: 16px 12px;  /* 行注：设置 padding 样式 */
-  }  /* 行注：结束当前样式块 */
+@media (max-width: 960px) {
+  .profile-panel {
+    width: 360px;
+    max-width: 52%;
+  }
+}
 
-  .profile-content {  /* 行注：定义 .profile-content 样式 */
-    padding: 48px 16px 16px;  /* 行注：设置 padding 样式 */
-    gap: 16px;  /* 行注：设置 gap 样式 */
-  }  /* 行注：结束当前样式块 */
+@media (max-width: 760px) {
+  .content-area {
+    flex-direction: column;
+  }
 
-  .info-group {  /* 行注：定义 .info-group 样式 */
-    align-items: flex-start;  /* 行注：设置 align-items 样式 */
-    flex-direction: column;  /* 行注：设置 flex-direction 样式 */
-    gap: 10px;  /* 行注：设置 gap 样式 */
-  }  /* 行注：结束当前样式块 */
+  .profile-panel {
+    width: 100%;
+    max-width: none;
+    max-height: 58%;
+    border-right: none;
+    border-bottom: 1px solid var(--linkx-border);
+  }
 
-  .info-input,  /* 行注：补充 .info-input 选择器 */
-  .info-select {  /* 行注：定义 .info-select 样式 */
-    width: 100%;  /* 行注：设置 width 样式 */
-  }  /* 行注：结束当前样式块 */
+  .right-panel {
+    flex: 1;
+    align-items: stretch;
+    padding: 16px;
+  }
 
-  .info-value {  /* 行注：定义 .info-value 样式 */
-    width: 100%;  /* 行注：设置 width 样式 */
-    word-break: break-word;  /* 行注：设置 word-break 样式 */
-  }  /* 行注：结束当前样式块 */
+  .info-card {
+    max-width: none;
+    text-align: left;
+  }
 
-  .theme-options {  /* 行注：定义 .theme-options 样式 */
-    flex-direction: column;  /* 行注：设置 flex-direction 样式 */
-  }  /* 行注：结束当前样式块 */
+  .profile-content {
+    padding: 48px 16px 16px;
+    gap: 16px;
+  }
 
-  .theme-btn {  /* 行注：定义 .theme-btn 样式 */
-    flex-direction: row;  /* 行注：设置 flex-direction 样式 */
-    justify-content: center;  /* 行注：设置 justify-content 样式 */
-  }  /* 行注：结束当前样式块 */
-}  /* 行注：结束当前样式块 */
+  .info-group {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .info-input,
+  .info-select,
+  .info-value {
+    width: 100%;
+    word-break: break-word;
+  }
+}
 </style>

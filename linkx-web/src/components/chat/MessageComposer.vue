@@ -74,6 +74,7 @@
         :disabled="currentMuted"
         @input="handleInput"
         @keydown="$emit('input-keydown', $event)"
+        @paste="$emit('paste', $event)"
         @click="$emit('sync-mention-menu')"
       ></textarea>
       <!-- 行注：渲染按钮 -->
@@ -154,8 +155,9 @@ const emit = defineEmits<{  // 行注：开始解构当前返回值
   (event: 'insert-emoji', value: string): void  // 行注：执行当前调用逻辑
   (event: 'trigger-file-upload'): void  // 行注：执行当前调用逻辑
   (event: 'trigger-image-upload'): void  // 行注：执行当前调用逻辑
-  (event: 'input-keydown', value: KeyboardEvent): void  // 行注：执行当前调用逻辑
-  (event: 'input-change'): void  // 行注：执行当前调用逻辑
+  (event: 'input-keydown', value: KeyboardEvent): void
+  (event: 'paste', value: ClipboardEvent): void
+  (event: 'input-change'): void
   (event: 'sync-mention-menu'): void  // 行注：执行当前调用逻辑
   (event: 'send'): void  // 行注：执行当前调用逻辑
   (event: 'select-mention-candidate', value: MentionCandidate): void  // 行注：执行当前调用逻辑

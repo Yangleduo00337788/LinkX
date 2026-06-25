@@ -73,6 +73,17 @@
           <!-- 行注：渲染容器 -->
           <div
             class="sidebar-item"
+            :class="{ active: currentTab === 'settings' }"
+            @click="goTo('settings')"
+            title="设置"
+          >
+            <div class="sidebar-icon">
+              <n-icon size="22"><SettingsOutline /></n-icon>
+            </div>
+            <span class="sidebar-label">设置</span>
+          </div>
+          <div
+            class="sidebar-item"
             :class="{ active: currentTab === 'blacklist' }"
             @click="goTo('blacklist')"
           >
@@ -196,22 +207,10 @@
               </div>
             <!-- 行注：结束容器 -->
             </div>
-            <!-- 行注：渲染容器 -->
-            <div class="profile-popup-theme">
-              <!-- 行注：展示“主题”文案 -->
-              <span class="theme-label">主题</span>
-              <!-- 行注：渲染容器 -->
-              <div class="theme-options">
-                <!-- 行注：展示“浅色”文案 -->
-                <button class="theme-btn" :class="{ active: themeMode === 'light' }" @click="setThemeMode('light')">浅色</button>
-                <!-- 行注：展示“深色”文案 -->
-                <button class="theme-btn" :class="{ active: themeMode === 'dark' }" @click="setThemeMode('dark')">深色</button>
-                <!-- 行注：展示“跟随系统”文案 -->
-                <button class="theme-btn" :class="{ active: themeMode === 'system' }" @click="setThemeMode('system')">跟随系统</button>
-              <!-- 行注：结束容器 -->
-              </div>
-            <!-- 行注：结束容器 -->
-            </div>
+            <button type="button" class="profile-popup-settings-link" @click="openSettingsFromProfile">
+              打开设置
+            </button>
+            <p class="profile-popup-settings-note">外观与桌面选项请在设置页中修改</p>
           <!-- 行注：结束容器 -->
           </div>
         <!-- 行注：结束容器 -->
@@ -235,17 +234,14 @@ import { useUserStore } from '../stores/user'
 import ProtectedImage from '../components/ProtectedImage.vue'
 import { userApi } from '../api/client'  // 行注：引入 userApi 能力
 import { NIcon, useMessage } from 'naive-ui'  // 行注：引入 NIcon, useMessage 能力
-import { ChatbubblesOutline, PeopleOutline, FolderOpenOutline, BanOutline, LogOutOutline } from '@vicons/ionicons5'  // 行注：引入 ChatbubblesOutline, PeopleOutline, FolderOpenOutline, BanOutline, LogOutOutline 能力
+import { ChatbubblesOutline, PeopleOutline, FolderOpenOutline, BanOutline, LogOutOutline, SettingsOutline } from '@vicons/ionicons5'
 import TitleBar from '../components/TitleBar.vue'  // 行注：引入 TitleBar 组件
-import { useTheme } from '../utils/theme'  // 行注：引入 useTheme 能力
-
-const router = useRouter()  // 行注：获取路由实例
-const route = useRoute()  // 行注：获取 route 组合式能力
+const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const message = useMessage()
-const currentTab = ref('chat')  // 行注：初始化 currentTab 响应式状态
-const showProfile = ref(false)  // 行注：初始化 showProfile 响应式状态
-const { mode: themeMode, setMode: setThemeMode } = useTheme()  // 行注：声明当前变量
+const currentTab = ref('chat')
+const showProfile = ref(false)
 const profile = reactive({  // 行注：开始解构当前返回值
   username: '',  // 行注：设置 username 配置项
   nickname: '',  // 行注：设置 nickname 配置项
@@ -259,8 +255,9 @@ watch(() => route.path, (path) => {  // 行注：监听状态变化
   else if (path.startsWith('/groups')) currentTab.value = 'chat'  // 行注：继续判断其他分支条件
   else if (path.startsWith('/friends')) currentTab.value = 'friends'  // 行注：继续判断其他分支条件
   else if (path.startsWith('/files')) currentTab.value = 'files'  // 行注：继续判断其他分支条件
-  else if (path.startsWith('/blacklist')) currentTab.value = 'blacklist'  // 行注：继续判断其他分支条件
-  else if (path.startsWith('/profile')) currentTab.value = 'profile'  // 行注：继续判断其他分支条件
+  else if (path.startsWith('/blacklist')) currentTab.value = 'blacklist'
+  else if (path.startsWith('/settings')) currentTab.value = 'settings'
+  else if (path.startsWith('/profile')) currentTab.value = 'profile'
 }, { immediate: true })  // 行注：补充当前表达式
 
 watch(showProfile, async (val) => {  // 行注：监听状态变化
@@ -280,10 +277,16 @@ watch(showProfile, async (val) => {  // 行注：监听状态变化
   }  // 行注：结束当前代码块
 })  // 行注：结束当前调用配置
 
-function goTo(tab: string) {  // 行注：定义 goTo 方法
-  currentTab.value = tab  // 行注：更新 currentTab 状态
-  router.push(`/${tab}`)  // 行注：跳转到目标路由
-}  // 行注：结束当前代码块
+function goTo(tab: string) {
+  currentTab.value = tab
+  router.push(`/${tab}`)
+}
+
+function openSettingsFromProfile() {
+  showProfile.value = false
+  currentTab.value = 'settings'
+  router.push('/settings')
+}
 
 function handleLogout() {  // 行注：定义 handleLogout 方法
   userStore.logout()  // 行注：调用 logout 方法
@@ -575,46 +578,32 @@ function handleLogout() {  // 行注：定义 handleLogout 方法
   color: var(--linkx-text);  /* 行注：设置 color 样式 */
 }  /* 行注：结束当前样式块 */
 
-.profile-popup-theme {  /* 行注：定义 .profile-popup-theme 样式 */
-  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
-  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
-  padding: 12px 16px;  /* 行注：设置 padding 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-settings-link {
+  width: 100%;
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px dashed var(--linkx-border);
+  border-radius: var(--linkx-radius);
+  background: var(--linkx-bg);
+  color: var(--linkx-primary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--linkx-transition-fast);
+}
 
-.theme-label {  /* 行注：定义 .theme-label 样式 */
-  font-size: 13px;  /* 行注：设置 font-size 样式 */
-  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
-  display: block;  /* 行注：设置 display 样式 */
-  margin-bottom: 8px;  /* 行注：设置 margin-bottom 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-settings-link:hover {
+  border-color: var(--linkx-primary);
+  background: var(--linkx-primary-glow);
+}
 
-.theme-options {  /* 行注：定义 .theme-options 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  gap: 8px;  /* 行注：设置 gap 样式 */
-}  /* 行注：结束当前样式块 */
-
-.theme-btn {  /* 行注：定义 .theme-btn 样式 */
-  flex: 1;  /* 行注：设置 flex 样式 */
-  padding: 8px;  /* 行注：设置 padding 样式 */
-  background: var(--linkx-bg-card);  /* 行注：设置 background 样式 */
-  border: 1px solid var(--linkx-border);  /* 行注：设置 border 样式 */
-  border-radius: var(--linkx-radius-sm);  /* 行注：设置 border-radius 样式 */
-  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
-  font-size: 12px;  /* 行注：设置 font-size 样式 */
-  cursor: pointer;  /* 行注：设置 cursor 样式 */
-  transition: var(--linkx-transition-fast);  /* 行注：设置 transition 样式 */
-}  /* 行注：结束当前样式块 */
-
-.theme-btn:hover {  /* 行注：定义 .theme-btn:hover 样式 */
-  border-color: var(--linkx-primary);  /* 行注：设置 border-color 样式 */
-  color: var(--linkx-text);  /* 行注：设置 color 样式 */
-}  /* 行注：结束当前样式块 */
-
-.theme-btn.active {  /* 行注：定义 .theme-btn.active 样式 */
-  border-color: var(--linkx-primary);  /* 行注：设置 border-color 样式 */
-  background: var(--linkx-primary-glow);  /* 行注：设置 background 样式 */
-  color: var(--linkx-primary);  /* 行注：设置 color 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-settings-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+  text-align: center;
+  line-height: 1.5;
+}
 
 @media (max-width: 760px) {  /* 行注：声明响应式样式区块 */
   .app-content {  /* 行注：定义 .app-content 样式 */
@@ -664,14 +653,7 @@ function handleLogout() {  // 行注：定义 handleLogout 方法
     padding: 44px 16px 16px;  /* 行注：设置 padding 样式 */
   }  /* 行注：结束当前样式块 */
 
-  .theme-options {  /* 行注：定义 .theme-options 样式 */
-    flex-wrap: wrap;  /* 行注：设置 flex-wrap 样式 */
-  }  /* 行注：结束当前样式块 */
-
-  .theme-btn {  /* 行注：定义 .theme-btn 样式 */
-    min-width: 84px;  /* 行注：设置 min-width 样式 */
-  }  /* 行注：结束当前样式块 */
-}  /* 行注：结束当前样式块 */
+}
 
 @media (max-width: 520px) {  /* 行注：声明响应式样式区块 */
   .sidebar {  /* 行注：定义 .sidebar 样式 */

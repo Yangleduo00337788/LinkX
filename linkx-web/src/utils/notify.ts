@@ -59,10 +59,14 @@ export async function showNotification(  // 行注：导出当前能力
       ...payload  // 行注：补充当前表达式
     }  // 行注：结束当前代码块
   })  // 行注：结束当前调用配置
-  const api = getElectronAPI()  // 行注：初始化 api 实例
-  if (api) {  // 行注：判断当前条件是否成立
-    return await api.showNotification(title, body, icon)  // 行注：返回当前结果
-  }  // 行注：结束当前代码块
+  const api = getElectronAPI()
+  if (api) {
+    return await api.showNotification(title, body, icon, {
+      targetId: payload.targetId,
+      sessionType: payload.sessionType,
+      messageId: payload.messageId
+    })
+  }
 
   if ('Notification' in window) {  // 行注：判断当前条件是否成立
     if (Notification.permission === 'granted') {  // 行注：判断当前条件是否成立

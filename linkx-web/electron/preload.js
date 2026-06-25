@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 托盘未读
   setTrayUnreadCount: (count) => ipcRenderer.invoke('tray:setUnreadCount', count),
+  onTrayAction: (callback) => ipcRenderer.on('tray:action', (_, data) => callback(data)),
+  removeTrayActionListener: () => ipcRenderer.removeAllListeners('tray:action'),
 
   // 系统信息
   getVersions: () => ipcRenderer.invoke('app:versions'),

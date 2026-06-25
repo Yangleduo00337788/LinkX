@@ -16,8 +16,9 @@ const routes = [  // 行注：初始化 routes 变量
       { path: 'groups/:groupId/members', name: 'GroupMembers', component: () => import('../views/GroupMembers.vue') },  // 行注：执行当前调用逻辑
       { path: 'friends', name: 'Friends', component: () => import('../views/Friends.vue') },  // 行注：执行当前调用逻辑
       { path: 'files', name: 'Files', component: () => import('../views/Files.vue') },  // 行注：执行当前调用逻辑
-      { path: 'blacklist', name: 'Blacklist', component: () => import('../views/Blacklist.vue') },  // 行注：执行当前调用逻辑
-      { path: 'profile', name: 'Profile', component: () => import('../views/Profile.vue') },  // 行注：执行当前调用逻辑
+      { path: 'blacklist', name: 'Blacklist', component: () => import('../views/Blacklist.vue') },
+      { path: 'settings', name: 'Settings', component: () => import('../views/Settings.vue') },
+      { path: 'profile', name: 'Profile', component: () => import('../views/Profile.vue') },
     ]  // 行注：补充当前表达式
   }  // 行注：结束当前代码块
 ]  // 行注：补充当前表达式

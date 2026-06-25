@@ -174,6 +174,7 @@
             @preview-image="previewImage"
             @download-file="downloadFile"
             @retry-failed-message="retryFailedMessage"
+            @open-external-link="openMessageExternalLink"
           />
         <!-- 行注：结束容器 -->
         </div>
@@ -207,7 +208,8 @@
           @insert-emoji="insertEmoji"
           @trigger-file-upload="triggerFileUpload"
           @trigger-image-upload="triggerImageUpload"
-          @input-keydown="handleInputKeydown"
+          @input-keydown="handleComposerKeydown"
+          @paste="handleComposerPaste"
           @input-change="handleInputChange"
           @sync-mention-menu="syncMentionMenu"
           @send="sendMessage"
@@ -360,7 +362,11 @@ import {  // 行注：引入 { 模块
   type ChatSession,  // 行注：补充当前配置项
   type GroupDetail  // 行注：补充当前表达式
 } from '../types/chat'  // 行注：补充当前表达式
-import { buildSessionKey, formatDateTime } from '../utils/chat'  // 行注：引入 buildSessionKey, formatDateTime 能力
+import { buildSessionKey, formatDateTime } from '../utils/chat'
+import { setupFileDrop } from '../utils/fileDrop'
+import { getElectronAPI } from '../utils/electron'
+import { base64PayloadToFile } from '../utils/droppedFile'
+import { openSafeExternalUrl } from '../utils/url'
 
 const route = useRoute()  // 行注：获取 route 组合式能力
 const router = useRouter()  // 行注：获取路由实例
@@ -662,8 +668,10 @@ const {  // 行注：开始解构当前返回值
   showMsgMenu,  // 行注：解构 showMsgMenu 状态
   canRecallMessage,  // 行注：解构 canRecallMessage 状态
   handleRecallMessage,  // 行注：解构 handleRecallMessage 方法
-  handleCopyMessage  // 行注：解构 handleCopyMessage 方法
-} = messageActions  // 行注：补充当前表达式
+  handleCopyMessage,
+  handleDroppedFiles,
+  sendFileFromComposer
+} = messageActions
 
 sendMessageImpl = async () => {  // 行注：执行当前调用逻辑
   await handleSend(resolveOutgoingMentions(inputMessage.value))  // 行注：调用 handleSend 方法
@@ -779,20 +787,92 @@ function handleClickOutside(event: MouseEvent) {  // 行注：定义 handleClick
 }  // 行注：结束当前代码块
 
 // 监听全局快捷键，目前主要用于 ESC 关闭图片预览。
-function handleWindowKeydown(event: KeyboardEvent) {  // 行注：定义 handleWindowKeydown 方法
-  if (event.key === 'Escape' && showImagePreview.value) {  // 行注：判断当前条件是否成立
-    closeImagePreview()  // 行注：调用 closeImagePreview 方法
-  }  // 行注：结束当前代码块
-}  // 行注：结束当前代码块
+function handleWindowKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && showImagePreview.value) {
+    closeImagePreview()
+  }
+}
+
+function handleComposerKeydown(event: KeyboardEvent) {
+  handleInputKeydown(event)
+}
+
+const CLIPBOARD_IMAGE_PREF_KEY = 'linkx.clipboardImagePaste'
+
+function isClipboardImagePasteEnabled() {
+  return localStorage.getItem(CLIPBOARD_IMAGE_PREF_KEY) !== '0'
+}
+
+async function handleComposerPaste(event: ClipboardEvent) {
+  if (!currentTargetId.value || currentMuted.value || !isClipboardImagePasteEnabled()) {
+    return
+  }
+  const items = event.clipboardData?.items
+  if (!items?.length) {
+    return
+  }
+  for (const item of items) {
+    if (!item.type.startsWith('image/')) {
+      continue
+    }
+    const blob = item.getAsFile()
+    if (!blob) {
+      continue
+    }
+    event.preventDefault()
+    const ext = item.type.split('/')[1]?.replace('jpeg', 'jpg') || 'png'
+    const file = new File([blob], `paste-${Date.now()}.${ext}`, { type: item.type })
+    await sendFileFromComposer(file)
+    return
+  }
+  const api = getElectronAPI()
+  if (!api?.readClipboardImage) {
+    return
+  }
+  try {
+    const payload = await api.readClipboardImage()
+    if (!payload?.data) {
+      return
+    }
+    event.preventDefault()
+    const file = base64PayloadToFile({
+      name: `paste-${Date.now()}.png`,
+      mimeType: payload.mimeType || 'image/png',
+      size: payload.size,
+      data: payload.data
+    })
+    await sendFileFromComposer(file)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function openMessageExternalLink(href: string) {
+  try {
+    await openSafeExternalUrl(href)
+  } catch (error: unknown) {
+    const err = error as { message?: string }
+    message.error(err.message || '无法打开链接')
+  }
+}
+
+let teardownFileDrop: (() => void) | null = null
 
 watch(() => route.fullPath, () => {  // 行注：监听状态变化
   void initializeRouteSession()  // 行注：调用 initializeRouteSession 方法
 })  // 行注：结束当前调用配置
 
-onMounted(async () => {  // 行注：注册组件挂载后的初始化逻辑
-  document.addEventListener('click', handleClickOutside)  // 行注：注册点击事件监听
-  window.addEventListener('keydown', handleWindowKeydown)  // 行注：注册键盘按下事件监听
-  connectChatSocket()  // 行注：调用 connectChatSocket 方法
+onMounted(async () => {
+  document.addEventListener('click', handleClickOutside)
+  window.addEventListener('keydown', handleWindowKeydown)
+  teardownFileDrop = setupFileDrop(files => {
+    if (!currentTargetId.value) {
+      message.warning('请先选择一个会话再发送文件')
+      return
+    }
+    void handleDroppedFiles(files)
+  })
+  connectChatSocket()
   loadingSessions.value = true  // 行注：更新 loadingSessions 状态
   try {  // 行注：尝试执行可能失败的逻辑
     await Promise.all([loadFriends(), loadSessions()])  // 行注：并行执行多项异步任务
@@ -803,8 +883,10 @@ onMounted(async () => {  // 行注：注册组件挂载后的初始化逻辑
   }  // 行注：结束当前代码块
 })  // 行注：结束当前调用配置
 
-onUnmounted(() => {  // 行注：注册组件卸载时的清理逻辑
-  clearActiveJumpHighlight()  // 行注：调用 clearActiveJumpHighlight 方法
+onUnmounted(() => {
+  teardownFileDrop?.()
+  teardownFileDrop = null
+  clearActiveJumpHighlight()
   disconnectChatSocket()  // 行注：调用 disconnectChatSocket 方法
   cleanupMessageResources()  // 行注：调用 cleanupMessageResources 方法
   resetCreateGroupForm()  // 行注：调用 resetCreateGroupForm 方法
