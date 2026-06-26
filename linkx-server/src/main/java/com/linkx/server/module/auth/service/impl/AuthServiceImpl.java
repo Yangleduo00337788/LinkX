@@ -12,8 +12,10 @@ import com.linkx.server.module.auth.dto.RegisterRequest;  // 行注：引入 Reg
 import com.linkx.server.module.auth.service.AccessTokenDenylistService;  // 行注：引入 AccessTokenDenylistService 类型
 import com.linkx.server.module.auth.service.AuthService;  // 行注：引入 AuthService 类型
 import com.linkx.server.module.auth.service.PasswordPolicy;  // 行注：引入 PasswordPolicy 类型
+import com.linkx.server.module.auth.service.LoginLogService;
 import com.linkx.server.module.auth.service.RefreshTokenSessionService;  // 行注：引入 RefreshTokenSessionService 类型
 import com.linkx.server.security.JwtTokenProvider;  // 行注：引入 JwtTokenProvider 类型
+import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
 import lombok.extern.slf4j.Slf4j;  // 行注：引入 Slf4j 类型
 import org.springframework.dao.DuplicateKeyException;  // 行注：引入 DuplicateKeyException 类型
@@ -36,6 +38,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenProvider jwtTokenProvider;  // 行注：注入JWT令牌提供器依赖
     private final RefreshTokenSessionService refreshTokenSessionService;  // 行注：注入刷新令牌会话服务依赖
     private final AccessTokenDenylistService accessTokenDenylistService;  // 行注：注入访问令牌拒绝列表服务依赖
+    private final LoginLogService loginLogService;
 
     /**
      * 注册相关逻辑。
@@ -132,56 +135,54 @@ public class AuthServiceImpl implements AuthService {
      * @param request 当前请求或请求对象
      * @return 认证响应
      */
-    @Override  // 行注：应用 @Override 注解
-    // 行注：定义登录方法
+    @Override
     public AuthResponse login(LoginRequest request) {
-        // 登录也复用统一的文本清洗逻辑，避免同一个账号因为输入空白差异查不到用户。
-        String username = TextNormalizer.normalizeRequiredSingleLine(request.getUsername(), 50, "用户名");  // 行注：初始化username
-        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
-        wrapper.eq(SysUser::getUsername, username);  // 行注：调用等值条件
-        SysUser user = userMapper.selectOne(wrapper);  // 行注：初始化用户
+        return login(request, null, null);
+    }
 
-        // 行注：判断是否满足当前条件
+    @Override
+    public AuthResponse login(LoginRequest request, String clientIp, String userAgent) {
+        String username = TextNormalizer.normalizeRequiredSingleLine(request.getUsername(), 50, "用户名");
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getUsername, username);
+        SysUser user = userMapper.selectOne(wrapper);
+
         if (user == null) {
-            log.warn("Auth login rejected, reason=user_not_found, username={}", username);  // 行注：执行初始化操作
-            throw new BusinessException(ErrorCode.AUTH_LOGIN_FAILED);  // 行注：抛出异常并中断当前流程
-        }  // 行注：结束当前代码块
+            loginLogService.recordFailure(username, "password", clientIp, userAgent, "user_not_found");
+            log.warn("Auth login rejected, reason=user_not_found, username={}", username);
+            throw new BusinessException(ErrorCode.AUTH_LOGIN_FAILED);
+        }
 
-        // 行注：判断是否满足当前条件
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            // 行注：执行初始化操作
+            loginLogService.recordFailure(username, "password", clientIp, userAgent, "password_error");
             log.warn("Auth login rejected, reason=password_error, userId={}, username={}", user.getId(), user.getUsername());
-            throw new BusinessException(ErrorCode.AUTH_LOGIN_FAILED);  // 行注：抛出异常并中断当前流程
-        }  // 行注：结束当前代码块
+            throw new BusinessException(ErrorCode.AUTH_LOGIN_FAILED);
+        }
 
-        // 行注：判断是否满足当前条件
         if (user.getStatus() == 0) {
-            // 行注：执行初始化操作
+            loginLogService.recordFailure(username, "password", clientIp, userAgent, "user_disabled");
             log.warn("Auth login rejected, reason=user_disabled, userId={}, username={}", user.getId(), user.getUsername());
-            throw new BusinessException(ErrorCode.USER_DISABLED);  // 行注：抛出异常并中断当前流程
-        }  // 行注：结束当前代码块
+            throw new BusinessException(ErrorCode.USER_DISABLED);
+        }
 
-        // 每次登录都重新签发一对新令牌，并覆盖 Redis 中旧的 refresh 会话。
-        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());  // 行注：初始化访问令牌
-        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());  // 行注：初始化刷新令牌
-        refreshTokenSessionService.issueToken(user.getId(), refreshToken);  // 行注：调用申请令牌
-        log.info("Auth login issued tokens, userId={}, username={}", user.getId(), user.getUsername());  // 行注：执行初始化操作
+        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+        refreshTokenSessionService.issueToken(user.getId(), refreshToken);
+        loginLogService.recordSuccess(user.getId(), user.getUsername(), "password", clientIp, userAgent);
+        user.setLastLoginTime(LocalDateTime.now());
+        user.setLastLoginIp(clientIp);
+        userMapper.updateById(user);
+        log.info("Auth login issued tokens, userId={}, username={}", user.getId(), user.getUsername());
 
-        return AuthResponse.builder()  // 行注：返回处理结果
-                // 行注：继续调用访问令牌
+        return AuthResponse.builder()
                 .accessToken(accessToken)
-                // 行注：继续调用刷新令牌
                 .refreshToken(refreshToken)
-                // 行注：继续调用用户ID
                 .userId(user.getId())
-                // 行注：继续调用username
                 .username(user.getUsername())
-                // 行注：继续调用nickname
                 .nickname(user.getNickname())
-                // 行注：继续调用头像
                 .avatar(user.getAvatar())
-                .build();  // 行注：继续调用构建
-    }  // 行注：结束当前代码块
+                .build();
+    }
 
     /**
      * 刷新令牌。

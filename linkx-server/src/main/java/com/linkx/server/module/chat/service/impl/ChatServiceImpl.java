@@ -25,6 +25,8 @@ import com.linkx.server.module.chat.constant.ChatConstants;  // 行注：引入 
 import com.linkx.server.module.chat.dto.ChatSessionDTO;  // 行注：引入 ChatSessionDTO 类型
 import com.linkx.server.module.chat.dto.MessageDTO;  // 行注：引入 MessageDTO 类型
 import com.linkx.server.module.chat.service.ChatService;  // 行注：引入 ChatService 类型
+import com.linkx.server.module.compliance.dto.SensitiveCheckResult;
+import com.linkx.server.module.compliance.service.SensitiveWordService;
 import com.linkx.server.module.chat.helper.ChatMessageHelper;  // 行注：引入 ChatMessageHelper 类型
 import com.linkx.server.module.chat.ws.ChatEventPushService;  // 行注：引入 ChatEventPushService 类型
 import com.linkx.server.module.chat.ws.ChatEventType;  // 行注：引入 ChatEventType 类型
@@ -90,6 +92,7 @@ public class ChatServiceImpl implements ChatService {
     private final ChatPresenceService chatPresenceService;  // 行注：注入聊天在线状态服务依赖
     private final AuditLogService auditLogService;  // 行注：注入审计日志服务依赖
     private final ChatMessageHelper chatMessageHelper;  // 行注：注入聊天消息辅助器依赖
+    private final SensitiveWordService sensitiveWordService;
 
     /** {@inheritDoc} 单聊校验好友与黑名单；群聊校验成员与禁言。 */
     @Override  // 行注：应用 @Override 注解
@@ -99,7 +102,13 @@ public class ChatServiceImpl implements ChatService {
         // 文本消息统一做长度与换行规范化，既保护数据库也保证不同入口行为一致。
         // 行注：初始化规范化后的内容
         String normalizedContent = TextNormalizer.normalizeRequiredMultiline(content, MESSAGE_CONTENT_MAX_LENGTH, "消息内容");
-        int resolvedMsgType = resolveTextMessageType(msgType);  // 行注：初始化解析后的消息类型
+        int resolvedMsgType = resolveTextMessageType(msgType);
+        if (resolvedMsgType == 0) {
+            SensitiveCheckResult sensitive = sensitiveWordService.checkText(fromUserId, normalizedContent, "CHAT_SEND", true);
+            if (sensitive.isBlocked()) {
+                throw new BusinessException(ErrorCode.CONTENT_BLOCKED);
+            }
+        }
         int resolvedSessionType = resolveSessionType(sessionType);  // 行注：初始化解析后的会话类型
         // 群聊和单聊的校验规则差异很大，尽早分流到专门逻辑中处理。
         // 行注：判断是否满足当前条件

@@ -1,5 +1,6 @@
 package com.linkx.server.config;  // 行注：声明当前文件所在包 com.linkx.server.config
 
+import com.linkx.server.security.AdminJwtAuthenticationFilter;
 import com.linkx.server.security.JwtAuthenticationEntryPoint;  // 行注：引入 JwtAuthenticationEntryPoint 类型
 import com.linkx.server.security.JwtAuthenticationFilter;  // 行注：引入 JwtAuthenticationFilter 类型
 import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
@@ -34,6 +35,7 @@ import java.util.List;  // 行注：引入 List 类型
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;  // 行注：注入JWT 认证过滤依赖
+    private final AdminJwtAuthenticationFilter adminJwtAuthenticationFilter;
     private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;  // 行注：注入JWT 认证入口点依赖
     private final LinkxSecurityProperties linkxSecurityProperties;  // 行注：注入LinkX 安全属性依赖
 
@@ -62,16 +64,15 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
             // 行注：继续调用授权 HTTP 请求
             .authorizeHttpRequests(auth -> auth
-                // 行注：继续调用请求匹配器
                 .requestMatchers("/api/auth/**").permitAll()
-                // 行注：继续调用请求匹配器
+                .requestMatchers("/api/admin/auth/login").permitAll()
                 .requestMatchers("/ws/**").permitAll()
-                // 行注：继续调用任意请求
+                .requestMatchers("/api/admin/admins/**").hasRole("SUPER_ADMIN")
+                .requestMatchers("/api/admin/**").hasAnyRole("SUPER_ADMIN", "OPERATOR", "AUDITOR", "VIEWER")
                 .anyRequest().authenticated()
-            // 行注：结束当前参数配置
             )
-            // 在用户名密码过滤器之前解析 Bearer JWT
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);  // 行注：继续调用添加前置过滤器
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterBefore(adminJwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();  // 行注：返回处理结果
     }  // 行注：结束当前代码块

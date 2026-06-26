@@ -1,6 +1,7 @@
 package com.linkx.server.security;  // 行注：声明当前文件所在包 com.linkx.server.security
 
 import com.linkx.server.module.auth.service.AccessTokenDenylistService;  // 行注：引入 AccessTokenDenylistService 类型
+import com.linkx.server.module.auth.service.UserSessionInvalidationService;
 import jakarta.servlet.FilterChain;  // 行注：引入 FilterChain 类型
 import jakarta.servlet.ServletException;  // 行注：引入 ServletException 类型
 import jakarta.servlet.http.HttpServletRequest;  // 行注：引入 HttpServletRequest 类型
@@ -32,6 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;  // 行注：注入JWT令牌提供器依赖
     private final UserDetailsService userDetailsService;  // 行注：注入用户Details服务依赖
     private final AccessTokenDenylistService accessTokenDenylistService;  // 行注：注入访问令牌拒绝列表服务依赖
+    private final UserSessionInvalidationService userSessionInvalidationService;
 
     /**
      * 每个请求最多执行一次：解析 Bearer → 校验黑名单与 access 类型 → 加载用户并设置认证。
@@ -65,6 +67,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         // 行注：调用equals
                         && JwtTokenProvider.TOKEN_TYPE_ACCESS.equals(tokenType)) {
                     Long userId = Long.parseLong(parsed.claims().getSubject());  // 行注：初始化用户ID
+                    if (userSessionInvalidationService.isAccessTokenRevokedByKick(userId, parsed.claims())) {
+                        SecurityContextHolder.clearContext();
+                    } else {
                     // 当前项目里 UserDetailsService 的入参并不是用户名，而是 userId 字符串。
                     UserDetails userDetails = userDetailsService.loadUserByUsername(String.valueOf(userId));  // 行注：初始化用户Details
                     // 行注：判断是否满足当前条件
@@ -88,6 +93,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));  // 行注：调用设置Details
                         SecurityContextHolder.getContext().setAuthentication(authentication);  // 行注：调用获取Context
                     }  // 行注：结束当前代码块
+                    }
                 }  // 行注：结束当前代码块
             }  // 行注：结束当前代码块
         }  // 行注：结束当前代码块

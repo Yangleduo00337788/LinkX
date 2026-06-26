@@ -14,7 +14,9 @@ public interface AuthService {
     AuthResponse register(RegisterRequest request);  // 行注：调用注册
 
     /** 校验密码后签发令牌；失败统一 {@link com.linkx.server.common.ErrorCode#AUTH_LOGIN_FAILED} */
-    AuthResponse login(LoginRequest request);  // 行注：调用登录
+    AuthResponse login(LoginRequest request);
+
+    AuthResponse login(LoginRequest request, String clientIp, String userAgent);
 
     /** 轮换 refresh，并签发新的 access + refresh */
     AuthResponse refreshToken(String refreshToken);  // 行注：调用刷新令牌

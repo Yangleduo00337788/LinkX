@@ -31,6 +31,8 @@ public class JwtTokenProvider {
     public static final String TOKEN_TYPE_ACCESS = "access";  // 行注：定义令牌类型访问常量
     /** refresh 令牌类型，仅用于刷新 access */
     public static final String TOKEN_TYPE_REFRESH = "refresh";  // 行注：定义令牌类型刷新常量
+    /** 管理后台 access 令牌 */
+    public static final String TOKEN_TYPE_ADMIN_ACCESS = "admin_access";
     // 行注：定义默认JWT密钥PLACEHOLDER常量
     private static final String DEFAULT_JWT_SECRET_PLACEHOLDER = "PLEASE_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN";
     private static final int MIN_SECRET_LENGTH = 32;  // 行注：定义最小密钥长度常量
@@ -99,6 +101,23 @@ public class JwtTokenProvider {
                 .signWith(getSigningKey())
                 .compact();  // 行注：继续调用compact
     }  // 行注：结束当前代码块
+
+    /**
+     * 签发管理后台 access token（subject 为 adminId）。
+     */
+    public String generateAdminToken(Long adminId, String username, String role) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + jwtExpiration);
+        return Jwts.builder()
+                .subject(String.valueOf(adminId))
+                .claim("type", TOKEN_TYPE_ADMIN_ACCESS)
+                .claim("username", username)
+                .claim("role", role)
+                .issuedAt(now)
+                .expiration(expiryDate)
+                .signWith(getSigningKey())
+                .compact();
+    }
 
     /** 签发 refresh token（不含 username claim） */
     // 行注：定义generate刷新令牌方法
@@ -197,6 +216,15 @@ public class JwtTokenProvider {
         String tokenType = parsed.claims().get("type", String.class);  // 行注：初始化令牌类型
         return TOKEN_TYPE_ACCESS.equals(tokenType);  // 行注：返回处理结果
     }  // 行注：结束当前代码块
+
+    /** 签名有效且 type 为 admin_access */
+    public boolean isAdminAccessToken(String token) {
+        ParsedToken parsed = parseToken(token);
+        if (parsed == null || parsed.claims() == null) {
+            return false;
+        }
+        return TOKEN_TYPE_ADMIN_ACCESS.equals(parsed.claims().get("type", String.class));
+    }
 
     /** 签名有效且 type 为 refresh */
     // 行注：定义是否刷新令牌方法

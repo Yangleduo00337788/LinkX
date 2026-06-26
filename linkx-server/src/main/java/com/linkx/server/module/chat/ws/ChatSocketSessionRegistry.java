@@ -61,6 +61,11 @@ public class ChatSocketSessionRegistry {
         return sessions != null && !sessions.isEmpty();  // 行注：返回处理结果
     }  // 行注：结束当前代码块
 
+    /** 当前至少有一条 WebSocket 连接的去重用户数（管理后台概览） */
+    public int getOnlineUserCount() {
+        return userSessions.size();
+    }
+
     /**
      * 获取用户会话。
      *

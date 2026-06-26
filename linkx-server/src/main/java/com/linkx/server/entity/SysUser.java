@@ -44,6 +44,12 @@ public class SysUser {
     /** 状态 */
     private Integer status;  // 行注：声明状态字段
 
+    @TableField("last_login_time")
+    private LocalDateTime lastLoginTime;
+
+    @TableField("last_login_ip")
+    private String lastLoginIp;
+
     /** 创建时间 */
     @TableField(fill = FieldFill.INSERT)  // 行注：应用 @TableField 注解
     private LocalDateTime createTime;  // 行注：声明创建时间字段

@@ -78,10 +78,11 @@ public class AuthController {
     public Result<AuthResponse> login(@Valid @RequestBody LoginRequest requestBody, HttpServletRequest request) {
         authSecurityGuard.checkLoginRateLimit(request, requestBody.getUsername());  // 行注：调用检查登录Rate限制
         authSecurityGuard.validateLoginCaptcha(requestBody.getCaptchaId(), requestBody.getCaptchaCode());  // 行注：调用validate登录验证码
-        AuthResponse response = authService.login(requestBody);  // 行注：初始化response
-        // 行注：补充当前表达式片段
+        String clientIp = authSecurityGuard.resolveClientIp(request);
+        String userAgent = request.getHeader("User-Agent");
+        AuthResponse response = authService.login(requestBody, clientIp, userAgent);
         log.info("Auth login success, userId={}, username={}, clientIp={}",
-                response.getUserId(), response.getUsername(), authSecurityGuard.resolveClientIp(request));  // 行注：调用获取用户ID
+                response.getUserId(), response.getUsername(), clientIp);
         return Result.success(response);  // 行注：返回处理结果
     }  // 行注：结束当前代码块
 

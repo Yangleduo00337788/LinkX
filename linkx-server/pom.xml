@@ -165,6 +165,12 @@
     </dependencies>
     <!-- 行注：开始定义构建配置 -->
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+            </resource>
+        </resources>
         <!-- 行注：开始定义插件列表 -->
         <plugins>
             <!-- 行注：开始定义插件 -->

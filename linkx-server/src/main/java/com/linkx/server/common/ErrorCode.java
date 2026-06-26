@@ -56,7 +56,8 @@ public enum ErrorCode {
     // 行注：调用令牌EXPIRED
     TOKEN_EXPIRED(2002, "Token已过期"),
     /** 登出后 access 进入黑名单 */
-    TOKEN_BLACKLISTED(2003, "Token已被注销");  // 行注：调用令牌BLACKLISTED
+    TOKEN_BLACKLISTED(2003, "Token已被注销"),
+    CONTENT_BLOCKED(3001, "内容包含违规信息，发送失败");
 
     /** 返回给前端的数字码 */
     private final int code;  // 行注：注入验证码依赖

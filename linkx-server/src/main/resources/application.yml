@@ -30,6 +30,16 @@ mybatis-plus:  # 行注：配置 MyBatis-Plus
 linkx:  # 行注：配置 LinkX 业务
   api-base-url: ${LINKX_API_BASE_URL:http://localhost:8080}  # 行注：设置接口基础地址
   security:  # 行注：配置安全
+    # 本地开发默认放行（含 linkx-admin vite 5174）；生产请用 profile prod + 环境变量覆盖
+    allowed-origin-patterns:
+      - ${LINKX_SECURITY_DEV_ORIGIN_1:http://localhost:5173}
+      - ${LINKX_SECURITY_DEV_ORIGIN_2:http://localhost:5174}
+      - ${LINKX_SECURITY_DEV_ORIGIN_3:http://localhost:3000}
+      - ${LINKX_SECURITY_DEV_ORIGIN_4:http://127.0.0.1:5173}
+      - ${LINKX_SECURITY_DEV_ORIGIN_5:http://127.0.0.1:5174}
+      - ${LINKX_SECURITY_DEV_ORIGIN_6:http://127.0.0.1:3000}
+      - ${LINKX_SECURITY_DEV_ORIGIN_7:http://127.0.0.1:39689}
+      - ${LINKX_SECURITY_DEV_ORIGIN_8:http://localhost:39689}
     auth-rate-limit:  # 行注：配置认证限流
       enabled: ${LINKX_SECURITY_AUTH_RATE_LIMIT_ENABLED:true}  # 行注：设置认证限流开关
       window-seconds: ${LINKX_SECURITY_AUTH_RATE_LIMIT_WINDOW_SECONDS:60}  # 行注：设置认证限流窗口秒数
@@ -50,8 +60,14 @@ linkx:  # 行注：配置 LinkX 业务
       friend-request:  # 行注：配置好友请求限流
         max-per-user-per-day: ${LINKX_SECURITY_FRIEND_REQUEST_MAX_PER_USER_DAY:20}  # 行注：设置单用户每日最大次数
         max-per-ip-per-day: ${LINKX_SECURITY_FRIEND_REQUEST_MAX_PER_IP_DAY:50}  # 行注：设置单 IP 每日最大次数
+  admin:
+    bootstrap:
+      enabled: ${LINKX_ADMIN_BOOTSTRAP_ENABLED:true}
+      default-username: ${LINKX_ADMIN_BOOTSTRAP_USERNAME:admin}
+      default-password: ${LINKX_ADMIN_BOOTSTRAP_DEFAULT_PASSWORD:LinkX@Admin2026}
+      default-display-name: ${LINKX_ADMIN_BOOTSTRAP_DISPLAY_NAME:系统管理员}
   jwt:  # 行注：配置 JWT
-    secret: ${LINKX_JWT_SECRET:ABCDEF_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN}  # required: override via env before startup  # 行注：设置JWT 密钥
+    secret: ${LINKX_JWT_SECRET:ABCDEF_CHANGE_ME_LINKX_JWT_SECRET_2026_32CHARS_MIN}
     expiration: ${LINKX_JWT_EXPIRATION:86400000}  # 24小时  # 行注：设置访问令牌过期时间
     refresh-expiration: ${LINKX_JWT_REFRESH_EXPIRATION:604800000}  # 7天  # 行注：设置刷新令牌过期时间
   upload:
