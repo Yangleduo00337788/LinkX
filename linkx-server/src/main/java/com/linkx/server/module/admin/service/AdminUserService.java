@@ -11,6 +11,7 @@ import com.linkx.server.module.admin.dto.AdminUserDetailDTO;
 import com.linkx.server.module.admin.dto.AdminUserListItemDTO;
 import com.linkx.server.module.auth.service.RefreshTokenSessionService;
 import com.linkx.server.module.auth.service.UserSessionInvalidationService;
+import com.linkx.server.module.chat.ws.ChatPresenceService;
 import com.linkx.server.entity.SysFriend;
 import com.linkx.server.mapper.SysFriendMapper;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class AdminUserService {
     private final SysFriendMapper friendMapper;
     private final RefreshTokenSessionService refreshTokenSessionService;
     private final UserSessionInvalidationService userSessionInvalidationService;
+    private final ChatPresenceService chatPresenceService;
 
     public Page<AdminUserListItemDTO> listUsers(int page, int size, String keyword) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
@@ -86,6 +88,7 @@ public class AdminUserService {
         }
         refreshTokenSessionService.revokeToken(userId);
         userSessionInvalidationService.invalidateAllSessions(userId);
+        chatPresenceService.disconnectAllForUser(userId, "管理员已强制下线您的账号");
         audit.record(adminId, adminUsername, "USER_KICK", "user", String.valueOf(userId), null, clientIp);
     }
 

@@ -129,6 +129,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
+import { releaseApi } from '../api/client'
 import { getElectronAPI, isElectron } from '../utils/electron'
 import { useTheme } from '../utils/theme'
 
@@ -180,22 +181,54 @@ function persistClipboardPref() {
   localStorage.setItem(CLIPBOARD_IMAGE_KEY, clipboardImagePaste.value ? '1' : '0')
 }
 
+function resolveReleasePlatform(): string {
+  const p = (typeof process !== 'undefined' && process.platform) || ''
+  if (p === 'win32') return 'win'
+  if (p === 'darwin') return 'mac'
+  if (p === 'linux') return 'linux'
+  return 'win'
+}
+
 async function checkUpdates() {
-  const api = getElectronAPI()
-  if (!api?.checkForUpdates) return
   checkingUpdate.value = true
   updateHint.value = ''
   try {
-    const result = await api.checkForUpdates()
-    if (result.available) {
-      updateHint.value = `发现新版本 ${result.version || ''}`
-    } else if (result.error) {
-      updateHint.value = result.error
-    } else {
-      updateHint.value = '当前已是最新版本'
+    const platform = resolveReleasePlatform()
+    try {
+      const res: any = await releaseApi.latest(platform)
+      const latest = res.data?.data ?? res.data
+      const latestVersion = latest?.version || ''
+      const current = versions.app || ''
+      if (latestVersion && current && latestVersion !== current) {
+        const force = latest.forceUpdate ? '（建议立即更新）' : ''
+        updateHint.value = `服务端已发布新版本 ${latestVersion}${force}${latest.downloadUrl ? '，可在管理后台配置的下载地址获取安装包' : ''}`
+      } else if (latestVersion) {
+        updateHint.value = `与服务器发布版本一致（${latestVersion}）`
+      }
+    } catch (e: any) {
+      const msg = e?.message || ''
+      if (!msg.includes('暂无')) {
+        updateHint.value = msg || '无法从服务器获取版本信息'
+      }
+    }
+
+    const api = getElectronAPI()
+    if (api?.checkForUpdates) {
+      const result = await api.checkForUpdates()
+      if (result.available) {
+        updateHint.value = `Electron 更新通道：发现新版本 ${result.version || ''}`
+      } else if (result.error && !updateHint.value) {
+        updateHint.value = result.error
+      } else if (!updateHint.value) {
+        updateHint.value = '本地更新通道：当前已是最新版本'
+      }
+    } else if (!updateHint.value) {
+      updateHint.value = '未配置本地自动更新，已尝试查询服务器发布版本'
     }
   } catch {
-    updateHint.value = '检查更新失败'
+    if (!updateHint.value) {
+      updateHint.value = '检查更新失败'
+    }
   } finally {
     checkingUpdate.value = false
   }

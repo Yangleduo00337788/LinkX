@@ -658,6 +658,11 @@ public class ChatServiceImpl implements ChatService {
         }  // 行注：结束当前代码块
     }  // 行注：结束当前代码块
 
+    @Override
+    public void refreshSessionPush(Long userId, Long targetId, Integer sessionType) {
+        pushSessionUpdate(userId, targetId, sessionType);
+    }
+
     // 行注：定义推送会话更新方法
     private void pushSessionUpdate(Long userId, Long targetId, Integer sessionType) {
         ChatSessionDTO sessionDTO = getSessionDTO(userId, targetId, sessionType);  // 行注：初始化会话DTO

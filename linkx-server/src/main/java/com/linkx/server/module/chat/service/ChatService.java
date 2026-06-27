@@ -45,4 +45,7 @@ public interface ChatService {
 
     /** 发送者撤回消息（通常 2 分钟内） */
     void recallMessage(Long userId, Long messageId);  // 行注：调用recall消息
-}  // 行注：结束当前代码块
+
+    /** 会话偏好等变更后，向该用户推送最新会话列表项 */
+    void refreshSessionPush(Long userId, Long targetId, Integer sessionType);
+}

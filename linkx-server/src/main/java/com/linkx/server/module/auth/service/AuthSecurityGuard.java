@@ -46,6 +46,11 @@ public class AuthSecurityGuard {
         validateCaptcha("register", captchaId, captchaCode);  // 行注：调用validate验证码
     }  // 行注：结束当前代码块
 
+    /** 管理端登录场景校验并消费验证码 */
+    public void validateAdminLoginCaptcha(String captchaId, String captchaCode) {
+        validateCaptcha("admin-login", captchaId, captchaCode);
+    }
+
     /** 按 IP + 用户名维度限制登录尝试次数 */
     // 行注：定义检查登录Rate限制方法
     public void checkLoginRateLimit(HttpServletRequest request, String username) {
@@ -133,7 +138,8 @@ public class AuthSecurityGuard {
     /** 返回验证码是否启用及支持的业务场景列表 */
     // 行注：定义获取验证码元数据方法
     public CaptchaMetaDTO getCaptchaMeta() {
-        return new CaptchaMetaDTO(linkxSecurityProperties.getCaptcha().isEnabled(), List.of("login", "register"));  // 行注：返回处理结果
+        return new CaptchaMetaDTO(linkxSecurityProperties.getCaptcha().isEnabled(),
+                List.of("login", "register", "admin-login"));
     }  // 行注：结束当前代码块
 
     /** 开启验证码时调用 {@link CaptchaService#consume} 一次性校验 */

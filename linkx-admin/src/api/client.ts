@@ -54,8 +54,19 @@ export interface PageResult<T> {
 }
 
 export const adminApi = {
-  login(username: string, password: string) {
-    return api.post('/api/admin/auth/login', { username, password })
+  getCaptchaMeta() {
+    return api.get('/api/admin/auth/captcha/meta')
+  },
+  issueCaptcha() {
+    return api.get('/api/admin/auth/captcha')
+  },
+  login(body: {
+    username: string
+    password: string
+    captchaId?: string
+    captchaCode?: string
+  }) {
+    return api.post('/api/admin/auth/login', body)
   },
   profile() {
     return api.get('/api/admin/auth/profile')

@@ -7,8 +7,17 @@ export const useAdminStore = defineStore('admin', () => {
   const displayName = ref('')
   const role = ref('')
 
-  async function login(username: string, password: string) {
-    const res = await adminApi.login(username, password)
+  async function login(
+    username: string,
+    password: string,
+    captcha?: { captchaId?: string; captchaCode?: string }
+  ) {
+    const res = await adminApi.login({
+      username,
+      password,
+      captchaId: captcha?.captchaId,
+      captchaCode: captcha?.captchaCode
+    })
     const d = res.data.data
     token.value = d.accessToken
     displayName.value = d.displayName

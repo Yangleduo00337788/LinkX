@@ -15,6 +15,7 @@ interface ChatRealtimeHandlers {  // 行注：开始当前逻辑块
   onReadReceipt?: (payload: any) => void  // 行注：执行当前调用逻辑
   onOnlineStatus?: (payload: any) => void  // 行注：执行当前调用逻辑
   onMessageRecalled?: (message: any) => void  // 行注：执行当前调用逻辑
+  onForceLogout?: (payload: { reason?: string }) => void
 }  // 行注：结束当前代码块
 
 export function createChatRealtimeService(handlers: ChatRealtimeHandlers) {  // 行注：导出当前能力
@@ -43,7 +44,10 @@ export function createChatRealtimeService(handlers: ChatRealtimeHandlers) {  // 
     },  // 行注：补充当前配置项
     MESSAGE_RECALLED: payload => {  // 行注：设置 MESSAGE_RECALLED 配置项
       handlers.onMessageRecalled?.(payload.data?.message)  // 行注：执行当前调用逻辑
-    }  // 行注：结束当前代码块
+    },
+    FORCE_LOGOUT: payload => {
+      handlers.onForceLogout?.(payload.data ?? {})
+    }
   }  // 行注：结束当前代码块
 
   // 按服务端下发的事件类型分发到不同处理器，避免页面层直接写大量 if/else。

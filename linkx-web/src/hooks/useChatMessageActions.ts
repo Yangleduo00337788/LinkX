@@ -2,7 +2,7 @@
  * 处理消息发送、撤回、复制、下载和预览等操作。
  */
 import { ref, type ComputedRef, type Ref } from 'vue'  // 行注：引入 ref, type ComputedRef, type Ref 能力
-import { fileApi } from '../api/client'  // 行注：引入 fileApi 能力
+import { fileApi, reportApi } from '../api/client'  // 行注：引入 fileApi 能力
 import { resolveFileAccessUrl } from '../utils/file-access'  // 行注：引入 resolveFileAccessUrl 能力
 import { getDateTimeTimestamp } from '../utils/datetime'  // 行注：引入 getDateTimeTimestamp 能力
 import { openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload } from '../utils/url'  // 行注：引入 openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload 能力
@@ -443,6 +443,27 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
     }  // 行注：结束当前代码块
   }  // 行注：结束当前代码块
 
+  async function handleReportMessage() {
+    if (!selectedMsg.value) {
+      return
+    }
+    const messageItem = selectedMsg.value
+    const reasonDetail = window.prompt('请简要说明举报原因（可选）', '') ?? ''
+    try {
+      await reportApi.submit({
+        targetType: 'message',
+        targetId: String(messageItem.id),
+        reasonCategory: 'inappropriate',
+        reasonDetail: reasonDetail.trim() || undefined
+      })
+      showMsgContextMenu.value = false
+      selectedMsg.value = null
+      options.message.success('举报已提交，我们会尽快处理')
+    } catch (error: any) {
+      options.message.error(error?.message || error.response?.data?.message || '举报提交失败')
+    }
+  }
+
   async function handleCopyMessage() {  // 行注：定义异步 handleCopyMessage 方法
     if (!selectedMsg.value?.content) {  // 行注：判断当前条件是否成立
       return  // 行注：返回当前结果
@@ -496,6 +517,7 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
     showMsgMenu,  // 行注：补充当前配置项
     canRecallMessage,  // 行注：补充当前配置项
     handleRecallMessage,  // 行注：补充当前配置项
-    handleCopyMessage  // 行注：补充当前表达式
+    handleCopyMessage,
+    handleReportMessage
   }  // 行注：结束当前代码块
 }  // 行注：结束当前代码块

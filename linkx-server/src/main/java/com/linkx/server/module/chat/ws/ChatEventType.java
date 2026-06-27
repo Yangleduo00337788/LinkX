@@ -26,4 +26,6 @@ public final class ChatEventType {
     public static final String ONLINE_STATUS = "ONLINE_STATUS";  // 行注：定义在线状态常量
     /** 消息撤回 */
     public static final String MESSAGE_RECALLED = "MESSAGE_RECALLED";  // 行注：定义消息RECALLED常量
-}  // 行注：结束当前代码块
+    /** 管理员强制下线 */
+    public static final String FORCE_LOGOUT = "FORCE_LOGOUT";
+}

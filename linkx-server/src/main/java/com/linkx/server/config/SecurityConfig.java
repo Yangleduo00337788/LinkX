@@ -66,6 +66,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/admin/auth/login").permitAll()
+                .requestMatchers("/api/admin/auth/captcha", "/api/admin/auth/captcha/meta").permitAll()
+                .requestMatchers("/api/releases/latest").permitAll()
                 .requestMatchers("/ws/**").permitAll()
                 .requestMatchers("/api/admin/admins/**").hasRole("SUPER_ADMIN")
                 .requestMatchers("/api/admin/**").hasAnyRole("SUPER_ADMIN", "OPERATOR", "AUDITOR", "VIEWER")

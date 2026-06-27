@@ -29,7 +29,7 @@ public class CaptchaService {
 
     private static final String KEY_PREFIX = "auth:captcha:";  // 行注：定义键PREFIX常量
     private static final Duration CAPTCHA_TTL = Duration.ofMinutes(5);  // 行注：定义验证码TTL常量
-    private static final Set<String> ALLOWED_SCENES = Set.of("login", "register");  // 行注：定义允许SCENES常量
+    private static final Set<String> ALLOWED_SCENES = Set.of("login", "register", "admin-login");
     private static final String CODE_ALPHABET = "23456789ACEFGHJKLMNPQRSTUVWXYZ";  // 行注：定义验证码ALPHABET常量
     private static final int CODE_LENGTH = 6;  // 行注：定义验证码长度常量
 

@@ -33,6 +33,15 @@ public class ImSession {
     /** 未读数量 */
     private Integer unreadCount;  // 行注：声明未读数量字段
 
+    /** 单聊会话备注 */
+    private String sessionRemark;
+
+    /** 是否置顶 0/1 */
+    private Integer pinned;
+
+    /** 消息免打扰 0/1 */
+    private Integer notificationMuted;
+
     /** 创建时间 */
     @TableField(fill = FieldFill.INSERT)  // 行注：应用 @TableField 注解
     private LocalDateTime createTime;  // 行注：声明创建时间字段

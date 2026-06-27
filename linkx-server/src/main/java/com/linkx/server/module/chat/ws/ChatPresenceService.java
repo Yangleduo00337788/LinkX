@@ -5,6 +5,7 @@ import com.linkx.server.entity.SysFriend;  // 行注：引入 SysFriend 类型
 import com.linkx.server.mapper.SysFriendMapper;  // 行注：引入 SysFriendMapper 类型
 import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
 import org.springframework.stereotype.Service;  // 行注：引入 Service 类型
+import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;  // 行注：引入 WebSocketSession 类型
 
 import java.time.LocalDateTime;  // 行注：引入 LocalDateTime 类型
@@ -59,6 +60,22 @@ public class ChatPresenceService {
     public boolean isOnline(Long userId) {
         return sessionRegistry.isOnline(userId);  // 行注：返回处理结果
     }  // 行注：结束当前代码块
+
+    /** 管理员踢人：通知客户端并关闭该用户全部 WebSocket */
+    public void disconnectAllForUser(Long userId, String reason) {
+        if (userId == null) {
+            return;
+        }
+        pushService.sendToUser(userId, ChatEventType.FORCE_LOGOUT, new ChatForceLogoutPayload(reason));
+        for (WebSocketSession session : sessionRegistry.getUserSessions(userId)) {
+            try {
+                session.close(CloseStatus.NORMAL.withReason(reason != null ? reason : "kicked"));
+            } catch (Exception ignored) {
+                sessionRegistry.closeQuietly(session);
+            }
+        }
+        broadcastPresence(userId, false);
+    }
 
     // 行注：定义广播在线状态方法
     private void broadcastPresence(Long userId, boolean online) {

@@ -186,6 +186,7 @@
         >
           <!-- 行注：展示“复制”文案 -->
           <button class="msg-context-item" @click="copySelectedMessage">复制</button>
+          <button v-if="selectedMsg && !selectedMsg.isMe" class="msg-context-item" @click="handleReportMessage">举报</button>
           <!-- 行注：展示“撤回”文案 -->
           <button class="msg-context-item" :disabled="!canRecallMessage(selectedMsg)" @click="handleRecallMessage">撤回</button>
         <!-- 行注：结束容器 -->
@@ -669,6 +670,7 @@ const {  // 行注：开始解构当前返回值
   canRecallMessage,  // 行注：解构 canRecallMessage 状态
   handleRecallMessage,  // 行注：解构 handleRecallMessage 方法
   handleCopyMessage,
+  handleReportMessage,
   handleDroppedFiles,
   sendFileFromComposer
 } = messageActions

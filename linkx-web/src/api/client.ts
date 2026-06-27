@@ -145,9 +145,39 @@ export const authApi = {  // 行注：导出当前能力
     api.post('/api/auth/logout', data)  // 行注：调用 post 方法
 }  // 行注：结束当前代码块
 
-export const chatApi = {  // 行注：导出当前能力
-  createWsTicket: () => api.post('/api/chat/ws-ticket')  // 行注：传入 createWsTicket 回调
-}  // 行注：结束当前代码块
+/**
+ * 聊天 REST（与 ChatController 对齐）。
+ * 桌面端主路径仍为 WebSocket 命令；REST 供重试、无 WS 或第三方集成使用。
+ */
+export const chatApi = {
+  createWsTicket: () => api.post('/api/chat/ws-ticket'),
+  getSessions: () => api.get('/api/chat/sessions'),
+  getHistory: (params: {
+    targetId: number | string
+    sessionType?: number
+    page?: number
+    size?: number
+  }) => api.get('/api/chat/history', { params }),
+  sendMessage: (data: {
+    toUserId: number | string
+    content: string
+    msgType?: number
+    sessionType?: number
+    clientMessageId?: string
+    mentionAll?: boolean
+    mentionUserIds?: Array<number | string>
+  }) => api.post('/api/chat/send', data),
+  sendFileMessage: (data: {
+    toUserId: number | string
+    fileId: number
+    msgType?: number
+    sessionType?: number
+    clientMessageId?: string
+  }) => api.post('/api/chat/send-file', data),
+  markAsRead: (targetId: number | string, sessionType = 1) =>
+    api.post(`/api/chat/read/${targetId}`, null, { params: { sessionType } }),
+  recallMessage: (messageId: number | string) => api.post(`/api/chat/recall/${messageId}`)
+}
 
 export const userApi = {  // 行注：导出当前能力
   getProfile: () => api.get('/api/user/me'),  // 行注：传入 getProfile 回调
@@ -263,6 +293,37 @@ export const blacklistApi = {  // 行注：导出当前能力
   remove: (targetUserId: string | number) => api.delete(`/api/blacklist/${targetUserId}`),  // 行注：设置 remove 配置项
   list: () => api.get('/api/blacklist/list'),  // 行注：传入 list 回调
   check: (targetUserId: string | number) => api.get(`/api/blacklist/check/${targetUserId}`)  // 行注：设置 check 配置项
-}  // 行注：结束当前代码块
+}
+
+export const reportApi = {
+  submit: (body: {
+    targetType: string
+    targetId: string
+    reasonCategory: string
+    reasonDetail?: string
+  }) => api.post('/api/reports', body)
+}
+
+export const releaseApi = {
+  latest: (platform: string) =>
+    api.get('/api/releases/latest', { params: { platform } })
+}
+
+export const sessionApi = {
+  updatePreferences: (
+    targetId: number | string,
+    sessionType: number,
+    body: { sessionRemark?: string; pinned?: boolean; notificationMuted?: boolean }
+  ) =>
+    api.put(`/api/user/sessions/${targetId}/preferences`, body, { params: { sessionType } }),
+  listDrafts: () => api.get('/api/user/chat-drafts'),
+  saveDraft: (body: {
+    targetId: number | string
+    sessionType: number
+    draftContent?: string
+  }) => api.put('/api/user/chat-drafts', body),
+  deleteDraft: (targetId: number | string, sessionType: number) =>
+    api.delete('/api/user/chat-drafts', { params: { targetId, sessionType } })
+}
 
 export default api  // 行注：导出默认组件或配置
