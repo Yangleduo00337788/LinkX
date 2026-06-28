@@ -44,6 +44,7 @@ interface UseChatMessageActionsOptions {  // 行注：开始当前逻辑块
   scrollMessagesToBottom: (force?: boolean) => void  // 行注：设置 scrollMessagesToBottom 配置项
   ensureMessageFileAccessUrl: (rawUrl: string) => Promise<string>  // 行注：设置 ensureMessageFileAccessUrl 配置项
   getResolvedMessageFileUrl: (messageItem: DisplayMessage) => string  // 行注：设置 getResolvedMessageFileUrl 配置项
+  onAfterSendSuccess?: () => void | Promise<void>
 }  // 行注：结束当前代码块
 
 export function useChatMessageActions(options: UseChatMessageActionsOptions) {  // 行注：导出当前能力
@@ -229,6 +230,7 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
       }  // 行注：结束当前代码块
       options.scrollMessagesToBottom(true)  // 行注：调用 scrollMessagesToBottom 方法
       await executePendingMessage(localMessage, () => sendPendingTextMessage(localMessage, content), '发送失败')  // 行注：调用 executePendingMessage 方法
+      await options.onAfterSendSuccess?.()
     } finally {  // 行注：执行收尾清理逻辑
       sending.value = false  // 行注：更新 sending 状态
       sendLock = false  // 行注：更新 sendLock 值
@@ -403,16 +405,22 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
     }  // 行注：结束当前代码块
   }  // 行注：结束当前代码块
 
-  function showMsgMenu(event: MouseEvent, messageItem: DisplayMessage) {  // 行注：定义 showMsgMenu 方法
-    if (messageItem.isSystem) {  // 行注：判断当前条件是否成立
-      showMsgContextMenu.value = false  // 行注：更新 showMsgContextMenu 状态
-      return  // 行注：返回当前结果
-    }  // 行注：结束当前代码块
-    selectedMsg.value = messageItem  // 行注：更新 selectedMsg 状态
-    msgMenuX.value = event.clientX  // 行注：更新 msgMenuX 状态
-    msgMenuY.value = event.clientY  // 行注：更新 msgMenuY 状态
-    showMsgContextMenu.value = true  // 行注：更新 showMsgContextMenu 状态
-  }  // 行注：结束当前代码块
+  function showMsgMenu(event: MouseEvent, messageItem: DisplayMessage) {
+    if (messageItem.isSystem) {
+      showMsgContextMenu.value = false
+      return
+    }
+    event.preventDefault()
+    selectedMsg.value = messageItem
+    const menuW = 168
+    const menuH = 132
+    const pad = 8
+    const maxX = Math.max(pad, window.innerWidth - menuW - pad)
+    const maxY = Math.max(pad, window.innerHeight - menuH - pad)
+    msgMenuX.value = Math.min(Math.max(event.clientX, pad), maxX)
+    msgMenuY.value = Math.min(Math.max(event.clientY, pad), maxY)
+    showMsgContextMenu.value = true
+  }
 
   function canRecallMessage(messageItem: DisplayMessage | null) {  // 行注：定义 canRecallMessage 方法
     if (!messageItem || messageItem.isSystem || !messageItem.isMe || messageItem.status === MESSAGE_STATUS_RECALLED || !messageItem.createTime || messageItem.deliveryStatus !== 'sent') {  // 行注：判断当前条件是否成立
@@ -443,12 +451,11 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
     }  // 行注：结束当前代码块
   }  // 行注：结束当前代码块
 
-  async function handleReportMessage() {
+  async function handleReportMessage(reasonDetail = '') {
     if (!selectedMsg.value) {
       return
     }
     const messageItem = selectedMsg.value
-    const reasonDetail = window.prompt('请简要说明举报原因（可选）', '') ?? ''
     try {
       await reportApi.submit({
         targetType: 'message',
@@ -461,6 +468,7 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
       options.message.success('举报已提交，我们会尽快处理')
     } catch (error: any) {
       options.message.error(error?.message || error.response?.data?.message || '举报提交失败')
+      throw error
     }
   }
 

@@ -21,4 +21,16 @@ public class AdminFriendRequestController {
             @RequestParam(required = false) Integer status) {
         return Result.success(adminFriendRequestService.list(page, size, status));
     }
+
+    @PutMapping("/{id}/accept")
+    public Result<Void> accept(@PathVariable Long id) {
+        adminFriendRequestService.accept(id);
+        return Result.success();
+    }
+
+    @PutMapping("/{id}/reject")
+    public Result<Void> reject(@PathVariable Long id) {
+        adminFriendRequestService.reject(id);
+        return Result.success();
+    }
 }

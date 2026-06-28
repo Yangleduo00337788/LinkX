@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getAdminToken } from '../api/client'
+import { useAdminStore } from '../stores/admin'
+import { canAccessRoute } from '../utils/adminPermissions'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -29,15 +31,31 @@ const router = createRouter({
         { path: 'login-logs', name: 'login-logs', component: () => import('../views/LoginLogs.vue') },
         { path: 'reports', name: 'reports', component: () => import('../views/Reports.vue') },
         { path: 'sensitive-words', name: 'sensitive-words', component: () => import('../views/SensitiveWords.vue') },
+        { path: 'system-notifications', name: 'system-notifications', component: () => import('../views/SystemNotifications.vue') },
+        { path: 'file-hash-blacklist', name: 'file-hash-blacklist', component: () => import('../views/FileHashBlacklist.vue') },
+        { path: 'system-settings', name: 'system-settings', component: () => import('../views/SystemSettings.vue') },
         { path: 'admins', name: 'admins', component: () => import('../views/Admins.vue') }
       ]
     }
   ]
 })
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta.public) return true
   if (!getAdminToken()) return { name: 'login', query: { redirect: to.fullPath } }
+  const admin = useAdminStore()
+  if (!admin.role) {
+    try {
+      await admin.fetchProfile()
+    } catch {
+      admin.logout()
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+  }
+  const name = String(to.name || '')
+  if (name && !canAccessRoute(admin.role, name)) {
+    return { name: 'dashboard' }
+  }
   return true
 })
 

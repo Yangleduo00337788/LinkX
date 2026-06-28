@@ -38,6 +38,24 @@
       size="small"
       @update:page="(p) => { hitPagination.page = p; loadHits() }"
     />
+    <n-modal v-model:show="editVisible" preset="card" title="编辑敏感词" style="width: 440px">
+      <n-form label-placement="left" label-width="80">
+        <n-form-item label="词语"><n-input v-model:value="editForm.word" /></n-form-item>
+        <n-form-item label="动作">
+          <n-select v-model:value="editForm.action" :options="actionOptions" />
+        </n-form-item>
+        <n-form-item label="匹配">
+          <n-select v-model:value="editForm.matchMode" :options="matchOptions" />
+        </n-form-item>
+        <n-form-item label="启用">
+          <n-select v-model:value="editForm.enabled" :options="enabledOptions" />
+        </n-form-item>
+      </n-form>
+      <template #footer>
+        <n-button @click="editVisible = false">取消</n-button>
+        <n-button type="primary" :loading="saveLoading" @click="saveEditWord">保存</n-button>
+      </template>
+    </n-modal>
     <n-modal v-model:show="createVisible" preset="card" title="新增敏感词" style="width: 440px">
       <n-form label-placement="left" label-width="80">
         <n-form-item label="词语"><n-input v-model:value="form.word" /></n-form-item>
@@ -57,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { h, onMounted, reactive, ref } from 'vue'
+import { h, onMounted, reactive, ref, watch } from 'vue'
 import { NButton, NDataTable, NForm, NFormItem, NInput, NModal, NSelect, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import AdminPageShell from '../components/AdminPageShell.vue'
@@ -99,8 +117,14 @@ const matchOptions = [
 ]
 
 const createVisible = ref(false)
+const editVisible = ref(false)
 const saveLoading = ref(false)
 const form = reactive({ word: '', action: 1, matchMode: 1 })
+const editForm = reactive({ id: 0, word: '', action: 1, matchMode: 1, enabled: 1 })
+const enabledOptions = [
+  { label: '启用', value: 1 },
+  { label: '禁用', value: 0 }
+]
 
 const wordColumns: DataTableColumns<WordRow> = [
   { title: 'ID', key: 'id', width: 80 },
@@ -123,9 +147,12 @@ const wordColumns: DataTableColumns<WordRow> = [
   {
     title: '操作',
     key: 'op',
-    width: 90,
+    width: 140,
     render: (r) =>
-      h(NButton, { size: 'small', type: 'error', tertiary: true, onClick: () => removeWord(r.id) }, () => '删除')
+      h('div', { style: 'display:flex;gap:6px' }, [
+        h(NButton, { size: 'small', tertiary: true, onClick: () => openEdit(r) }, () => '编辑'),
+        h(NButton, { size: 'small', type: 'error', tertiary: true, onClick: () => removeWord(r.id) }, () => '删除')
+      ])
   }
 ]
 
@@ -151,7 +178,7 @@ async function loadWords() {
   loading.value = true
   try {
     const res = await adminApi.listSensitiveWords(pagination.page, pagination.pageSize, keyword.value || undefined)
-    const page = res.data.data
+    const page = (res.data as { data?: { records?: WordRow[]; total?: number } }).data ?? res.data
     wordRows.value = page.records || []
     pagination.itemCount = page.total || 0
   } catch (e: unknown) {
@@ -165,7 +192,7 @@ async function loadHits() {
   hitLoading.value = true
   try {
     const res = await adminApi.listSensitiveHits(hitPagination.page, hitPagination.pageSize)
-    const page = res.data.data
+    const page = (res.data as { data?: { records?: HitRow[]; total?: number } }).data ?? res.data
     hitRows.value = page.records || []
     hitPagination.itemCount = page.total || 0
   } catch (e: unknown) {
@@ -185,6 +212,38 @@ function openCreate() {
   form.action = 1
   form.matchMode = 1
   createVisible.value = true
+}
+
+function openEdit(row: WordRow) {
+  editForm.id = row.id
+  editForm.word = row.word
+  editForm.action = row.action
+  editForm.matchMode = row.matchMode
+  editForm.enabled = row.enabled
+  editVisible.value = true
+}
+
+async function saveEditWord() {
+  if (!editForm.word.trim()) {
+    message.warning('请输入词语')
+    return
+  }
+  saveLoading.value = true
+  try {
+    await adminApi.updateSensitiveWord(editForm.id, {
+      word: editForm.word,
+      action: editForm.action,
+      matchMode: editForm.matchMode,
+      enabled: editForm.enabled
+    })
+    message.success('已保存')
+    editVisible.value = false
+    loadWords()
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : '保存失败')
+  } finally {
+    saveLoading.value = false
+  }
 }
 
 async function saveWord() {
@@ -223,6 +282,13 @@ async function refreshCache() {
     message.error(e instanceof Error ? e.message : '刷新失败')
   }
 }
+
+watch(showHits, (v) => {
+  if (v) {
+    hitPagination.page = 1
+    void loadHits()
+  }
+})
 
 onMounted(() => loadWords())
 </script>

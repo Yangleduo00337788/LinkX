@@ -34,10 +34,15 @@
 
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
-import { NButton, NDataTable, NSelect, NTag } from 'naive-ui'
+import { NButton, NDataTable, NSelect, NTag, useMessage } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 import AdminPageShell from '../components/AdminPageShell.vue'
 import { adminApi } from '../api/client'
+import { useAdminStore } from '../stores/admin'
+import { canWriteOps } from '../utils/adminPermissions'
+
+const admin = useAdminStore()
+const message = useMessage()
 
 interface Row {
   id: number
@@ -82,6 +87,19 @@ const columns: DataTableColumns<Row> = [
     key: 'createTime',
     width: 172,
     render: (r) => r.createTime?.replace('T', ' ').substring(0, 19) || '—'
+  },
+  {
+    title: '操作',
+    key: 'op',
+    width: 140,
+    fixed: 'right',
+    render: (r) => {
+      if (r.status !== 0 || !canWriteOps(admin.role)) return '—'
+      return h('div', { style: 'display:flex;gap:6px' }, [
+        h(NButton, { size: 'small', type: 'primary', tertiary: true, onClick: () => accept(r.id) }, () => '同意'),
+        h(NButton, { size: 'small', tertiary: true, onClick: () => reject(r.id) }, () => '拒绝')
+      ])
+    }
   }
 ]
 
@@ -109,6 +127,26 @@ function reload(page: number) {
 function onReset() {
   status.value = null
   reload(1)
+}
+
+async function accept(id: number) {
+  try {
+    await adminApi.acceptFriendRequest(id)
+    message.success('已同意')
+    load()
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : '操作失败')
+  }
+}
+
+async function reject(id: number) {
+  try {
+    await adminApi.rejectFriendRequest(id)
+    message.success('已拒绝')
+    load()
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : '操作失败')
+  }
 }
 
 onMounted(() => load())

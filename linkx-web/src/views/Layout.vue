@@ -56,6 +56,16 @@
           </div>
           <!-- 行注：渲染容器 -->
           <div
+            class="sidebar-item sidebar-item-notif"
+            title="系统通知"
+            @click="showSystemNotifications = true"
+          >
+            <div class="sidebar-icon">
+              <n-icon size="22"><NotificationsOutline /></n-icon>
+            </div>
+            <span class="sidebar-label">通知</span>
+          </div>
+          <div
             class="sidebar-item"
             :class="{ active: currentTab === 'files' }"
             @click="goTo('files')"
@@ -219,6 +229,7 @@
       </div>
     <!-- 行注：结束Teleport 节点 -->
     </Teleport>
+    <SystemNotificationsDrawer v-model:visible="showSystemNotifications" />
   <!-- 行注：结束容器 -->
   </div>
 <!-- 行注：结束模板区域 -->
@@ -234,14 +245,24 @@ import { useUserStore } from '../stores/user'
 import ProtectedImage from '../components/ProtectedImage.vue'
 import { userApi } from '../api/client'  // 行注：引入 userApi 能力
 import { NIcon, useMessage } from 'naive-ui'  // 行注：引入 NIcon, useMessage 能力
-import { ChatbubblesOutline, PeopleOutline, FolderOpenOutline, BanOutline, LogOutOutline, SettingsOutline } from '@vicons/ionicons5'
+import {
+  ChatbubblesOutline,
+  PeopleOutline,
+  FolderOpenOutline,
+  BanOutline,
+  LogOutOutline,
+  SettingsOutline,
+  NotificationsOutline
+} from '@vicons/ionicons5'
 import TitleBar from '../components/TitleBar.vue'  // 行注：引入 TitleBar 组件
+import SystemNotificationsDrawer from '../components/SystemNotificationsDrawer.vue'
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const message = useMessage()
 const currentTab = ref('chat')
 const showProfile = ref(false)
+const showSystemNotifications = ref(false)
 const profile = reactive({  // 行注：开始解构当前返回值
   username: '',  // 行注：设置 username 配置项
   nickname: '',  // 行注：设置 nickname 配置项

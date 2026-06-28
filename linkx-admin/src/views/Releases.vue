@@ -154,7 +154,7 @@ async function load() {
       pagination.pageSize,
       platform.value || undefined
     )
-    const page = res.data.data
+    const page = (res.data as { data?: { records?: Row[]; total?: number } }).data ?? res.data
     rows.value = page.records || []
     pagination.itemCount = page.total || 0
   } catch (e: unknown) {

@@ -203,7 +203,9 @@ public class ChatServiceImpl implements ChatService {
                 // 行注：继续调用过滤
                 .filter(dto -> dto != null)
                 // 行注：继续调用排序
-                .sorted(Comparator.comparing(ChatSessionDTO::getLastMessageTime, Comparator.nullsLast(Comparator.reverseOrder()))
+                .sorted(Comparator
+                        .comparing((ChatSessionDTO dto) -> Boolean.TRUE.equals(dto.getPinned()) ? 0 : 1)
+                        .thenComparing(ChatSessionDTO::getLastMessageTime, Comparator.nullsLast(Comparator.reverseOrder()))
                         // 行注：继续调用再比较
                         .thenComparing(ChatSessionDTO::getId, Comparator.nullsLast(Comparator.reverseOrder())))
                 .collect(Collectors.toList());  // 行注：继续调用收集
@@ -813,6 +815,11 @@ public class ChatServiceImpl implements ChatService {
         dto.setLastMessage(session.getLastMessage());  // 行注：调用设置最后消息
         dto.setLastMessageTime(session.getLastMessageTime());  // 行注：调用设置最后消息时间
         dto.setUnreadCount(session.getUnreadCount());  // 行注：调用设置未读数量
+        dto.setSessionRemark(session.getSessionRemark());
+        dto.setPinned(session.getPinned() != null && session.getPinned() == 1);
+        if (session.getNotificationMuted() != null) {
+            dto.setNotificationMuted(session.getNotificationMuted() == 1);
+        }
         return dto;  // 行注：返回处理结果
     }  // 行注：结束当前代码块
 

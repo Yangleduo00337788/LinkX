@@ -105,6 +105,7 @@ import {
   GridOutline,
   KeyOutline,
   MenuOutline,
+  NotificationsOutline,
   ShieldCheckmarkOutline,
   WarningOutline,
   PeopleOutline,
@@ -112,6 +113,7 @@ import {
   PersonOutline
 } from '@vicons/ionicons5'
 import { useAdminStore } from '../stores/admin'
+import { canAccessRoute } from '../utils/adminPermissions'
 import brandLogo from '../assets/tray.png'
 
 const SIDER_WIDTH = 240
@@ -147,6 +149,9 @@ const titleMap: Record<string, string> = {
   'login-logs': '登录日志',
   reports: '举报管理',
   'sensitive-words': '敏感词库',
+  'system-notifications': '系统通知',
+  'file-hash-blacklist': '文件哈希黑名单',
+  'system-settings': '系统开关',
   admins: '管理员'
 }
 
@@ -166,13 +171,20 @@ const routeMenuItems: Array<Pick<MenuOption, 'label' | 'key'> & { icon: Componen
   { label: '入群申请', key: 'group-requests', icon: PersonAddOutline },
   { label: '消息监管', key: 'messages', icon: ChatbubblesOutline },
   { label: '文件管理', key: 'files', icon: FolderOpenOutline },
+  { label: '文件哈希黑名单', key: 'file-hash-blacklist', icon: ShieldCheckmarkOutline },
   { label: '客户端发布', key: 'releases', icon: CloudDownloadOutline },
   { label: '操作审计', key: 'audit-logs', icon: DocumentTextOutline },
   { label: '登录日志', key: 'login-logs', icon: KeyOutline },
   { label: '举报管理', key: 'reports', icon: WarningOutline },
   { label: '敏感词库', key: 'sensitive-words', icon: ShieldCheckmarkOutline },
+  { label: '系统通知', key: 'system-notifications', icon: NotificationsOutline },
+  { label: '系统开关', key: 'system-settings', icon: KeyOutline },
   { label: '管理员', key: 'admins', icon: PeopleOutline }
 ]
+
+const visibleRouteMenuItems = computed(() =>
+  routeMenuItems.filter((item) => canAccessRoute(admin.role || '', String(item.key)))
+)
 
 function toLeafOption(item: (typeof routeMenuItems)[number]): MenuOption {
   return {
@@ -186,15 +198,20 @@ function toLeafOption(item: (typeof routeMenuItems)[number]): MenuOption {
  * 展开：分组菜单；折叠：仅叶子 + 图标（Naive 折叠态对 divider/group 支持差，勿混用）
  */
 const menuOptions = computed<MenuOption[]>(() => {
+  const items = visibleRouteMenuItems.value
   if (collapsed.value) {
-    return routeMenuItems.map(toLeafOption)
+    return items.map(toLeafOption)
   }
 
   const pick = (...keys: string[]) =>
-    keys.map((k) => routeMenuItems.find((i) => i.key === k)).filter(Boolean).map((i) => toLeafOption(i!))
+    keys.map((k) => items.find((i) => i.key === k)).filter(Boolean).map((i) => toLeafOption(i!))
+
+  const dashboard = items.find((i) => i.key === 'dashboard')
+  const tail: MenuOption[] = []
+  if (dashboard) tail.push(toLeafOption(dashboard))
 
   return [
-    toLeafOption(routeMenuItems[0]),
+    ...tail,
     { type: 'divider', key: 'divider-1' },
     {
       label: '用户与社交',
@@ -212,22 +229,37 @@ const menuOptions = computed<MenuOption[]>(() => {
       label: '内容与资源',
       key: 'group-content',
       type: 'group',
-      children: pick('messages', 'files')
+      children: pick('messages', 'files', 'file-hash-blacklist')
     },
     { type: 'divider', key: 'divider-2' },
     {
       label: '合规与安全',
       key: 'group-compliance',
       type: 'group',
-      children: pick('login-logs', 'reports', 'sensitive-words')
+      children: pick('login-logs', 'reports', 'sensitive-words', 'system-notifications', 'system-settings')
     },
     { type: 'divider', key: 'divider-3' },
     ...pick('releases', 'audit-logs', 'admins')
-  ]
+  ].filter((node) => {
+    if (node && typeof node === 'object' && 'children' in node && Array.isArray(node.children)) {
+      return node.children.length > 0
+    }
+    return true
+  })
 })
 
+const NON_ROUTE_MENU_KEYS = new Set([
+  'group-social',
+  'group-chat',
+  'group-content',
+  'group-compliance',
+  'divider-1',
+  'divider-2',
+  'divider-3'
+])
+
 function onMenuSelect(key: string) {
-  if (key.startsWith('group-') || key.startsWith('divider')) return
+  if (NON_ROUTE_MENU_KEYS.has(key) || key.startsWith('divider')) return
   if (route.name === key) {
     router.replace({ name: key, query: { _r: String(Date.now()) } })
     return

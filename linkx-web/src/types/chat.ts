@@ -40,6 +40,8 @@ export interface ChatSession {  // 行注：导出当前能力
   notificationMuted?: boolean  // 行注：补充当前表达式
   targetOnline?: boolean  // 行注：补充当前表达式
   isDraft?: boolean  // 行注：补充当前表达式
+  sessionRemark?: string
+  pinned?: boolean
 }  // 行注：结束当前代码块
 
 export interface GroupMember {  // 行注：导出当前能力

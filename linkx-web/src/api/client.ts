@@ -326,4 +326,11 @@ export const sessionApi = {
     api.delete('/api/user/chat-drafts', { params: { targetId, sessionType } })
 }
 
+/** 与 UserNotificationController（/api/notifications）对齐 */
+export const notificationApi = {
+  list: (page = 1, size = 20) =>
+    api.get('/api/notifications', { params: { page, size } }),
+  markRead: (id: number | string) => api.put(`/api/notifications/${id}/read`)
+}
+
 export default api  // 行注：导出默认组件或配置

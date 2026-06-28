@@ -491,16 +491,17 @@ export function useGroupManagement(options: UseGroupManagementOptions) {  // 行
     if (!confirmed) {  // 行注：判断当前条件是否成立
       return  // 行注：返回当前结果
     }  // 行注：结束当前代码块
-    try {  // 行注：尝试执行可能失败的逻辑
-      await groupApi.removeMember(options.currentTargetId.value, memberItem.userId)  // 行注：调用 removeMember 方法
-      options.message.success('成员已移出群聊')  // 行注：提示成功信息
-    } catch (error: any) {  // 行注：捕获并处理异常
-      console.error('handleRemoveMember error:', error)  // 行注：输出错误日志
-      options.message.error(error.response?.data?.message || '移除成员失败')  // 行注：提示错误信息
-    }  // 行注：结束当前代码块
-  }  // 行注：结束当前代码块
+    try {
+      await groupApi.removeMember(options.currentTargetId.value, memberItem.userId)
+      options.message.success('成员已移出群聊')
+      await options.loadGroupDetail(options.currentTargetId.value)
+    } catch (error: any) {
+      console.error('handleRemoveMember error:', error)
+      options.message.error(error.response?.data?.message || '移除成员失败')
+    }
+  }
 
-  async function handleDissolveGroup() {  // 行注：定义异步 handleDissolveGroup 方法
+  async function handleDissolveGroup() {
     if (!options.currentTargetId.value) {  // 行注：判断当前条件是否成立
       return  // 行注：返回当前结果
     }  // 行注：结束当前代码块

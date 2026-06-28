@@ -96,7 +96,13 @@
           <!-- 行注：渲染容器 -->
           <div class="session-preview-row">
             <!-- 行注：渲染文本节点 -->
-            <span class="session-preview">{{ session.lastMessage || (session.sessionType === SESSION_TYPE_GROUP ? '群聊已创建' : '暂无消息') }}</span>
+            <span class="session-preview">
+              <template v-if="draftPreviewFor(session)">
+                <span class="draft-tag">[草稿]</span>{{ draftPreviewFor(session) }}
+              </template>
+              <template v-else>{{ session.lastMessage || (session.sessionType === SESSION_TYPE_GROUP ? '群聊已创建' : '暂无消息') }}</template>
+            </span>
+            <span v-if="session.pinned" class="session-pin" title="已置顶">📌</span>
             <!-- 行注：展示“已禁言”文案 -->
             <span v-if="session.sessionType === SESSION_TYPE_GROUP && session.muted" class="session-muted">已禁言</span>
           <!-- 行注：结束容器 -->
@@ -141,14 +147,22 @@ import { SESSION_TYPE_GROUP, SESSION_TYPE_SINGLE, type ChatSession } from '../..
 import ProtectedImage from '../ProtectedImage.vue'
 import { buildSessionKey, formatTime } from '../../utils/chat'
 
-const props = defineProps<{  // 行注：开始解构当前返回值
-  sessions: ChatSession[]  // 行注：设置 sessions 配置项
-  loadingSessions: boolean  // 行注：设置 loadingSessions 配置项
-  currentTargetId: string | null  // 行注：设置 currentTargetId 配置项
-  currentSessionType: number  // 行注：设置 currentSessionType 配置项
-  searchText: string  // 行注：设置 searchText 配置项
-  flashSessionKey: string | null  // 行注：设置 flashSessionKey 配置项
-}>()  // 行注：执行当前调用逻辑
+const props = defineProps<{
+  sessions: ChatSession[]
+  draftPreviewByKey?: Record<string, string>
+  loadingSessions: boolean
+  currentTargetId: string | null
+  currentSessionType: number
+  searchText: string
+  flashSessionKey: string | null
+}>()
+
+function draftPreviewFor(session: ChatSession) {
+  const key = buildSessionKey(session.targetId, session.sessionType)
+  const text = props.draftPreviewByKey?.[key]?.trim()
+  if (!text) return ''
+  return text.length > 48 ? `${text.slice(0, 48)}…` : text
+}
 
 const emit = defineEmits<{  // 行注：开始解构当前返回值
   (event: 'create-group'): void  // 行注：执行当前调用逻辑
@@ -448,10 +462,24 @@ function handleSearchInput(event: Event) {  // 行注：定义 handleSearchInput
 }  /* 行注：结束当前样式块 */
 
 .session-preview {  /* 行注：定义 .session-preview 样式 */
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;  /* 行注：设置 white-space 样式 */
   overflow: hidden;  /* 行注：设置 overflow 样式 */
   text-overflow: ellipsis;  /* 行注：设置 text-overflow 样式 */
 }  /* 行注：结束当前样式块 */
+
+.draft-tag {
+  color: #e6a23c;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+.session-pin {
+  flex-shrink: 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
 
 .empty-state {  /* 行注：定义 .empty-state 样式 */
   display: flex;  /* 行注：设置 display 样式 */

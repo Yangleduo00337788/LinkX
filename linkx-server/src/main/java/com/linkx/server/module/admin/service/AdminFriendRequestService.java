@@ -6,7 +6,10 @@ import com.linkx.server.entity.SysFriendRequest;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.mapper.SysFriendRequestMapper;
 import com.linkx.server.mapper.SysUserMapper;
+import com.linkx.server.common.BusinessException;
+import com.linkx.server.common.ErrorCode;
 import com.linkx.server.module.admin.dto.AdminFriendRequestListItemDTO;
+import com.linkx.server.module.friend.service.FriendService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +19,7 @@ public class AdminFriendRequestService {
 
     private final SysFriendRequestMapper friendRequestMapper;
     private final SysUserMapper userMapper;
+    private final FriendService friendService;
 
     public Page<AdminFriendRequestListItemDTO> list(int page, int size, Integer status) {
         LambdaQueryWrapper<SysFriendRequest> wrapper = new LambdaQueryWrapper<>();
@@ -40,5 +44,27 @@ public class AdminFriendRequestService {
                     .build();
         }).toList());
         return result;
+    }
+
+    public void accept(Long requestId) {
+        SysFriendRequest req = friendRequestMapper.selectById(requestId);
+        if (req == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+        if (req.getStatus() != null && req.getStatus() != 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "申请已处理");
+        }
+        friendService.acceptRequest(req.getToUserId(), requestId);
+    }
+
+    public void reject(Long requestId) {
+        SysFriendRequest req = friendRequestMapper.selectById(requestId);
+        if (req == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND);
+        }
+        if (req.getStatus() != null && req.getStatus() != 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "申请已处理");
+        }
+        friendService.rejectRequest(req.getToUserId(), requestId);
     }
 }

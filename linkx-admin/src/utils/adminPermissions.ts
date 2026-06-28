@@ -1,0 +1,47 @@
+/** 管理端菜单与写操作权限（与后端 AdminRole 一致） */
+
+export const ADMIN_ROLES = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  OPERATOR: 'OPERATOR',
+  AUDITOR: 'AUDITOR',
+  VIEWER: 'VIEWER'
+} as const
+
+export type AdminRoleKey = (typeof ADMIN_ROLES)[keyof typeof ADMIN_ROLES]
+
+/** 路由 name → 允许访问的角色；未列出的路由默认所有已登录角色可见 */
+const ROUTE_ROLES: Record<string, AdminRoleKey[]> = {
+  admins: [ADMIN_ROLES.SUPER_ADMIN],
+  'system-notifications': [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR],
+  'sensitive-words': [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR],
+  releases: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR],
+  users: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  'user-detail': [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  dashboard: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  'friend-requests': [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  'group-requests': [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  groups: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  messages: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  files: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  blacklist: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  'audit-logs': [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  'login-logs': [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.AUDITOR, ADMIN_ROLES.VIEWER],
+  reports: [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR, ADMIN_ROLES.AUDITOR],
+  'file-hash-blacklist': [ADMIN_ROLES.SUPER_ADMIN, ADMIN_ROLES.OPERATOR],
+  'system-settings': [ADMIN_ROLES.SUPER_ADMIN]
+}
+
+export function canAccessRoute(role: string, routeKey: string): boolean {
+  const allowed = ROUTE_ROLES[routeKey]
+  if (!allowed) return true
+  return allowed.includes(role as AdminRoleKey)
+}
+
+/** 是否可执行写操作（禁用用户、删消息、处理举报、改敏感词等） */
+export function canWriteOps(role: string): boolean {
+  return role === ADMIN_ROLES.SUPER_ADMIN || role === ADMIN_ROLES.OPERATOR
+}
+
+export function isReadOnlyAdmin(role: string): boolean {
+  return role === ADMIN_ROLES.VIEWER || role === ADMIN_ROLES.AUDITOR
+}

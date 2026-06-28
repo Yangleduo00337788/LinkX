@@ -46,4 +46,8 @@ public class ChatSessionDTO {
     private Boolean notificationMuted;  // 行注：声明通知Muted字段
     /** 单聊对端是否在线（WebSocket） */
     private Boolean targetOnline;  // 行注：声明target在线字段
+    /** 会话备注（单聊/群聊会话级） */
+    private String sessionRemark;
+    /** 是否置顶 */
+    private Boolean pinned;
 }  // 行注：结束当前代码块

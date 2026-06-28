@@ -13,6 +13,7 @@ import com.linkx.server.module.admin.service.AdminMessageService;
 import com.linkx.server.module.admin.service.AdminUserService;
 import com.linkx.server.module.compliance.dto.CreateReportRequest;
 import com.linkx.server.module.compliance.dto.HandleReportRequest;
+import com.linkx.server.module.compliance.dto.MyReportListItemDTO;
 import com.linkx.server.module.compliance.dto.ReportListItemDTO;
 import com.linkx.server.module.compliance.service.ReportService;
 import com.linkx.server.module.notification.service.UserNotificationService;
@@ -87,6 +88,25 @@ public class ReportServiceImpl implements ReportService {
                 .resolution(r.getResolution())
                 .resolutionNote(r.getResolutionNote())
                 .handlerAdminId(r.getHandlerAdminId())
+                .handledTime(r.getHandledTime())
+                .createTime(r.getCreateTime())
+                .build()).toList());
+        return result;
+    }
+
+    @Override
+    public Page<MyReportListItemDTO> pageForReporter(Long reporterUserId, int page, int size) {
+        LambdaQueryWrapper<SysReport> w = new LambdaQueryWrapper<>();
+        w.eq(SysReport::getReporterUserId, reporterUserId).orderByDesc(SysReport::getCreateTime);
+        Page<SysReport> raw = reportMapper.selectPage(new Page<>(page, size), w);
+        Page<MyReportListItemDTO> result = new Page<>(raw.getCurrent(), raw.getSize(), raw.getTotal());
+        result.setRecords(raw.getRecords().stream().map(r -> MyReportListItemDTO.builder()
+                .id(r.getId())
+                .targetType(r.getTargetType())
+                .targetId(r.getTargetId())
+                .reasonCategory(r.getReasonCategory())
+                .status(r.getStatus())
+                .resolutionNote(r.getResolutionNote())
                 .handledTime(r.getHandledTime())
                 .createTime(r.getCreateTime())
                 .build()).toList());

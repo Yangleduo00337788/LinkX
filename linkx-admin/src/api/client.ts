@@ -199,5 +199,68 @@ export const adminApi = {
   },
   resetAdminPassword(adminId: number, newPassword: string) {
     return api.put(`/api/admin/admins/${adminId}/password`, null, { params: { newPassword } })
+  },
+  broadcastSystemNotification(body: { title: string; content: string }) {
+    return api.post('/api/admin/notifications/broadcast', body)
+  },
+  notifyUsers(body: { userIds: number[]; title: string; content: string }) {
+    return api.post('/api/admin/notifications/users', body)
+  },
+  acceptFriendRequest(id: number) {
+    return api.put(`/api/admin/friend-requests/${id}/accept`)
+  },
+  rejectFriendRequest(id: number) {
+    return api.put(`/api/admin/friend-requests/${id}/reject`)
+  },
+  acceptGroupRequest(id: number) {
+    return api.put(`/api/admin/group-requests/${id}/accept`)
+  },
+  rejectGroupRequest(id: number) {
+    return api.put(`/api/admin/group-requests/${id}/reject`)
+  },
+  listFileHashBlacklist(page: number, size: number, keyword?: string) {
+    return api.get('/api/admin/file-hash-blacklist', { params: { page, size, keyword } })
+  },
+  addFileHashBlacklist(body: { contentHash: string; reason?: string }) {
+    return api.post('/api/admin/file-hash-blacklist', body)
+  },
+  setFileHashBlacklistEnabled(id: number, enabled: number) {
+    return api.put(`/api/admin/file-hash-blacklist/${id}/enabled`, null, { params: { enabled } })
+  },
+  deleteFileHashBlacklist(id: number) {
+    return api.delete(`/api/admin/file-hash-blacklist/${id}`)
+  },
+  listRuntimeConfig() {
+    return api.get('/api/admin/runtime-config')
+  },
+  upsertRuntimeConfig(body: { configKey: string; configValue: string; description?: string }) {
+    return api.put('/api/admin/runtime-config', body)
+  },
+  getRuntimeConfigPresets() {
+    return api.get('/api/admin/runtime-config/presets')
+  },
+  exportUsersCsv(keyword?: string) {
+    return api.get('/api/admin/export/users', { params: { keyword }, responseType: 'blob' })
+  },
+  exportLoginLogsCsv(username?: string) {
+    return api.get('/api/admin/export/login-logs', { params: { username }, responseType: 'blob' })
+  },
+  exportAuditLogsCsv(action?: string) {
+    return api.get('/api/admin/export/audit-logs', { params: { action }, responseType: 'blob' })
+  },
+  exportMessagesCsv(sessionId?: number) {
+    return api.get('/api/admin/export/messages', { params: { sessionId }, responseType: 'blob' })
+  },
+  dashboardOnlineCount() {
+    return api.get('/api/admin/dashboard/online-count')
+  },
+  uploadReleasePackage(file: File, platform: string) {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('platform', platform)
+    return api.post('/api/admin/releases/upload', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000
+    })
   }
 }

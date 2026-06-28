@@ -30,7 +30,9 @@ export function normalizeSession(session: any): ChatSession {  // 行注：导�
     noticeUnread: Boolean(session.noticeUnread),  // 行注：设置 noticeUnread 配置项
     muted: Boolean(session.muted),  // 行注：设置 muted 配置项
     notificationMuted: Boolean(session.notificationMuted),  // 行注：设置 notificationMuted 配置项
-    targetOnline: Boolean(session.targetOnline)  // 行注：设置 targetOnline 配置项
+    targetOnline: Boolean(session.targetOnline),  // 行注：设置 targetOnline 配置项
+    sessionRemark: session.sessionRemark != null ? String(session.sessionRemark) : undefined,
+    pinned: Boolean(session.pinned)
   }  // 行注：结束当前代码块
 }  // 行注：结束当前代码块
 

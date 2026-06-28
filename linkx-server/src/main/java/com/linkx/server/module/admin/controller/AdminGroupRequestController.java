@@ -22,4 +22,16 @@ public class AdminGroupRequestController {
             @RequestParam(required = false) Long groupId) {
         return Result.success(adminGroupRequestService.list(page, size, status, groupId));
     }
+
+    @PutMapping("/{id}/accept")
+    public Result<Void> accept(@PathVariable Long id) {
+        adminGroupRequestService.accept(id);
+        return Result.success();
+    }
+
+    @PutMapping("/{id}/reject")
+    public Result<Void> reject(@PathVariable Long id) {
+        adminGroupRequestService.reject(id);
+        return Result.success();
+    }
 }

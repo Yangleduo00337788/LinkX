@@ -91,12 +91,33 @@ public class BlacklistServiceImpl implements BlacklistService {
     @Override  // 行注：应用 @Override 注解
     // 行注：定义移除黑名单方法
     public void removeBlacklist(Long userId, Long targetUserId) {
-        LambdaQueryWrapper<SysBlacklist> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
-        // 行注：调用等值条件
+        LambdaQueryWrapper<SysBlacklist> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysBlacklist::getUserId, userId)
-                .eq(SysBlacklist::getBlacklistUserId, targetUserId);  // 行注：继续调用等值条件
-        blacklistMapper.delete(wrapper);  // 行注：调用删除
-    }  // 行注：结束当前代码块
+                .eq(SysBlacklist::getBlacklistUserId, targetUserId);
+        blacklistMapper.delete(wrapper);
+        restoreFriendshipIfNotBlocked(userId, targetUserId);
+    }
+
+    /** 取消拉黑后恢复双向好友（拉黑时已删好友关系，不会自动加回）。 */
+    private void restoreFriendshipIfNotBlocked(Long userId, Long targetUserId) {
+        if (isBlacklisted(userId, targetUserId) || isBlacklisted(targetUserId, userId)) {
+            return;
+        }
+        ensureFriendRow(userId, targetUserId);
+        ensureFriendRow(targetUserId, userId);
+    }
+
+    private void ensureFriendRow(Long userId, Long friendId) {
+        LambdaQueryWrapper<SysFriend> w = new LambdaQueryWrapper<>();
+        w.eq(SysFriend::getUserId, userId).eq(SysFriend::getFriendId, friendId);
+        if (friendMapper.selectCount(w) > 0) {
+            return;
+        }
+        SysFriend row = new SysFriend();
+        row.setUserId(userId);
+        row.setFriendId(friendId);
+        friendMapper.insert(row);
+    }
 
     /**
      * 获取黑名单。
