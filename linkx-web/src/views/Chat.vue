@@ -300,6 +300,14 @@
         举报
       </button>
       <button
+        v-if="canAddGroupHighlight(selectedMsg)"
+        type="button"
+        class="msg-context-item"
+        @click="addToGroupHighlight"
+      >
+        设为群精华
+      </button>
+      <button
         type="button"
         class="msg-context-item"
         :disabled="!canRecallMessage(selectedMsg)"
@@ -430,7 +438,10 @@ import {  // 行注：引入 { 模块
   GROUP_ROLE_MEMBER,  // 行注：补充当前配置项
   GROUP_ROLE_OWNER,  // 行注：补充当前配置项
   SESSION_TYPE_GROUP,  // 行注：补充当前配置项
+  MESSAGE_STATUS_RECALLED,
+  MESSAGE_TYPE_SYSTEM,
   type ChatSession,  // 行注：补充当前配置项
+  type DisplayMessage,
   type GroupDetail  // 行注：补充当前表达式
 } from '../types/chat'  // 行注：补充当前表达式
 import { buildSessionKey, formatDateTime } from '../utils/chat'
@@ -923,6 +934,31 @@ function toggleEmojiPicker() {  // 行注：定义 toggleEmojiPicker 方法
 async function copySelectedMessage() {
   await handleCopyMessage()
   showMsgContextMenu.value = false
+}
+
+function canAddGroupHighlight(msg: DisplayMessage | null) {
+  if (!msg || !isGroupSession.value || !canManageMembers.value) return false
+  if (msg.isSystem || msg.msgType === MESSAGE_TYPE_SYSTEM) return false
+  if (msg.status === MESSAGE_STATUS_RECALLED) return false
+  if (msg.deliveryStatus && msg.deliveryStatus !== 'sent') return false
+  return msg.id != null && String(msg.id) !== ''
+}
+
+async function addToGroupHighlight() {
+  const msg = selectedMsg.value
+  if (!msg || !currentTargetId.value || !canAddGroupHighlight(msg)) return
+  try {
+    await groupApi.addHighlight(currentTargetId.value, { messageId: msg.id })
+    message.success('已设为群精华')
+    showMsgContextMenu.value = false
+    selectedMsg.value = null
+    if (showGroupDrawer.value && groupDrawerTab.value === 'highlights') {
+      groupDrawerTab.value = 'highlights'
+    }
+  } catch (e: any) {
+    message.error(e?.response?.data?.message || e?.message || '设置失败')
+    showMsgContextMenu.value = false
+  }
 }
 
 function openReportModal() {

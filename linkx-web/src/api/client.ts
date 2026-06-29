@@ -238,6 +238,11 @@ export const groupApi = {  // 行注：导出当前能力
     api.post(`/api/group/${groupId}/notices`, data),
   pinNotice: (groupId: number | string, noticeId: number | string, pinned = true) =>
     api.put(`/api/group/${groupId}/notices/${noticeId}/pin`, null, { params: { pinned } }),
+  listHighlights: (groupId: number | string) => api.get(`/api/group/${groupId}/highlights`),
+  addHighlight: (groupId: number | string, data: { messageId: number | string; title?: string }) =>
+    api.post(`/api/group/${groupId}/highlights`, data),
+  removeHighlight: (groupId: number | string, highlightId: number | string) =>
+    api.delete(`/api/group/${groupId}/highlights/${highlightId}`),
   markNoticeRead: (groupId: number | string) =>  // 行注：设置 markNoticeRead 配置项
     api.post(`/api/group/${groupId}/notice/read`),  // 行注：调用 post 方法
   getMedia: (groupId: number | string, params?: { mediaType?: string; keyword?: string; size?: number }) => {  // 行注：设置 getMedia 配置项

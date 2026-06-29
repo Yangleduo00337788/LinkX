@@ -2,7 +2,7 @@
  * 处理消息发送、撤回、复制、下载和预览等操作。
  */
 import { ref, type ComputedRef, type Ref } from 'vue'  // 行注：引入 ref, type ComputedRef, type Ref 能力
-import { fileApi, reportApi } from '../api/client'  // 行注：引入 fileApi 能力
+import { fileApi, groupApi, reportApi } from '../api/client'  // 行注：引入 fileApi 能力
 import { resolveFileAccessUrl } from '../utils/file-access'  // 行注：引入 resolveFileAccessUrl 能力
 import { getDateTimeTimestamp } from '../utils/datetime'  // 行注：引入 getDateTimeTimestamp 能力
 import { openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload } from '../utils/url'  // 行注：引入 openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload 能力

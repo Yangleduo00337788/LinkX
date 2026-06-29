@@ -38,6 +38,14 @@
         <button
           type="button"
           class="drawer-tab"
+          :class="{ active: activeTab === 'highlights' }"
+          @click="$emit('update:activeTab', 'highlights')"
+        >
+          群精华
+        </button>
+        <button
+          type="button"
+          class="drawer-tab"
           :class="{ active: activeTab === 'manage' }"
           @click="$emit('update:activeTab', 'manage')"
         >
@@ -280,10 +288,34 @@
             <div class="drawer-section">
               <div class="section-title-row">
                 <span class="drawer-section-title">群精华</span>
+                <button type="button" class="text-btn" :disabled="highlightsLoading" @click="loadGroupHighlights">
+                  {{ highlightsLoading ? '加载中…' : '刷新' }}
+                </button>
               </div>
-              <div class="drawer-placeholder">
-                在聊天中长按消息可设为精华（功能开发中）。当前可先使用群文件查看重要附件。
-              </div>
+              <p v-if="canManageMembers" class="section-hint">
+                群主或管理员可在聊天中右键消息，选择「设为群精华」。
+              </p>
+              <div v-if="highlightsLoading && !highlightItems.length" class="drawer-placeholder">加载中…</div>
+              <div v-else-if="!highlightItems.length" class="drawer-placeholder">暂无群精华</div>
+              <ul v-else class="group-highlight-list">
+                <li v-for="item in highlightItems" :key="item.id" class="group-highlight-item">
+                  <button type="button" class="group-highlight-main" @click="onHighlightPreview(item)">
+                    <span class="group-highlight-title">{{ item.title || '群精华' }}</span>
+                    <span v-if="item.createTime" class="group-highlight-meta">
+                      {{ item.createdByNickname || '管理员' }} · {{ formatDateTime(item.createTime) }}
+                    </span>
+                  </button>
+                  <button
+                    v-if="canManageMembers"
+                    type="button"
+                    class="mini-btn group-highlight-remove"
+                    :disabled="removingHighlightId === item.id"
+                    @click.stop="removeHighlight(item)"
+                  >
+                    {{ removingHighlightId === item.id ? '…' : '移除' }}
+                  </button>
+                </li>
+              </ul>
             </div>
           </template>
 
@@ -392,6 +424,7 @@
  * GroupDetailPanel 组件，负责当前界面片段的展示与交互。
  */
 import { computed, ref, watch } from 'vue'
+import { useMessage } from 'naive-ui'
 import ProtectedImage from '../ProtectedImage.vue'
 import { groupApi } from '../../api/client'
 import {
@@ -401,6 +434,7 @@ import {
   SESSION_TYPE_GROUP,
   type DisplayMessage,
   type GroupDetail,
+  type GroupHighlightItem,
   type GroupMember
 } from '../../types/chat'
 import { formatDateTime, getFileName, roleClass, roleText } from '../../utils/chat'
@@ -414,6 +448,8 @@ export interface GroupMediaMessage {
   createTime?: string
   fromNickname?: string
 }
+
+const message = useMessage()
 
 const props = defineProps<{
   visible: boolean
@@ -470,6 +506,10 @@ const memberCardDraft = computed(() => props.memberCardDraft ?? '')
 const mediaItems = ref<GroupMediaMessage[]>([])
 const albumItems = computed(() => mediaItems.value.filter(i => i.msgType === MESSAGE_TYPE_IMAGE))
 const mediaLoading = ref(false)
+
+const highlightItems = ref<GroupHighlightItem[]>([])
+const highlightsLoading = ref(false)
+const removingHighlightId = ref<string | number | null>(null)
 
 function normalizeMediaRows(raw: unknown): GroupMediaMessage[] {
   const list = Array.isArray(raw) ? raw : (raw as { records?: unknown[] })?.records ?? []
@@ -566,12 +606,89 @@ async function loadGroupMedia(mode: 'all' | 'image' = 'all') {
   }
 }
 
+function normalizeHighlightRows(raw: unknown): GroupHighlightItem[] {
+  const list = Array.isArray(raw) ? raw : (raw as { data?: unknown[] })?.data ?? []
+  return list.filter((x): x is GroupHighlightItem => x != null && (x as GroupHighlightItem).id != null)
+}
+
+function toDisplayFromHighlight(item: GroupHighlightItem): DisplayMessage | null {
+  const msg = item.message
+  if (!msg?.content) return null
+  const gid = String(props.groupDetail?.id ?? '')
+  const msgType = Number(msg.msgType ?? MESSAGE_TYPE_FILE)
+  const id = msg.id ?? item.messageId ?? item.id
+  const createTime = msg.createTime != null ? String(msg.createTime) : item.createTime || ''
+  return {
+    id,
+    localId: `highlight-${item.id}`,
+    isMe: false,
+    isSystem: false,
+    name: msg.fromNickname || '',
+    content: String(msg.content),
+    msgType,
+    status: 0,
+    createTime,
+    time: createTime ? formatDateTime(createTime) : '',
+    readStatus: '',
+    deliveryStatus: 'sent',
+    fileName: msg.fileName,
+    fileSize: msg.fileSize,
+    sessionType: SESSION_TYPE_GROUP,
+    targetId: gid,
+    mentionAll: false,
+    mentionUserIds: [],
+    mentionDisplayNames: [],
+    mentionedMe: false
+  }
+}
+
+function onHighlightPreview(item: GroupHighlightItem) {
+  const display = toDisplayFromHighlight(item)
+  if (!display) return
+  if (display.msgType === MESSAGE_TYPE_IMAGE) {
+    emit('preview-media', display)
+    return
+  }
+  emit('download-media', display)
+}
+
+async function loadGroupHighlights() {
+  const gid = props.groupDetail?.id
+  if (!gid) return
+  highlightsLoading.value = true
+  try {
+    const res: any = await groupApi.listHighlights(gid)
+    const data = res.data?.data ?? res.data
+    highlightItems.value = normalizeHighlightRows(data)
+  } catch {
+    highlightItems.value = []
+  } finally {
+    highlightsLoading.value = false
+  }
+}
+
+async function removeHighlight(item: GroupHighlightItem) {
+  const gid = props.groupDetail?.id
+  if (!gid || !props.canManageMembers) return
+  removingHighlightId.value = item.id
+  try {
+    await groupApi.removeHighlight(gid, item.id)
+    highlightItems.value = highlightItems.value.filter(h => h.id !== item.id)
+    message.success('已移除群精华')
+  } catch (e: any) {
+    message.error(e?.response?.data?.message || e?.message || '移除失败')
+  } finally {
+    removingHighlightId.value = null
+  }
+}
+
 watch(
   () => [props.visible, props.activeTab, props.groupDetail?.id] as const,
   ([vis, tab, gid]) => {
     if (!vis || !gid) return
     if (tab === 'files') void loadGroupMedia('all')
     if (tab === 'album') void loadGroupMedia('image')
+    if (tab === 'highlights') void loadGroupHighlights()
   },
   { immediate: true }
 )
@@ -641,6 +758,50 @@ watch(
   list-style: none;
   margin: 0;
   padding: 0;
+}
+
+.group-highlight-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.group-highlight-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--linkx-border);
+}
+
+.group-highlight-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.group-highlight-title {
+  display: block;
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.group-highlight-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+}
+
+.group-highlight-remove {
+  flex-shrink: 0;
 }
 
 .group-media-item {

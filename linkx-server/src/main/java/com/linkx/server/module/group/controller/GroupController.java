@@ -5,7 +5,9 @@ import com.linkx.server.module.chat.dto.MessageDTO;  // 行注：引入 MessageD
 import com.linkx.server.module.group.dto.GroupDTO;  // 行注：引入 GroupDTO 类型
 import com.linkx.server.module.group.dto.GroupDetailDTO;  // 行注：引入 GroupDetailDTO 类型
 import com.linkx.server.module.group.dto.GroupNoticeItemDTO;
+import com.linkx.server.module.group.dto.CreateGroupHighlightRequest;
 import com.linkx.server.module.group.dto.CreateGroupNoticeRequest;
+import com.linkx.server.module.group.dto.GroupHighlightItemDTO;
 import com.linkx.server.module.group.dto.GroupRequestDTO;  // 行注：引入 GroupRequestDTO 类型
 import com.linkx.server.module.group.request.AddGroupMembersRequest;  // 行注：引入 AddGroupMembersRequest 类型
 import com.linkx.server.module.group.request.CreateGroupRequest;  // 行注：引入 CreateGroupRequest 类型
@@ -227,6 +229,34 @@ public class GroupController {
             @RequestParam(defaultValue = "true") Boolean pinned) {
         Long userId = Long.parseLong(userDetails.getUsername());
         groupService.setGroupNoticePinned(userId, groupId, noticeId, pinned);
+        return Result.success();
+    }
+
+    @GetMapping("/{groupId}/highlights")
+    public Result<List<GroupHighlightItemDTO>> listHighlights(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(groupService.listGroupHighlights(userId, groupId));
+    }
+
+    @PostMapping("/{groupId}/highlights")
+    public Result<Void> addHighlight(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId,
+            @Valid @RequestBody CreateGroupHighlightRequest request) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        groupService.addGroupHighlight(userId, groupId, request.getMessageId(), request.getTitle());
+        return Result.success();
+    }
+
+    @DeleteMapping("/{groupId}/highlights/{highlightId}")
+    public Result<Void> removeHighlight(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId,
+            @PathVariable Long highlightId) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        groupService.removeGroupHighlight(userId, groupId, highlightId);
         return Result.success();
     }
 

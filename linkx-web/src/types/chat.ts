@@ -86,6 +86,17 @@ export interface GroupNoticeItem {
   updateTime?: string
 }
 
+export interface GroupHighlightItem {
+  id: string | number
+  groupId?: string | number
+  messageId?: string | number
+  title?: string
+  createdBy?: string | number
+  createdByNickname?: string
+  createTime?: string
+  message?: GroupMediaItem & { content?: string; msgType?: number }
+}
+
 export interface GroupMediaItem {  // 行注：导出当前能力
   id: string | number  // 行注：设置 id 配置项
   fromUserId?: string | number  // 行注：补充当前表达式
