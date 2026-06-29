@@ -42,6 +42,9 @@ public class ImSession {
     /** 消息免打扰 0/1 */
     private Integer notificationMuted;
 
+    /** 清空聊天记录时间点（仅当前用户视图） */
+    private LocalDateTime historyClearTime;
+
     /** 创建时间 */
     @TableField(fill = FieldFill.INSERT)  // 行注：应用 @TableField 注解
     private LocalDateTime createTime;  // 行注：声明创建时间字段

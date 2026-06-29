@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 @RequiredArgsConstructor
 public class AdminFileHashBlacklistService {
 
-    private final SysFileHashBlacklistMapper blacklistMapper;
+    private final SysFileHashBlacklistMapper mapper;
 
     public Page<SysFileHashBlacklist> list(int page, int size, String keyword) {
         LambdaQueryWrapper<SysFileHashBlacklist> w = new LambdaQueryWrapper<>();
@@ -22,31 +22,35 @@ public class AdminFileHashBlacklistService {
             w.like(SysFileHashBlacklist::getContentHash, keyword.trim());
         }
         w.orderByDesc(SysFileHashBlacklist::getCreateTime);
-        return blacklistMapper.selectPage(new Page<>(page, size), w);
+        return mapper.selectPage(new Page<>(page, size), w);
     }
 
-    public void add(String contentHash, String reason) {
+    public void create(String contentHash, String reason, Integer enabled) {
         if (!StringUtils.hasText(contentHash)) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "哈希不能为空");
         }
-        String hash = contentHash.trim().toLowerCase();
         SysFileHashBlacklist row = new SysFileHashBlacklist();
-        row.setContentHash(hash);
+        row.setContentHash(contentHash.trim().toLowerCase());
         row.setReason(reason);
-        row.setEnabled(1);
-        blacklistMapper.insert(row);
+        row.setEnabled(enabled != null ? enabled : 1);
+        mapper.insert(row);
     }
 
-    public void setEnabled(Long id, int enabled) {
-        SysFileHashBlacklist row = blacklistMapper.selectById(id);
+    public void update(Long id, String reason, Integer enabled) {
+        SysFileHashBlacklist row = mapper.selectById(id);
         if (row == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND);
         }
-        row.setEnabled(enabled);
-        blacklistMapper.updateById(row);
+        if (reason != null) {
+            row.setReason(reason);
+        }
+        if (enabled != null) {
+            row.setEnabled(enabled);
+        }
+        mapper.updateById(row);
     }
 
-    public void remove(Long id) {
-        blacklistMapper.deleteById(id);
+    public void delete(Long id) {
+        mapper.deleteById(id);
     }
 }

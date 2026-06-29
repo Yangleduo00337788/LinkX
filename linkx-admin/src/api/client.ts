@@ -203,53 +203,47 @@ export const adminApi = {
   broadcastSystemNotification(body: { title: string; content: string }) {
     return api.post('/api/admin/notifications/broadcast', body)
   },
-  notifyUsers(body: { userIds: number[]; title: string; content: string }) {
-    return api.post('/api/admin/notifications/users', body)
+  targetSystemNotification(body: { userIds: number[]; title: string; content: string }) {
+    return api.post('/api/admin/notifications/target', body)
   },
-  acceptFriendRequest(id: number) {
-    return api.put(`/api/admin/friend-requests/${id}/accept`)
+  acceptFriendRequest(requestId: number) {
+    return api.post(`/api/admin/friend-requests/${requestId}/accept`)
   },
-  rejectFriendRequest(id: number) {
-    return api.put(`/api/admin/friend-requests/${id}/reject`)
+  rejectFriendRequest(requestId: number) {
+    return api.post(`/api/admin/friend-requests/${requestId}/reject`)
   },
-  acceptGroupRequest(id: number) {
-    return api.put(`/api/admin/group-requests/${id}/accept`)
+  acceptGroupRequest(requestId: number) {
+    return api.post(`/api/admin/group-requests/${requestId}/accept`)
   },
-  rejectGroupRequest(id: number) {
-    return api.put(`/api/admin/group-requests/${id}/reject`)
+  rejectGroupRequest(requestId: number) {
+    return api.post(`/api/admin/group-requests/${requestId}/reject`)
   },
   listFileHashBlacklist(page: number, size: number, keyword?: string) {
     return api.get('/api/admin/file-hash-blacklist', { params: { page, size, keyword } })
   },
-  addFileHashBlacklist(body: { contentHash: string; reason?: string }) {
+  createFileHashBlacklist(body: { contentHash: string; reason?: string; enabled?: number }) {
     return api.post('/api/admin/file-hash-blacklist', body)
   },
-  setFileHashBlacklistEnabled(id: number, enabled: number) {
-    return api.put(`/api/admin/file-hash-blacklist/${id}/enabled`, null, { params: { enabled } })
+  updateFileHashBlacklist(id: number, body: { reason?: string; enabled?: number }) {
+    return api.put(`/api/admin/file-hash-blacklist/${id}`, body)
   },
   deleteFileHashBlacklist(id: number) {
     return api.delete(`/api/admin/file-hash-blacklist/${id}`)
   },
-  listRuntimeConfig() {
-    return api.get('/api/admin/runtime-config')
-  },
-  upsertRuntimeConfig(body: { configKey: string; configValue: string; description?: string }) {
-    return api.put('/api/admin/runtime-config', body)
-  },
-  getRuntimeConfigPresets() {
-    return api.get('/api/admin/runtime-config/presets')
-  },
   exportUsersCsv(keyword?: string) {
-    return api.get('/api/admin/export/users', { params: { keyword }, responseType: 'blob' })
+    return api.get('/api/admin/export/users.csv', { params: { keyword }, responseType: 'blob' })
   },
   exportLoginLogsCsv(username?: string) {
-    return api.get('/api/admin/export/login-logs', { params: { username }, responseType: 'blob' })
+    return api.get('/api/admin/export/login-logs.csv', { params: { username }, responseType: 'blob' })
   },
   exportAuditLogsCsv(action?: string) {
-    return api.get('/api/admin/export/audit-logs', { params: { action }, responseType: 'blob' })
+    return api.get('/api/admin/export/audit-logs.csv', { params: { action }, responseType: 'blob' })
   },
-  exportMessagesCsv(sessionId?: number) {
-    return api.get('/api/admin/export/messages', { params: { sessionId }, responseType: 'blob' })
+  getSystemSettings() {
+    return api.get('/api/admin/system-settings')
+  },
+  updateSystemSettings(body: Record<string, unknown>) {
+    return api.put('/api/admin/system-settings', body)
   },
   dashboardOnlineCount() {
     return api.get('/api/admin/dashboard/online-count')

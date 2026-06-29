@@ -10,6 +10,7 @@ import com.linkx.server.common.UploadAssetUrlUtils;  // 行注：引入 UploadAs
 import com.linkx.server.config.LinkxAppProperties;  // 行注：引入 LinkxAppProperties 类型
 import com.linkx.server.entity.ImGroupInfo;  // 行注：引入 ImGroupInfo 类型
 import com.linkx.server.entity.ImGroupMember;  // 行注：引入 ImGroupMember 类型
+import com.linkx.server.entity.ImGroupNotice;
 import com.linkx.server.entity.ImGroupRequest;  // 行注：引入 ImGroupRequest 类型
 import com.linkx.server.entity.ImMessage;  // 行注：引入 ImMessage 类型
 import com.linkx.server.entity.ImSession;  // 行注：引入 ImSession 类型
@@ -17,6 +18,7 @@ import com.linkx.server.entity.SysFile;  // 行注：引入 SysFile 类型
 import com.linkx.server.entity.SysUser;  // 行注：引入 SysUser 类型
 import com.linkx.server.mapper.ImGroupInfoMapper;  // 行注：引入 ImGroupInfoMapper 类型
 import com.linkx.server.mapper.ImGroupMemberMapper;  // 行注：引入 ImGroupMemberMapper 类型
+import com.linkx.server.mapper.ImGroupNoticeMapper;
 import com.linkx.server.mapper.ImGroupRequestMapper;  // 行注：引入 ImGroupRequestMapper 类型
 import com.linkx.server.mapper.ImMessageMapper;  // 行注：引入 ImMessageMapper 类型
 import com.linkx.server.mapper.ImSessionMapper;  // 行注：引入 ImSessionMapper 类型
@@ -29,6 +31,7 @@ import com.linkx.server.module.group.constant.GroupConstants;  // 行注：引�
 import com.linkx.server.module.group.dto.GroupDTO;  // 行注：引入 GroupDTO 类型
 import com.linkx.server.module.group.dto.GroupDetailDTO;  // 行注：引入 GroupDetailDTO 类型
 import com.linkx.server.module.group.dto.GroupMemberDTO;  // 行注：引入 GroupMemberDTO 类型
+import com.linkx.server.module.group.dto.GroupNoticeItemDTO;
 import com.linkx.server.module.group.dto.GroupRequestDTO;  // 行注：引入 GroupRequestDTO 类型
 import com.linkx.server.module.group.service.GroupService;  // 行注：引入 GroupService 类型
 import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
@@ -67,6 +70,7 @@ public class GroupServiceImpl implements GroupService {
 
     private final ImGroupInfoMapper groupInfoMapper;  // 行注：注入群信息Mapper依赖
     private final ImGroupMemberMapper groupMemberMapper;  // 行注：注入群成员Mapper依赖
+    private final ImGroupNoticeMapper groupNoticeMapper;
     private final ImGroupRequestMapper groupRequestMapper;  // 行注：注入群请求Mapper依赖
     private final ImMessageMapper messageMapper;  // 行注：注入消息Mapper依赖
     private final ImSessionMapper sessionMapper;  // 行注：注入会话Mapper依赖
@@ -510,10 +514,19 @@ public class GroupServiceImpl implements GroupService {
         detailDTO.setGroupName(groupInfo.getGroupName());  // 行注：调用设置群名称
         detailDTO.setGroupAvatar(groupInfo.getGroupAvatar());  // 行注：调用设置群头像
         detailDTO.setGroupRemark(currentMember.getGroupRemark());  // 行注：调用设置群Remark
-        detailDTO.setNotice(groupInfo.getNotice());  // 行注：调用设置Notice
-        detailDTO.setNoticeUpdateTime(groupInfo.getNoticeUpdateTime());  // 行注：调用设置Notice更新时间
+        detailDTO.setMemberCardName(currentMember.getMemberCardName());
+        List<GroupNoticeItemDTO> notices = listNoticesForGroup(groupId, userMap);
+        detailDTO.setNotices(notices);
+        GroupNoticeItemDTO pinned = pickDisplayNotice(notices, groupInfo);
+        if (pinned != null) {
+            detailDTO.setNotice(pinned.getContent());
+            detailDTO.setNoticeUpdateTime(pinned.getUpdateTime() != null ? pinned.getUpdateTime() : pinned.getCreateTime());
+        } else {
+            detailDTO.setNotice(groupInfo.getNotice());
+            detailDTO.setNoticeUpdateTime(groupInfo.getNoticeUpdateTime());
+        }
         detailDTO.setNoticeReadTime(currentMember.getNoticeReadTime());  // 行注：调用设置Notice已读时间
-        detailDTO.setNoticeUnread(hasUnreadNotice(groupInfo, currentMember));  // 行注：调用设置Notice未读
+        detailDTO.setNoticeUnread(hasUnreadNotice(detailDTO.getNotice(), detailDTO.getNoticeUpdateTime(), currentMember));
         detailDTO.setOwnerId(groupInfo.getOwnerId());  // 行注：调用设置所有者ID
         detailDTO.setMaxMembers(groupInfo.getMaxMembers());  // 行注：调用设置最大Members
         detailDTO.setMemberCount(members.size());  // 行注：调用设置成员数量
@@ -901,6 +914,15 @@ public class GroupServiceImpl implements GroupService {
         }  // 行注：结束当前代码块
 
         LocalDateTime noticeUpdateTime = LocalDateTime.now();  // 行注：初始化notice更新时间
+        ImGroupNotice noticeRow = new ImGroupNotice();
+        noticeRow.setGroupId(groupId);
+        noticeRow.setContent(normalizedNotice);
+        noticeRow.setPinned(1);
+        noticeRow.setPublisherId(operatorId);
+        noticeRow.setCreateTime(noticeUpdateTime);
+        noticeRow.setUpdateTime(noticeUpdateTime);
+        noticeRow.setDeleted(0);
+        groupNoticeMapper.insert(noticeRow);
         groupInfo.setNotice(normalizedNotice);  // 行注：调用设置Notice
         groupInfo.setNoticeUpdateTime(noticeUpdateTime);  // 行注：调用设置Notice更新时间
         groupInfoMapper.updateById(groupInfo);  // 行注：调用更新ID
@@ -932,21 +954,38 @@ public class GroupServiceImpl implements GroupService {
     @Override  // 行注：应用 @Override 注解
     @Transactional  // 行注：应用 @Transactional 注解
     // 行注：定义更新Preferences方法
-    public void updatePreferences(Long userId, Long groupId, String groupRemark, Boolean notificationMuted) {
+    public void updatePreferences(Long userId, Long groupId, String groupRemark, Boolean notificationMuted,
+                                  String memberCardName) {
         requireActiveGroup(groupId);  // 行注：调用require启用群
         ImGroupMember member = requireMember(groupId, userId);  // 行注：初始化成员
-        String normalizedRemark = normalizeGroupRemark(groupRemark);  // 行注：初始化规范化后的Remark
-        boolean nextNotificationMuted = Boolean.TRUE.equals(notificationMuted);  // 行注：初始化next通知Muted
-        // 行注：调用equals
-        boolean changed = !Objects.equals(normalizedRemark, normalizeNullableText(member.getGroupRemark()))
-                || nextNotificationMuted != Boolean.TRUE.equals(member.getNotificationMuted());  // 行注：执行初始化操作
-        // 行注：判断是否满足当前条件
+        String normalizedRemark = groupRemark != null
+                ? normalizeGroupRemark(groupRemark)
+                : member.getGroupRemark();
+        String normalizedCard = memberCardName != null
+                ? TextNormalizer.normalizeOptionalSingleLine(memberCardName, 64, "群名片")
+                : member.getMemberCardName();
+        boolean nextNotificationMuted = notificationMuted != null
+                ? Boolean.TRUE.equals(notificationMuted)
+                : Boolean.TRUE.equals(member.getNotificationMuted());
+        boolean changed = (groupRemark != null
+                && !Objects.equals(normalizedRemark, normalizeNullableText(member.getGroupRemark())))
+                || (notificationMuted != null
+                && nextNotificationMuted != Boolean.TRUE.equals(member.getNotificationMuted()))
+                || (memberCardName != null
+                && !Objects.equals(normalizedCard, normalizeNullableText(member.getMemberCardName())));
         if (!changed) {
-            return;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
-        member.setGroupRemark(normalizedRemark);  // 行注：调用设置群Remark
-        member.setNotificationMuted(nextNotificationMuted);  // 行注：调用设置通知Muted
-        groupMemberMapper.updateById(member);  // 行注：调用更新ID
+            return;
+        }
+        if (groupRemark != null) {
+            member.setGroupRemark(normalizedRemark);
+        }
+        if (notificationMuted != null) {
+            member.setNotificationMuted(nextNotificationMuted);
+        }
+        if (memberCardName != null) {
+            member.setMemberCardName(normalizedCard);
+        }
+        groupMemberMapper.updateById(member);
         // 行注：调用executeAfterCommit
         executeAfterCommit(() -> {
             chatGroupRealtimeService.pushGroupSessions(groupId, List.of(userId));  // 行注：调用推送群会话列表
@@ -966,14 +1005,19 @@ public class GroupServiceImpl implements GroupService {
     public void markNoticeRead(Long userId, Long groupId) {
         ImGroupInfo groupInfo = requireActiveGroup(groupId);  // 行注：初始化群信息
         ImGroupMember member = requireMember(groupId, userId);  // 行注：初始化成员
-        // 行注：判断是否满足当前条件
-        if (!StringUtils.hasText(groupInfo.getNotice()) || groupInfo.getNoticeUpdateTime() == null) {
-            return;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
-        // 行注：判断是否满足当前条件
-        if (!hasUnreadNotice(groupInfo, member)) {
-            return;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
+        Map<Long, SysUser> userMap = loadUserMap(Set.of(userId));
+        List<GroupNoticeItemDTO> notices = listNoticesForGroup(groupId, userMap);
+        GroupNoticeItemDTO display = pickDisplayNotice(notices, groupInfo);
+        String noticeText = display != null ? display.getContent() : groupInfo.getNotice();
+        LocalDateTime noticeTime = display != null
+                ? (display.getUpdateTime() != null ? display.getUpdateTime() : display.getCreateTime())
+                : groupInfo.getNoticeUpdateTime();
+        if (!StringUtils.hasText(noticeText) || noticeTime == null) {
+            return;
+        }
+        if (!hasUnreadNotice(noticeText, noticeTime, member)) {
+            return;
+        }
         member.setNoticeReadTime(LocalDateTime.now());  // 行注：调用设置Notice已读时间
         groupMemberMapper.updateById(member);  // 行注：调用更新ID
         // 行注：调用executeAfterCommit
@@ -1655,17 +1699,140 @@ public class GroupServiceImpl implements GroupService {
 
     // 行注：定义是否包含未读Notice方法
     private boolean hasUnreadNotice(ImGroupInfo groupInfo, ImGroupMember member) {
-        // 行注：判断是否满足当前条件
         if (groupInfo == null || member == null) {
-            return false;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
-        // 行注：判断是否满足当前条件
-        if (!StringUtils.hasText(groupInfo.getNotice()) || groupInfo.getNoticeUpdateTime() == null) {
-            return false;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
-        LocalDateTime noticeReadTime = member.getNoticeReadTime();  // 行注：初始化notice已读时间
-        return noticeReadTime == null || noticeReadTime.isBefore(groupInfo.getNoticeUpdateTime());  // 行注：返回处理结果
-    }  // 行注：结束当前代码块
+            return false;
+        }
+        return hasUnreadNotice(groupInfo.getNotice(), groupInfo.getNoticeUpdateTime(), member);
+    }
+
+    private boolean hasUnreadNotice(String notice, LocalDateTime noticeUpdateTime, ImGroupMember member) {
+        if (member == null || !StringUtils.hasText(notice) || noticeUpdateTime == null) {
+            return false;
+        }
+        LocalDateTime noticeReadTime = member.getNoticeReadTime();
+        return noticeReadTime == null || noticeReadTime.isBefore(noticeUpdateTime);
+    }
+
+    private List<GroupNoticeItemDTO> listNoticesForGroup(Long groupId, Map<Long, SysUser> userMap) {
+        LambdaQueryWrapper<ImGroupNotice> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImGroupNotice::getGroupId, groupId)
+                .orderByDesc(ImGroupNotice::getPinned)
+                .orderByDesc(ImGroupNotice::getUpdateTime)
+                .orderByDesc(ImGroupNotice::getCreateTime)
+                .last("LIMIT 50");
+        return groupNoticeMapper.selectList(wrapper).stream()
+                .map(row -> toNoticeItemDTO(row, userMap))
+                .collect(Collectors.toList());
+    }
+
+    private GroupNoticeItemDTO pickDisplayNotice(List<GroupNoticeItemDTO> notices, ImGroupInfo groupInfo) {
+        if (notices != null && !notices.isEmpty()) {
+            return notices.stream()
+                    .filter(n -> Boolean.TRUE.equals(n.getPinned()))
+                    .findFirst()
+                    .orElse(notices.get(0));
+        }
+        if (groupInfo != null && StringUtils.hasText(groupInfo.getNotice())) {
+            GroupNoticeItemDTO fallback = new GroupNoticeItemDTO();
+            fallback.setContent(groupInfo.getNotice());
+            fallback.setPinned(true);
+            fallback.setUpdateTime(groupInfo.getNoticeUpdateTime());
+            fallback.setCreateTime(groupInfo.getNoticeUpdateTime());
+            return fallback;
+        }
+        return null;
+    }
+
+    private GroupNoticeItemDTO toNoticeItemDTO(ImGroupNotice row, Map<Long, SysUser> userMap) {
+        GroupNoticeItemDTO dto = new GroupNoticeItemDTO();
+        dto.setId(row.getId());
+        dto.setContent(row.getContent());
+        dto.setPinned(row.getPinned() != null && row.getPinned() == 1);
+        dto.setPublisherId(row.getPublisherId());
+        dto.setCreateTime(row.getCreateTime());
+        dto.setUpdateTime(row.getUpdateTime());
+        SysUser publisher = userMap.get(row.getPublisherId());
+        if (publisher != null) {
+            dto.setPublisherNickname(StringUtils.hasText(publisher.getNickname())
+                    ? publisher.getNickname() : publisher.getUsername());
+        }
+        return dto;
+    }
+
+    private void syncLegacyGroupNoticeFields(ImGroupInfo groupInfo) {
+        List<GroupNoticeItemDTO> notices = listNoticesForGroup(groupInfo.getId(), Map.of());
+        GroupNoticeItemDTO display = pickDisplayNotice(notices, null);
+        if (display != null) {
+            groupInfo.setNotice(display.getContent());
+            groupInfo.setNoticeUpdateTime(display.getUpdateTime() != null
+                    ? display.getUpdateTime() : display.getCreateTime());
+        } else {
+            groupInfo.setNotice(null);
+            groupInfo.setNoticeUpdateTime(null);
+        }
+    }
+
+    @Override
+    public List<GroupNoticeItemDTO> listGroupNotices(Long userId, Long groupId) {
+        requireActiveGroup(groupId);
+        requireMember(groupId, userId);
+        Map<Long, SysUser> userMap = loadUserMap(Set.of(userId));
+        return listNoticesForGroup(groupId, userMap);
+    }
+
+    @Override
+    @Transactional
+    public void createGroupNotice(Long operatorId, Long groupId, String content, Boolean pinned) {
+        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        ImGroupMember operatorMember = requireMember(groupId, operatorId);
+        if (operatorMember.getRole() == GroupConstants.ROLE_MEMBER) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有群主或管理员可以发布公告");
+        }
+        String normalized = TextNormalizer.normalizeOptionalMultiline(content, 2000, "群公告");
+        if (!StringUtils.hasText(normalized)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "公告内容不能为空");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        ImGroupNotice notice = new ImGroupNotice();
+        notice.setGroupId(groupId);
+        notice.setContent(normalized);
+        notice.setPinned(Boolean.TRUE.equals(pinned) ? 1 : 0);
+        notice.setPublisherId(operatorId);
+        notice.setCreateTime(now);
+        notice.setUpdateTime(now);
+        notice.setDeleted(0);
+        groupNoticeMapper.insert(notice);
+        groupInfo.setNotice(normalized);
+        groupInfo.setNoticeUpdateTime(now);
+        groupInfoMapper.updateById(groupInfo);
+        operatorMember.setNoticeReadTime(now);
+        groupMemberMapper.updateById(operatorMember);
+        Map<Long, SysUser> userMap = loadUserMap(Set.of(operatorId));
+        appendGroupSystemMessage(groupId, operatorId,
+                getUserDisplayName(operatorId, userMap) + " 发布了群公告");
+        executeAfterCommit(() -> chatGroupRealtimeService.pushGroupDetails(groupId,
+                listMembersByGroupId(groupId).stream().map(ImGroupMember::getUserId).toList()));
+    }
+
+    @Override
+    @Transactional
+    public void setGroupNoticePinned(Long operatorId, Long groupId, Long noticeId, Boolean pinned) {
+        requireActiveGroup(groupId);
+        ImGroupMember operatorMember = requireMember(groupId, operatorId);
+        if (operatorMember.getRole() == GroupConstants.ROLE_MEMBER) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "只有群主或管理员可以置顶公告");
+        }
+        ImGroupNotice notice = groupNoticeMapper.selectById(noticeId);
+        if (notice == null || !groupId.equals(notice.getGroupId())) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "公告不存在");
+        }
+        notice.setPinned(Boolean.TRUE.equals(pinned) ? 1 : 0);
+        notice.setUpdateTime(LocalDateTime.now());
+        groupNoticeMapper.updateById(notice);
+        ImGroupInfo groupInfo = requireActiveGroup(groupId);
+        syncLegacyGroupNoticeFields(groupInfo);
+        groupInfoMapper.updateById(groupInfo);
+    }
 
     // 行注：定义解析Media消息Types方法
     private List<Integer> resolveMediaMessageTypes(String mediaType) {

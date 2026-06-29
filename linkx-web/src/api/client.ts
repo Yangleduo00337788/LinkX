@@ -176,7 +176,16 @@ export const chatApi = {
   }) => api.post('/api/chat/send-file', data),
   markAsRead: (targetId: number | string, sessionType = 1) =>
     api.post(`/api/chat/read/${targetId}`, null, { params: { sessionType } }),
-  recallMessage: (messageId: number | string) => api.post(`/api/chat/recall/${messageId}`)
+  recallMessage: (messageId: number | string) => api.post(`/api/chat/recall/${messageId}`),
+  updateSessionSettings: (data: {
+    targetId: number | string
+    sessionType?: number
+    pinned?: boolean
+    notificationMuted?: boolean
+    sessionRemark?: string
+  }) => api.put('/api/chat/session/settings', data),
+  clearChatHistory: (targetId: number | string, sessionType = 1) =>
+    api.post('/api/chat/session/clear-history', null, { params: { targetId, sessionType } })
 }
 
 export const userApi = {  // 行注：导出当前能力
@@ -193,7 +202,9 @@ export const friendApi = {  // 行注：导出当前能力
   accept: (requestId: number) => api.post(`/api/friend/accept/${requestId}`),  // 行注：设置 accept 配置项
   reject: (requestId: number) => api.post(`/api/friend/reject/${requestId}`),  // 行注：设置 reject 配置项
   getList: () => api.get('/api/friend/list'),  // 行注：传入 getList 回调
-  delete: (friendId: string | number) => api.delete(`/api/friend/${friendId}`)  // 行注：设置 delete 配置项
+  delete: (friendId: string | number) => api.delete(`/api/friend/${friendId}`),  // 行注：设置 delete 配置项
+  updateRemark: (friendId: string | number, remark: string) =>
+    api.put(`/api/friend/${friendId}/remark`, { remark })
 }  // 行注：结束当前代码块
 
 export const groupApi = {  // 行注：导出当前能力
@@ -218,8 +229,15 @@ export const groupApi = {  // 行注：导出当前能力
     api.put(`/api/group/${groupId}/profile`, data),  // 行注：调用 put 方法
   updateNotice: (groupId: number | string, notice: string) =>  // 行注：设置 updateNotice 配置项
     api.put(`/api/group/${groupId}/notice`, { notice }),  // 行注：调用 put 方法
-  updatePreferences: (groupId: number | string, data: { groupRemark?: string; notificationMuted?: boolean }) =>  // 行注：设置 updatePreferences 配置项
-    api.put(`/api/group/${groupId}/preferences`, data),  // 行注：调用 put 方法
+  updatePreferences: (
+    groupId: number | string,
+    data: { groupRemark?: string; notificationMuted?: boolean; memberCardName?: string }
+  ) => api.put(`/api/group/${groupId}/preferences`, data),
+  listNotices: (groupId: number | string) => api.get(`/api/group/${groupId}/notices`),
+  createNotice: (groupId: number | string, data: { content: string; pinned?: boolean }) =>
+    api.post(`/api/group/${groupId}/notices`, data),
+  pinNotice: (groupId: number | string, noticeId: number | string, pinned = true) =>
+    api.put(`/api/group/${groupId}/notices/${noticeId}/pin`, null, { params: { pinned } }),
   markNoticeRead: (groupId: number | string) =>  // 行注：设置 markNoticeRead 配置项
     api.post(`/api/group/${groupId}/notice/read`),  // 行注：调用 post 方法
   getMedia: (groupId: number | string, params?: { mediaType?: string; keyword?: string; size?: number }) => {  // 行注：设置 getMedia 配置项
@@ -301,7 +319,8 @@ export const reportApi = {
     targetId: string
     reasonCategory: string
     reasonDetail?: string
-  }) => api.post('/api/reports', body)
+  }) => api.post('/api/reports', body),
+  mine: (page = 1, size = 20) => api.get('/api/reports/mine', { params: { page, size } })
 }
 
 export const releaseApi = {
@@ -330,6 +349,7 @@ export const sessionApi = {
 export const notificationApi = {
   list: (page = 1, size = 20) =>
     api.get('/api/notifications', { params: { page, size } }),
+  unreadCount: () => api.get('/api/notifications/unread-count'),
   markRead: (id: number | string) => api.put(`/api/notifications/${id}/read`)
 }
 

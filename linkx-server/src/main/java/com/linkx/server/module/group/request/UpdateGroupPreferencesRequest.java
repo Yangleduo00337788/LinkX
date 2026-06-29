@@ -12,4 +12,7 @@ public class UpdateGroupPreferencesRequest {
     private String groupRemark;  // 行注：声明群Remark字段
 
     private Boolean notificationMuted;  // 行注：声明通知Muted字段
+
+    @Size(max = 64, message = "群名片长度不能超过64个字符")
+    private String memberCardName;
 }  // 行注：结束当前代码块

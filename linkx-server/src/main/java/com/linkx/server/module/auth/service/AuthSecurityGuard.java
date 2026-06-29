@@ -4,6 +4,7 @@ import com.linkx.server.common.BusinessException;  // 行注：引入 BusinessEx
 import com.linkx.server.common.ErrorCode;  // 行注：引入 ErrorCode 类型
 import com.linkx.server.config.LinkxSecurityProperties;  // 行注：引入 LinkxSecurityProperties 类型
 import com.linkx.server.module.auth.dto.CaptchaMetaDTO;  // 行注：引入 CaptchaMetaDTO 类型
+import com.linkx.server.module.config.service.RuntimeConfigService;
 import jakarta.servlet.http.HttpServletRequest;  // 行注：引入 HttpServletRequest 类型
 import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
 import lombok.extern.slf4j.Slf4j;  // 行注：引入 Slf4j 类型
@@ -33,6 +34,7 @@ public class AuthSecurityGuard {
     private final RedisTemplate<String, Object> redisTemplate;  // 行注：注入RedisTemplate依赖
     private final LinkxSecurityProperties linkxSecurityProperties;  // 行注：注入LinkX 安全属性依赖
     private final CaptchaService captchaService;  // 行注：注入验证码服务依赖
+    private final RuntimeConfigService runtimeConfigService;
 
     /** 登录场景校验并消费验证码（未开启验证码时直接通过） */
     // 行注：定义validate登录验证码方法
@@ -135,20 +137,34 @@ public class AuthSecurityGuard {
         return StringUtils.hasText(remoteAddr) ? remoteAddr.trim() : UNKNOWN_CLIENT_IP;  // 行注：返回处理结果
     }  // 行注：结束当前代码块
 
-    /** 返回验证码是否启用及支持的业务场景列表 */
-    // 行注：定义获取验证码元数据方法
+    /** 用户端登录/注册页：是否展示验证码 */
     public CaptchaMetaDTO getCaptchaMeta() {
-        return new CaptchaMetaDTO(linkxSecurityProperties.getCaptcha().isEnabled(),
+        return new CaptchaMetaDTO(isUserCaptchaEnabled(),
                 List.of("login", "register", "admin-login"));
-    }  // 行注：结束当前代码块
+    }
+
+    /** 管理端登录页：与 {@link #validateAdminLoginCaptcha} 使用同一开关（仅 YAML linkx.security.captcha） */
+    public CaptchaMetaDTO getAdminCaptchaMeta() {
+        boolean enabled = linkxSecurityProperties.getCaptcha() != null
+                && linkxSecurityProperties.getCaptcha().isEnabled();
+        return new CaptchaMetaDTO(enabled, List.of("admin-login"));
+    }
+
+    private boolean isUserCaptchaEnabled() {
+        boolean yaml = linkxSecurityProperties.getCaptcha().isEnabled();
+        return runtimeConfigService.getBoolean(RuntimeConfigService.KEY_USER_CAPTCHA_ENABLED, yaml);
+    }
 
     /** 开启验证码时调用 {@link CaptchaService#consume} 一次性校验 */
     // 行注：定义validate验证码方法
     private void validateCaptcha(String scene, String captchaId, String captchaCode) {
-        // 行注：判断是否满足当前条件
-        if (!linkxSecurityProperties.getCaptcha().isEnabled()) {
-            return;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
+        if ("admin-login".equals(scene)) {
+            if (!linkxSecurityProperties.getCaptcha().isEnabled()) {
+                return;
+            }
+        } else if (!isUserCaptchaEnabled()) {
+            return;
+        }
         captchaService.consume(scene, captchaId, captchaCode);  // 行注：调用consume
     }  // 行注：结束当前代码块
 

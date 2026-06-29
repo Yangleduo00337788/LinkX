@@ -1,6 +1,8 @@
 package com.linkx.server.module.admin.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.linkx.server.common.BusinessException;
+import com.linkx.server.common.ErrorCode;
 import com.linkx.server.common.Result;
 import com.linkx.server.module.admin.dto.AdminCreateReleaseRequest;
 import com.linkx.server.module.admin.dto.AdminReleaseListItemDTO;
@@ -12,15 +14,11 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,7 +29,7 @@ public class AdminReleaseController {
 
     private final AdminReleaseService adminReleaseService;
     private final AdminAuditService adminAuditService;
-    private final LinkxAppProperties linkxAppProperties;
+    private final LinkxAppProperties appProperties;
 
     @GetMapping
     public Result<Page<AdminReleaseListItemDTO>> list(
@@ -61,30 +59,34 @@ public class AdminReleaseController {
         return Result.success();
     }
 
-    /** 上传安装包到本地 releases 目录，返回可填入「下载地址」的 URL。 */
+    /** 上传安装包到本地 uploads/releases/，返回可填入 downloadUrl 的相对路径 */
     @PostMapping("/upload")
     public Result<Map<String, String>> upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(defaultValue = "win") String platform) throws IOException {
+            @RequestParam(defaultValue = "win") String platform) throws Exception {
         if (file == null || file.isEmpty()) {
-            return Result.fail(400, "请选择文件");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "文件为空");
         }
-        String plat = platform.trim().toLowerCase();
-        String original = file.getOriginalFilename();
+        String safePlatform = platform.trim().toLowerCase().replaceAll("[^a-z0-9_-]", "");
+        if (safePlatform.isEmpty()) {
+            safePlatform = "win";
+        }
+        String original = file.getOriginalFilename() != null ? file.getOriginalFilename() : "package.bin";
         String ext = "";
-        if (StringUtils.hasText(original) && original.contains(".")) {
-            ext = original.substring(original.lastIndexOf('.'));
+        int dot = original.lastIndexOf('.');
+        if (dot >= 0) {
+            ext = original.substring(dot).replaceAll("[^a-zA-Z0-9.]", "");
         }
-        String stored = plat + "-" + UUID.randomUUID() + ext;
-        Path base = Paths.get(linkxAppProperties.getUpload().getPath(), "releases").toAbsolutePath().normalize();
-        Files.createDirectories(base);
-        Path target = base.resolve(stored);
-        file.transferTo(target.toFile());
-        String baseUrl = linkxAppProperties.getApiBaseUrl();
-        if (baseUrl.endsWith("/")) {
-            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        String stored = safePlatform + "/" + UUID.randomUUID() + ext;
+        Path base = Path.of(appProperties.getUpload().getPath(), "releases");
+        Files.createDirectories(base.resolve(safePlatform));
+        Path target = base.resolve(stored.replace("/", java.io.File.separator));
+        Files.write(target, file.getBytes());
+        String urlPrefix = appProperties.getUpload().getUrl();
+        if (!urlPrefix.endsWith("/")) {
+            urlPrefix += "/";
         }
-        String downloadUrl = baseUrl + "/uploads/releases/" + stored;
-        return Result.success(Map.of("downloadUrl", downloadUrl, "fileName", stored));
+        String downloadUrl = urlPrefix + "releases/" + stored;
+        return Result.success(Map.of("downloadUrl", downloadUrl, "storedPath", stored));
     }
 }

@@ -10,8 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/admin/dashboard")
 @RequiredArgsConstructor
@@ -20,14 +18,14 @@ public class AdminDashboardController {
     private final AdminDashboardService adminDashboardService;
     private final ChatSocketSessionRegistry sessionRegistry;
 
+    @GetMapping("/online-count")
+    public Result<java.util.Map<String, Integer>> onlineCount() {
+        return Result.success(java.util.Map.of("onlineUsers", sessionRegistry.getOnlineUserCount()));
+    }
+
     @GetMapping("/stats")
     public Result<AdminDashboardStatsDTO> stats(
             @RequestParam(defaultValue = "7") int days) {
         return Result.success(adminDashboardService.stats(days));
-    }
-
-    @GetMapping("/online-count")
-    public Result<Map<String, Integer>> onlineCount() {
-        return Result.success(Map.of("onlineUsers", sessionRegistry.getOnlineUserCount()));
     }
 }

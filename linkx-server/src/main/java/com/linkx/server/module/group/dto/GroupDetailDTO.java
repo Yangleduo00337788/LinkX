@@ -39,6 +39,10 @@ public class GroupDetailDTO {
     private LocalDateTime muteTime;  // 行注：声明mute时间字段
     /** 是否开启消息免打扰 */
     private Boolean notificationMuted;  // 行注：声明通知Muted字段
+    /** 我在本群的群名片 */
+    private String memberCardName;
+    /** 多条群公告 */
+    private List<GroupNoticeItemDTO> notices;
     /** 创建时间 */
     private LocalDateTime createTime;  // 行注：声明创建时间字段
     /** 成员列表 */

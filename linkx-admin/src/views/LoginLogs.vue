@@ -13,6 +13,7 @@
         />
         <n-button type="primary" @click="reload(1)">查询</n-button>
         <n-button quaternary @click="onReset">重置</n-button>
+        <n-button secondary @click="exportCsv">导出 CSV</n-button>
         <div class="admin-toolbar-spacer" />
         <span class="admin-total-hint">共 {{ pagination.itemCount }} 条</span>
       </div>
@@ -41,6 +42,7 @@ import { NButton, NDataTable, NInput, NInputNumber, NSelect, NTag, useMessage } 
 import type { DataTableColumns } from 'naive-ui'
 import AdminPageShell from '../components/AdminPageShell.vue'
 import { adminApi } from '../api/client'
+import { downloadBlob } from '../utils/downloadBlob'
 
 interface Row {
   id: number
@@ -121,6 +123,16 @@ function onReset() {
   userId.value = null
   loginStatus.value = null
   reload(1)
+}
+
+async function exportCsv() {
+  try {
+    const res = await adminApi.exportLoginLogsCsv(username.value || undefined)
+    downloadBlob(res.data as Blob, 'login-logs.csv')
+    message.success('已开始下载')
+  } catch (e: unknown) {
+    message.error(e instanceof Error ? e.message : '导出失败')
+  }
 }
 
 function applyRouteQuery() {

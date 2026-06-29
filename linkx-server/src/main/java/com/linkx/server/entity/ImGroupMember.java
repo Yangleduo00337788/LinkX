@@ -37,6 +37,9 @@ public class ImGroupMember {
     /** 群内备注 */
     private String groupRemark;  // 行注：声明群Remark字段
 
+    /** 我在本群的群名片 */
+    private String memberCardName;
+
     /** 是否开启消息免打扰 */
     private Boolean notificationMuted;  // 行注：声明通知Muted字段
 

@@ -46,24 +46,18 @@ public class AdminFriendRequestService {
         return result;
     }
 
-    public void accept(Long requestId) {
+    public void acceptAsReceiver(Long requestId) {
         SysFriendRequest req = friendRequestMapper.selectById(requestId);
-        if (req == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
-        if (req.getStatus() != null && req.getStatus() != 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "申请已处理");
+        if (req == null || req.getStatus() == null || req.getStatus() != 0) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "申请不存在或已处理");
         }
         friendService.acceptRequest(req.getToUserId(), requestId);
     }
 
-    public void reject(Long requestId) {
+    public void rejectAsReceiver(Long requestId) {
         SysFriendRequest req = friendRequestMapper.selectById(requestId);
-        if (req == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND);
-        }
-        if (req.getStatus() != null && req.getStatus() != 0) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "申请已处理");
+        if (req == null || req.getStatus() == null || req.getStatus() != 0) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "申请不存在或已处理");
         }
         friendService.rejectRequest(req.getToUserId(), requestId);
     }

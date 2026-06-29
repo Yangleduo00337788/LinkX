@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 @Data
 @TableName("sys_runtime_config")
 public class SysRuntimeConfig {
-
     @TableId(type = IdType.ASSIGN_ID)
     private Long id;
     private String configKey;

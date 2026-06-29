@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;  // �
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;  // 行注：引入 LambdaUpdateWrapper 类型
 import com.linkx.server.common.BusinessException;  // 行注：引入 BusinessException 类型
 import com.linkx.server.common.ErrorCode;  // 行注：引入 ErrorCode 类型
+import com.linkx.server.common.TextNormalizer;
 import com.linkx.server.entity.SysFriend;  // 行注：引入 SysFriend 类型
 import com.linkx.server.entity.SysFriendRequest;  // 行注：引入 SysFriendRequest 类型
 import com.linkx.server.entity.ImSession;  // 行注：引入 ImSession 类型
@@ -310,6 +311,20 @@ public class FriendServiceImpl implements FriendService {
         // 关系解除后顺手删除双向单聊会话，避免历史入口继续出现在会话列表中。
         deleteSingleSessions(userId, friendId);  // 行注：调用删除单聊会话列表
     }  // 行注：结束当前代码块
+
+    @Override
+    @Transactional
+    public void updateFriendRemark(Long userId, Long friendId, String remark) {
+        LambdaQueryWrapper<SysFriend> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysFriend::getUserId, userId).eq(SysFriend::getFriendId, friendId);
+        SysFriend row = friendMapper.selectOne(wrapper);
+        if (row == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "好友关系不存在");
+        }
+        String normalized = TextNormalizer.normalizeOptionalSingleLine(remark, 64, "好友备注");
+        row.setRemark(normalized);
+        friendMapper.updateById(row);
+    }
 
     // 行注：定义删除单聊会话列表方法
     private void deleteSingleSessions(Long userId, Long friendId) {

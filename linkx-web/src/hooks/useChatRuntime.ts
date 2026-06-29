@@ -5,6 +5,7 @@ import { computed, nextTick, ref, watch, type ComputedRef, type Ref } from 'vue'
 import type { RouteLocationNormalizedLoaded, Router } from 'vue-router'  // 行注：引入 type { RouteLocationNormalizedLoaded, Router } 模块
 import { chatApi, friendApi, groupApi, userApi } from '../api/client'  // 行注：引入 chatApi, friendApi, groupApi, userApi 能力
 import { useUserStore } from '../stores/user'
+import { useNotificationStore } from '../stores/notification'
 import { createChatRealtimeService } from '../services/chatRealtime'  // 行注：引入 createChatRealtimeService 能力
 import type { ChatSession, DisplayMessage, FriendItem, GroupDetail } from '../types/chat'  // 行注：引入 type { ChatSession, DisplayMessage, FriendItem, GroupDetail } 模块
 import { getCachedFileAccessUrl, resolveFileAccessUrl } from '../utils/file-access'  // 行注：引入 getCachedFileAccessUrl, resolveFileAccessUrl 能力
@@ -1181,6 +1182,9 @@ export function useChatRuntime(options: UseChatRuntimeOptions) {  // 行注：�
       disconnectChatSocketRef()
       useUserStore().logout()
       void options.router.replace('/login')
+    },
+    onNotification: payload => {
+      useNotificationStore().setUnreadFromWs(Number(payload?.unreadCount ?? 0))
     }
   })  // 行注：结束当前调用配置
 

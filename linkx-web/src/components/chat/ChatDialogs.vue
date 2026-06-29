@@ -64,41 +64,7 @@
     @update:mute-minutes-input="$emit('update:mute-minutes-input', $event)"
     @submit="$emit('submit-mute-member')"
   />
-  <!-- 行注：渲染 GroupDetailPanel 组件 -->
-  <GroupDetailPanel
-    :visible="showGroupDrawer"
-    :group-detail="groupDetail"
-    :group-profile-name="groupProfileName"
-    :group-profile-avatar-preview="groupProfileAvatarPreview"
-    :notice-draft="noticeDraft"
-    :current-user-id="currentUserId"
-    :can-edit-group-profile="canEditGroupProfile"
-    :updating-group-profile="updatingGroupProfile"
-    :is-group-profile-changed="isGroupProfileChanged"
-    :can-edit-notice="canEditNotice"
-    :updating-notice="updatingNotice"
-    :is-group-notice-changed="isGroupNoticeChanged"
-    :can-manage-members="canManageMembers"
-    :can-dissolve-group="canDissolveGroup"
-    :is-group-owner="isGroupOwner"
-    :can-operate-member="canOperateMember"
-    :can-toggle-admin="canToggleAdmin"
-    @close="$emit('close-group-drawer')"
-    @trigger-group-profile-avatar-upload="$emit('trigger-group-profile-avatar-upload')"
-    @update:group-profile-name="$emit('update:group-profile-name', $event)"
-    @update:notice-draft="$emit('update:notice-draft', $event)"
-    @save-group-profile="$emit('save-group-profile')"
-    @copy-group-id="$emit('copy-group-id', $event)"
-    @save-notice="$emit('save-notice')"
-    @open-group-members-page="$emit('open-group-members-page')"
-    @open-add-members-modal="$emit('open-add-members-modal')"
-    @toggle-admin-role="$emit('toggle-admin-role', $event)"
-    @toggle-mute-member="$emit('toggle-mute-member', $event)"
-    @remove-member="$emit('remove-member', $event)"
-    @dissolve-group="$emit('dissolve-group')"
-    @open-transfer-owner-modal="$emit('open-transfer-owner-modal')"
-    @leave-group="$emit('leave-group')"
-  />
+
   <!-- 行注：渲染 ConfirmDialog 组件 -->
   <ConfirmDialog
     v-model:visible="confirmDialogVisibleProxy"

@@ -53,4 +53,7 @@ public interface FriendService {
      * @param friendId 好友Id
      */
     void deleteFriend(Long userId, Long friendId);  // 行注：调用删除好友
+
+    /** 修改我对好友的备注（sys_friend.remark） */
+    void updateFriendRemark(Long userId, Long friendId, String remark);
 }  // 行注：结束当前代码块

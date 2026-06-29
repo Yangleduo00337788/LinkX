@@ -3,11 +3,11 @@ package com.linkx.server.module.admin.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.linkx.server.common.Result;
 import com.linkx.server.entity.SysFileHashBlacklist;
-import com.linkx.server.module.admin.dto.AddFileHashBlacklistRequest;
 import com.linkx.server.module.admin.service.AdminFileHashBlacklistService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/file-hash-blacklist")
@@ -25,20 +25,25 @@ public class AdminFileHashBlacklistController {
     }
 
     @PostMapping
-    public Result<Void> add(@Valid @RequestBody AddFileHashBlacklistRequest body) {
-        service.add(body.getContentHash(), body.getReason());
+    public Result<Void> create(@RequestBody Map<String, Object> body) {
+        String hash = String.valueOf(body.get("contentHash"));
+        String reason = body.get("reason") != null ? String.valueOf(body.get("reason")) : null;
+        Integer enabled = body.get("enabled") instanceof Number n ? n.intValue() : 1;
+        service.create(hash, reason, enabled);
         return Result.success();
     }
 
-    @PutMapping("/{id}/enabled")
-    public Result<Void> enabled(@PathVariable Long id, @RequestParam int enabled) {
-        service.setEnabled(id, enabled);
+    @PutMapping("/{id}")
+    public Result<Void> update(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String reason = body.get("reason") != null ? String.valueOf(body.get("reason")) : null;
+        Integer enabled = body.get("enabled") instanceof Number n ? n.intValue() : null;
+        service.update(id, reason, enabled);
         return Result.success();
     }
 
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
-        service.remove(id);
+        service.delete(id);
         return Result.success();
     }
 }

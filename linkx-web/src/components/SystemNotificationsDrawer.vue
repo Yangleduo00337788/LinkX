@@ -45,6 +45,7 @@
 import { ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { notificationApi } from '../api/client'
+import { useNotificationStore } from '../stores/notification'
 
 export interface UserNotificationRow {
   id: number | string
@@ -58,6 +59,7 @@ const props = defineProps<{ visible: boolean }>()
 const emit = defineEmits<{ (e: 'update:visible', v: boolean): void }>()
 
 const message = useMessage()
+const notificationStore = useNotificationStore()
 const items = ref<UserNotificationRow[]>([])
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -125,6 +127,7 @@ async function markRead(row: UserNotificationRow) {
   try {
     await notificationApi.markRead(row.id)
     row.readFlag = 1
+    void notificationStore.refreshUnread()
   } catch {
     message.error('标记已读失败')
   } finally {

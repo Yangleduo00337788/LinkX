@@ -6,6 +6,7 @@ import com.linkx.server.module.chat.dto.ChatWsTicketDTO;  // 行注：引入 Cha
 import com.linkx.server.module.chat.dto.MessageDTO;  // 行注：引入 MessageDTO 类型
 import com.linkx.server.module.chat.dto.SendFileMessageRequest;  // 行注：引入 SendFileMessageRequest 类型
 import com.linkx.server.module.chat.dto.SendMessageRequest;  // 行注：引入 SendMessageRequest 类型
+import com.linkx.server.module.chat.dto.UpdateSessionSettingsRequest;
 import com.linkx.server.module.chat.constant.ChatHistoryLimits;  // 行注：引入 ChatHistoryLimits 类型
 import com.linkx.server.module.chat.service.ChatService;  // 行注：引入 ChatService 类型
 import com.linkx.server.module.chat.ws.ChatWebSocketTicketService;  // 行注：引入 ChatWebSocketTicketService 类型
@@ -125,4 +126,31 @@ public class ChatController {
         // 先通过受保护的 HTTP 接口换取短时 ticket，再用 ticket 建立 WebSocket 连接。
         return Result.success(new ChatWsTicketDTO(chatWebSocketTicketService.createTicket(userId)));  // 行注：返回处理结果
     }  // 行注：结束当前代码块
+
+    /** 会话置顶、免打扰、备注 */
+    @PutMapping("/session/settings")
+    public Result<Void> updateSessionSettings(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UpdateSessionSettingsRequest request) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        chatService.updateSessionSettings(
+                userId,
+                request.getTargetId(),
+                request.getSessionType() != null ? request.getSessionType() : 1,
+                request.getPinned(),
+                request.getNotificationMuted(),
+                request.getSessionRemark());
+        return Result.success();
+    }
+
+    /** 清空当前用户侧聊天记录展示（不删除服务端消息） */
+    @PostMapping("/session/clear-history")
+    public Result<Void> clearChatHistory(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam Long targetId,
+            @RequestParam(defaultValue = "1") Integer sessionType) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        chatService.clearChatHistoryLocal(userId, targetId, sessionType);
+        return Result.success();
+    }
 }  // 行注：结束当前代码块

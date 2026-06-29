@@ -27,7 +27,7 @@ public class AdminAuthController {
 
     @GetMapping("/captcha/meta")
     public Result<CaptchaMetaDTO> captchaMeta() {
-        return Result.success(authSecurityGuard.getCaptchaMeta());
+        return Result.success(authSecurityGuard.getAdminCaptchaMeta());
     }
 
     @GetMapping("/captcha")

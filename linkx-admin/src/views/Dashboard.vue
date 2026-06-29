@@ -474,14 +474,31 @@ function go(name: string) {
 
 watch(trendDays, () => load())
 
+let onlinePollTimer: ReturnType<typeof setInterval> | null = null
+
+async function refreshOnlineCount() {
+  try {
+    const res = await adminApi.dashboardOnlineCount()
+    const n = res.data?.data?.onlineUsers ?? res.data?.onlineUsers
+    if (typeof n === 'number') {
+      stats.value = { ...stats.value, onlineUserCount: n }
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 onMounted(() => {
   window.addEventListener('resize', onResize)
   load()
+  refreshOnlineCount()
+  onlinePollTimer = setInterval(refreshOnlineCount, 15000)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', onResize)
   disposeCharts()
+  if (onlinePollTimer) clearInterval(onlinePollTimer)
 })
 </script>
 

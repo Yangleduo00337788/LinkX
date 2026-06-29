@@ -60,8 +60,11 @@
             title="系统通知"
             @click="showSystemNotifications = true"
           >
-            <div class="sidebar-icon">
+            <div class="sidebar-icon notif-icon-wrap">
               <n-icon size="22"><NotificationsOutline /></n-icon>
+              <span v-if="notificationStore.unreadCount > 0" class="notif-badge">
+                {{ notificationStore.unreadCount > 99 ? '99+' : notificationStore.unreadCount }}
+              </span>
             </div>
             <span class="sidebar-label">通知</span>
           </div>
@@ -81,6 +84,17 @@
           <!-- 行注：结束容器 -->
           </div>
           <!-- 行注：渲染容器 -->
+          <div
+            class="sidebar-item"
+            :class="{ active: currentTab === 'reports' }"
+            title="我的举报"
+            @click="goTo('reports')"
+          >
+            <div class="sidebar-icon">
+              <n-icon size="22"><WarningOutline /></n-icon>
+            </div>
+            <span class="sidebar-label">举报</span>
+          </div>
           <div
             class="sidebar-item"
             :class="{ active: currentTab === 'settings' }"
@@ -239,9 +253,10 @@
 /**
  * 主布局页面，提供侧边导航和公共应用壳层。
  */
-import { ref, watch, reactive } from 'vue'
+import { ref, watch, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
+import { useNotificationStore } from '../stores/notification'
 import ProtectedImage from '../components/ProtectedImage.vue'
 import { userApi } from '../api/client'  // 行注：引入 userApi 能力
 import { NIcon, useMessage } from 'naive-ui'  // 行注：引入 NIcon, useMessage 能力
@@ -252,13 +267,15 @@ import {
   BanOutline,
   LogOutOutline,
   SettingsOutline,
-  NotificationsOutline
+  NotificationsOutline,
+  WarningOutline
 } from '@vicons/ionicons5'
 import TitleBar from '../components/TitleBar.vue'  // 行注：引入 TitleBar 组件
 import SystemNotificationsDrawer from '../components/SystemNotificationsDrawer.vue'
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
+const notificationStore = useNotificationStore()
 const message = useMessage()
 const currentTab = ref('chat')
 const showProfile = ref(false)
@@ -277,6 +294,7 @@ watch(() => route.path, (path) => {  // 行注：监听状态变化
   else if (path.startsWith('/friends')) currentTab.value = 'friends'  // 行注：继续判断其他分支条件
   else if (path.startsWith('/files')) currentTab.value = 'files'  // 行注：继续判断其他分支条件
   else if (path.startsWith('/blacklist')) currentTab.value = 'blacklist'
+  else if (path.startsWith('/reports')) currentTab.value = 'reports'
   else if (path.startsWith('/settings')) currentTab.value = 'settings'
   else if (path.startsWith('/profile')) currentTab.value = 'profile'
 }, { immediate: true })  // 行注：补充当前表达式
@@ -313,6 +331,14 @@ function handleLogout() {  // 行注：定义 handleLogout 方法
   userStore.logout()  // 行注：调用 logout 方法
   router.push('/login')  // 行注：跳转到目标路由
 }  // 行注：结束当前代码块
+
+onMounted(() => {
+  void notificationStore.refreshUnread()
+})
+
+watch(showSystemNotifications, (open) => {
+  if (!open) void notificationStore.refreshUnread()
+})
 </script>
 <!-- 行注：开始定义样式区域 -->
 <style scoped>

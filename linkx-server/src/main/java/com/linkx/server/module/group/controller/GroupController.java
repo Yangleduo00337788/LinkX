@@ -4,6 +4,8 @@ import com.linkx.server.common.Result;  // 行注：引入 Result 类型
 import com.linkx.server.module.chat.dto.MessageDTO;  // 行注：引入 MessageDTO 类型
 import com.linkx.server.module.group.dto.GroupDTO;  // 行注：引入 GroupDTO 类型
 import com.linkx.server.module.group.dto.GroupDetailDTO;  // 行注：引入 GroupDetailDTO 类型
+import com.linkx.server.module.group.dto.GroupNoticeItemDTO;
+import com.linkx.server.module.group.dto.CreateGroupNoticeRequest;
 import com.linkx.server.module.group.dto.GroupRequestDTO;  // 行注：引入 GroupRequestDTO 类型
 import com.linkx.server.module.group.request.AddGroupMembersRequest;  // 行注：引入 AddGroupMembersRequest 类型
 import com.linkx.server.module.group.request.CreateGroupRequest;  // 行注：引入 CreateGroupRequest 类型
@@ -183,7 +185,8 @@ public class GroupController {
             @PathVariable Long groupId,  // 行注：应用 @PathVariable Long groupId, 注解
             @Valid @RequestBody UpdateGroupPreferencesRequest request) {  // 行注：应用 @Valid @RequestBody UpdateGroupPreferencesRequest request) { 注解
         Long userId = Long.parseLong(userDetails.getUsername());  // 行注：初始化用户ID
-        groupService.updatePreferences(userId, groupId, request.getGroupRemark(), request.getNotificationMuted());  // 行注：调用更新Preferences
+        groupService.updatePreferences(userId, groupId, request.getGroupRemark(),
+                request.getNotificationMuted(), request.getMemberCardName());
         return Result.success();  // 行注：返回处理结果
     }  // 行注：结束当前代码块
 
@@ -197,6 +200,35 @@ public class GroupController {
         groupService.markNoticeRead(userId, groupId);  // 行注：调用标记Notice已读
         return Result.success();  // 行注：返回处理结果
     }  // 行注：结束当前代码块
+
+    @GetMapping("/{groupId}/notices")
+    public Result<List<GroupNoticeItemDTO>> listNotices(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(groupService.listGroupNotices(userId, groupId));
+    }
+
+    @PostMapping("/{groupId}/notices")
+    public Result<Void> createNotice(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId,
+            @Valid @RequestBody CreateGroupNoticeRequest request) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        groupService.createGroupNotice(userId, groupId, request.getContent(), request.getPinned());
+        return Result.success();
+    }
+
+    @PutMapping("/{groupId}/notices/{noticeId}/pin")
+    public Result<Void> pinNotice(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Long groupId,
+            @PathVariable Long noticeId,
+            @RequestParam(defaultValue = "true") Boolean pinned) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        groupService.setGroupNoticePinned(userId, groupId, noticeId, pinned);
+        return Result.success();
+    }
 
     /** 禁言指定成员若干分钟 */
     @PostMapping("/{groupId}/mute/{memberUserId}")  // 行注：应用 @PostMapping 注解

@@ -1,11 +1,11 @@
 package com.linkx.server.module.compliance.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.common.Result;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.linkx.server.module.compliance.dto.CreateReportRequest;
-import com.linkx.server.module.compliance.dto.MyReportListItemDTO;
+import com.linkx.server.module.compliance.dto.ReportListItemDTO;
 import com.linkx.server.module.compliance.service.ReportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ public class ReportController {
     }
 
     @GetMapping("/mine")
-    public Result<Page<MyReportListItemDTO>> myReports(
+    public Result<Page<ReportListItemDTO>> mine(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserDetails userDetails) {

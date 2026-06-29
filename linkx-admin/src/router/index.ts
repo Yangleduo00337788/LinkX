@@ -48,12 +48,11 @@ router.beforeEach(async (to) => {
     try {
       await admin.fetchProfile()
     } catch {
-      admin.logout()
-      return { name: 'login', query: { redirect: to.fullPath } }
+      return { name: 'login' }
     }
   }
-  const name = String(to.name || '')
-  if (name && !canAccessRoute(admin.role, name)) {
+  const routeKey = String(to.name || '')
+  if (routeKey && routeKey !== 'login' && !canAccessRoute(admin.role, routeKey)) {
     return { name: 'dashboard' }
   }
   return true

@@ -16,6 +16,7 @@ interface ChatRealtimeHandlers {  // 行注：开始当前逻辑块
   onOnlineStatus?: (payload: any) => void  // 行注：执行当前调用逻辑
   onMessageRecalled?: (message: any) => void  // 行注：执行当前调用逻辑
   onForceLogout?: (payload: { reason?: string }) => void
+  onNotification?: (payload: { unreadCount?: number }) => void
 }  // 行注：结束当前代码块
 
 export function createChatRealtimeService(handlers: ChatRealtimeHandlers) {  // 行注：导出当前能力
@@ -47,6 +48,9 @@ export function createChatRealtimeService(handlers: ChatRealtimeHandlers) {  // 
     },
     FORCE_LOGOUT: payload => {
       handlers.onForceLogout?.(payload.data ?? {})
+    },
+    NOTIFICATION: payload => {
+      handlers.onNotification?.(payload.data ?? {})
     }
   }  // 行注：结束当前代码块
 

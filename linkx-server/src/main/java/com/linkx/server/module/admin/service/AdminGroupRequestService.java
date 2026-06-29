@@ -3,12 +3,11 @@ package com.linkx.server.module.admin.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.linkx.server.entity.ImGroupInfo;
-import com.linkx.server.entity.ImGroupRequest;
-import com.linkx.server.mapper.ImGroupInfoMapper;
-import com.linkx.server.mapper.ImGroupRequestMapper;
 import com.linkx.server.common.BusinessException;
 import com.linkx.server.common.ErrorCode;
 import com.linkx.server.entity.ImGroupRequest;
+import com.linkx.server.mapper.ImGroupInfoMapper;
+import com.linkx.server.mapper.ImGroupRequestMapper;
 import com.linkx.server.module.admin.dto.AdminGroupRequestListItemDTO;
 import com.linkx.server.module.group.constant.GroupConstants;
 import com.linkx.server.module.group.service.GroupService;
@@ -51,41 +50,21 @@ public class AdminGroupRequestService {
         return result;
     }
 
-    public void accept(Long requestId) {
-        ImGroupRequest req = requirePending(requestId);
-        Long operatorId = resolveOperatorForAccept(req);
-        groupService.acceptRequest(operatorId, requestId);
-    }
-
-    public void reject(Long requestId) {
-        ImGroupRequest req = requirePending(requestId);
-        Long operatorId = resolveOperatorForReject(req);
-        groupService.rejectRequest(operatorId, requestId);
-    }
-
-    private ImGroupRequest requirePending(Long requestId) {
+    public void acceptAsHandler(Long requestId) {
         ImGroupRequest req = groupRequestMapper.selectById(requestId);
-        if (req == null) {
-            throw new BusinessException(ErrorCode.NOT_FOUND);
+        if (req == null || req.getStatus() == null
+                || !req.getStatus().equals(GroupConstants.REQUEST_STATUS_PENDING)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "申请不存在或已处理");
         }
-        if (req.getStatus() == null || req.getStatus() != GroupConstants.REQUEST_STATUS_PENDING) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "申请已处理");
-        }
-        return req;
+        groupService.acceptRequest(req.getToUserId(), requestId);
     }
 
-    /** 入群申请由被申请方（群主侧 toUserId）审批；邀请由被邀请人 fromUserId 确认。 */
-    private Long resolveOperatorForAccept(ImGroupRequest req) {
-        if (req.getRequestType() != null && req.getRequestType() == GroupConstants.REQUEST_TYPE_JOIN) {
-            return req.getToUserId();
+    public void rejectAsHandler(Long requestId) {
+        ImGroupRequest req = groupRequestMapper.selectById(requestId);
+        if (req == null || req.getStatus() == null
+                || !req.getStatus().equals(GroupConstants.REQUEST_STATUS_PENDING)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "申请不存在或已处理");
         }
-        if (req.getRequestType() != null && req.getRequestType() == GroupConstants.REQUEST_TYPE_INVITE) {
-            return req.getFromUserId();
-        }
-        throw new BusinessException(ErrorCode.BAD_REQUEST, "不支持的申请类型");
-    }
-
-    private Long resolveOperatorForReject(ImGroupRequest req) {
-        return resolveOperatorForAccept(req);
+        groupService.rejectRequest(req.getToUserId(), requestId);
     }
 }

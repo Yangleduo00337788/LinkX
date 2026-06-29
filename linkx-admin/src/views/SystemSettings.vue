@@ -1,72 +1,52 @@
 <template>
-  <AdminPageShell hint="运行时开关写入数据库，部分项需重启服务后完全生效（以服务端说明为准）。">
+  <AdminPageShell>
     <n-spin :show="loading">
-      <n-card title="常用开关" style="max-width: 640px">
-        <n-form label-placement="left" label-width="160">
-          <n-form-item label="开放用户注册">
-            <n-switch v-model:value="registerOpen" :disabled="!canEdit" @update:value="saveKey('auth.register.enabled', $event)" />
-          </n-form-item>
-          <n-form-item label="登录需要图形验证码">
-            <n-switch v-model:value="captchaOnLogin" :disabled="!canEdit" @update:value="saveKey('auth.captcha.enabled', $event)" />
-          </n-form-item>
-        </n-form>
-        <p v-if="!canEdit" class="muted">当前角色只读，无法修改。</p>
-      </n-card>
-      <n-card title="全部配置项" size="small" style="max-width: 900px; margin-top: 16px">
-        <n-data-table :columns="configColumns" :data="configRows" size="small" :bordered="false" />
+      <n-card title="认证与安全" size="small">
+        <div class="settings-row">
+          <div>
+            <div class="label">开放用户注册</div>
+            <div class="hint">关闭后 /api/auth/register 将拒绝新用户</div>
+          </div>
+          <n-switch v-model:value="registerEnabled" :disabled="!canWrite" />
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="label">用户端验证码</div>
+            <div class="hint">登录/注册图形验证码（管理端登录仍受 yml 控制）</div>
+          </div>
+          <n-switch v-model:value="userCaptchaEnabled" :disabled="!canWrite" />
+        </div>
+        <n-button v-if="canWrite" type="primary" :loading="saveLoading" style="margin-top: 16px" @click="save">
+          保存
+        </n-button>
       </n-card>
     </n-spin>
   </AdminPageShell>
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue'
-import { NButton, NDataTable, NForm, NFormItem, NSwitch, useMessage } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import { computed, onMounted, ref } from 'vue'
+import { NButton, NCard, NSpin, NSwitch, useMessage } from 'naive-ui'
 import AdminPageShell from '../components/AdminPageShell.vue'
 import { adminApi } from '../api/client'
 import { useAdminStore } from '../stores/admin'
-import { ADMIN_ROLES } from '../utils/adminPermissions'
-
-interface ConfigRow {
-  configKey: string
-  configValue: string
-  description?: string
-}
+import { canWriteOps } from '../utils/adminPermissions'
 
 const admin = useAdminStore()
+const canWrite = computed(() => canWriteOps(admin.role))
 const message = useMessage()
-const loading = ref(false)
-const configRows = ref<ConfigRow[]>([])
-
-const canEdit = computed(() => admin.role === ADMIN_ROLES.SUPER_ADMIN)
-
-function truthy(v: string | undefined): boolean {
-  if (!v) return false
-  return v === '1' || v.toLowerCase() === 'true' || v.toLowerCase() === 'yes'
-}
-
-const registerOpen = computed({
-  get: () => truthy(configRows.value.find((r) => r.configKey === 'auth.register.enabled')?.configValue),
-  set: () => {}
-})
-
-const captchaOnLogin = computed({
-  get: () => truthy(configRows.value.find((r) => r.configKey === 'auth.captcha.enabled')?.configValue),
-  set: () => {}
-})
-
-const configColumns: DataTableColumns<ConfigRow> = [
-  { title: '键', key: 'configKey', width: 220 },
-  { title: '值', key: 'configValue', minWidth: 120 },
-  { title: '说明', key: 'description', minWidth: 200, ellipsis: { tooltip: true } }
-]
+const loading = ref(true)
+const saveLoading = ref(false)
+const registerEnabled = ref(true)
+const userCaptchaEnabled = ref(true)
 
 async function load() {
   loading.value = true
   try {
-    const res = await adminApi.listRuntimeConfig()
-    configRows.value = res.data.data || []
+    const res = await adminApi.getSystemSettings()
+    const d = (res.data as { data?: Record<string, boolean> }).data ?? res.data
+    registerEnabled.value = Boolean(d.registerEnabled)
+    userCaptchaEnabled.value = Boolean(d.userCaptchaEnabled)
   } catch (e: unknown) {
     message.error(e instanceof Error ? e.message : '加载失败')
   } finally {
@@ -74,18 +54,18 @@ async function load() {
   }
 }
 
-async function saveKey(key: string, on: boolean) {
-  if (!canEdit.value) return
+async function save() {
+  saveLoading.value = true
   try {
-    await adminApi.upsertRuntimeConfig({
-      configKey: key,
-      configValue: on ? 'true' : 'false',
-      description: key === 'auth.register.enabled' ? '是否开放注册' : key === 'auth.captcha.enabled' ? '登录验证码' : undefined
+    await adminApi.updateSystemSettings({
+      registerEnabled: registerEnabled.value,
+      userCaptchaEnabled: userCaptchaEnabled.value
     })
     message.success('已保存')
-    await load()
   } catch (e: unknown) {
     message.error(e instanceof Error ? e.message : '保存失败')
+  } finally {
+    saveLoading.value = false
   }
 }
 
@@ -93,8 +73,19 @@ onMounted(() => load())
 </script>
 
 <style scoped>
-.muted {
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--n-border-color);
+}
+.label {
+  font-weight: 500;
+}
+.hint {
+  font-size: 12px;
   color: var(--n-text-color-3);
-  font-size: 13px;
+  margin-top: 4px;
 }
 </style>

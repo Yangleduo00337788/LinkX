@@ -3,7 +3,6 @@ package com.linkx.server.module.compliance.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.linkx.server.module.compliance.dto.CreateReportRequest;
 import com.linkx.server.module.compliance.dto.HandleReportRequest;
-import com.linkx.server.module.compliance.dto.MyReportListItemDTO;
 import com.linkx.server.module.compliance.dto.ReportListItemDTO;
 import com.linkx.server.module.admin.service.AdminAuditService;
 
@@ -16,5 +15,5 @@ public interface ReportService {
     void handleReport(Long reportId, HandleReportRequest body, Long adminId, String adminUsername,
                       String clientIp, AdminAuditService audit);
 
-    Page<MyReportListItemDTO> pageForReporter(Long reporterUserId, int page, int size);
+    Page<ReportListItemDTO> pageForReporter(Long reporterUserId, int page, int size);
 }

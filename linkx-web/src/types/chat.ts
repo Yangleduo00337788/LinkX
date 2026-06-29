@@ -41,6 +41,7 @@ export interface ChatSession {  // 行注：导出当前能力
   targetOnline?: boolean  // 行注：补充当前表达式
   isDraft?: boolean  // 行注：补充当前表达式
   sessionRemark?: string
+  friendRemark?: string
   pinned?: boolean
 }  // 行注：结束当前代码块
 
@@ -70,8 +71,20 @@ export interface GroupDetail {  // 行注：导出当前能力
   muted?: boolean  // 行注：补充当前表达式
   muteTime?: string  // 行注：补充当前表达式
   notificationMuted?: boolean  // 行注：补充当前表达式
+  memberCardName?: string
+  notices?: GroupNoticeItem[]
   members: GroupMember[]  // 行注：设置 members 配置项
 }  // 行注：结束当前代码块
+
+export interface GroupNoticeItem {
+  id: string | number
+  content: string
+  pinned?: boolean
+  publisherId?: string | number
+  publisherNickname?: string
+  createTime?: string
+  updateTime?: string
+}
 
 export interface GroupMediaItem {  // 行注：导出当前能力
   id: string | number  // 行注：设置 id 配置项

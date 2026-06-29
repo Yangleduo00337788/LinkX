@@ -2,7 +2,7 @@ package com.linkx.server.module.admin.controller;
 
 import com.linkx.server.common.Result;
 import com.linkx.server.module.admin.dto.AdminBroadcastNotificationRequest;
-import com.linkx.server.module.admin.dto.AdminNotifyUsersRequest;
+import com.linkx.server.module.admin.dto.AdminTargetNotificationRequest;
 import com.linkx.server.module.notification.service.UserNotificationService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -29,15 +29,13 @@ public class AdminNotificationController {
         return Result.success(Map.of("sentCount", sent));
     }
 
-    /** 向指定用户 ID 列表发送系统通知。 */
-    @PostMapping("/users")
-    public Result<Map<String, Integer>> notifyUsers(@Valid @RequestBody AdminNotifyUsersRequest body) {
+    /** 向指定用户 ID 列表发送系统通知 */
+    @PostMapping("/target")
+    public Result<Map<String, Integer>> target(@Valid @RequestBody AdminTargetNotificationRequest body) {
         int sent = userNotificationService.notifyUsers(
                 body.getUserIds(),
                 body.getTitle().trim(),
-                body.getContent().trim(),
-                "ADMIN_DIRECT",
-                null);
+                body.getContent().trim());
         return Result.success(Map.of("sentCount", sent));
     }
 }

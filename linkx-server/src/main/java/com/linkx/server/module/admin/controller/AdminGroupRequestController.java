@@ -23,15 +23,15 @@ public class AdminGroupRequestController {
         return Result.success(adminGroupRequestService.list(page, size, status, groupId));
     }
 
-    @PutMapping("/{id}/accept")
-    public Result<Void> accept(@PathVariable Long id) {
-        adminGroupRequestService.accept(id);
+    @PostMapping("/{requestId}/accept")
+    public Result<Void> accept(@PathVariable Long requestId) {
+        adminGroupRequestService.acceptAsHandler(requestId);
         return Result.success();
     }
 
-    @PutMapping("/{id}/reject")
-    public Result<Void> reject(@PathVariable Long id) {
-        adminGroupRequestService.reject(id);
+    @PostMapping("/{requestId}/reject")
+    public Result<Void> reject(@PathVariable Long requestId) {
+        adminGroupRequestService.rejectAsHandler(requestId);
         return Result.success();
     }
 }

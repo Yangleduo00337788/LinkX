@@ -14,6 +14,7 @@ import com.linkx.server.module.auth.service.AuthService;  // 行注：引入 Aut
 import com.linkx.server.module.auth.service.PasswordPolicy;  // 行注：引入 PasswordPolicy 类型
 import com.linkx.server.module.auth.service.LoginLogService;
 import com.linkx.server.module.auth.service.RefreshTokenSessionService;  // 行注：引入 RefreshTokenSessionService 类型
+import com.linkx.server.module.config.service.RuntimeConfigService;
 import com.linkx.server.security.JwtTokenProvider;  // 行注：引入 JwtTokenProvider 类型
 import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
@@ -39,6 +40,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenSessionService refreshTokenSessionService;  // 行注：注入刷新令牌会话服务依赖
     private final AccessTokenDenylistService accessTokenDenylistService;  // 行注：注入访问令牌拒绝列表服务依赖
     private final LoginLogService loginLogService;
+    private final RuntimeConfigService runtimeConfigService;
 
     /**
      * 注册相关逻辑。
@@ -50,6 +52,9 @@ public class AuthServiceImpl implements AuthService {
     @Transactional  // 行注：应用 @Transactional 注解
     // 行注：定义注册方法
     public AuthResponse register(RegisterRequest request) {
+        if (!runtimeConfigService.getBoolean(RuntimeConfigService.KEY_REGISTER_ENABLED, true)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "当前未开放注册");
+        }
         // 先做统一文本清洗，避免把首尾空白、超长输入或非法单行文本写入数据库。
         String username = TextNormalizer.normalizeRequiredSingleLine(request.getUsername(), 50, "用户名");  // 行注：初始化username
         String nickname = TextNormalizer.normalizeRequiredSingleLine(request.getNickname(), 50, "昵称");  // 行注：初始化nickname

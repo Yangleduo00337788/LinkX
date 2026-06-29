@@ -48,6 +48,8 @@ public class ChatSessionDTO {
     private Boolean targetOnline;  // 行注：声明target在线字段
     /** 会话备注（单聊/群聊会话级） */
     private String sessionRemark;
+    /** 我对好友的备注（单聊，sys_friend.remark） */
+    private String friendRemark;
     /** 是否置顶 */
     private Boolean pinned;
 }  // 行注：结束当前代码块

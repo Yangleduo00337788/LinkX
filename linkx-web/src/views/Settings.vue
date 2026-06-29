@@ -99,10 +99,49 @@
           </button>
         </div>
         <p v-if="updateHint" class="update-hint">{{ updateHint }}</p>
+        <div v-if="releasePreview" class="release-preview">
+          <div class="release-preview-head">
+            <span class="release-preview-title">服务端发布 v{{ releasePreview.version }}</span>
+            <span v-if="releasePreview.forceUpdate" class="release-badge">建议更新</span>
+          </div>
+          <p v-if="releasePreview.releaseNotes" class="release-notes">{{ releasePreview.releaseNotes }}</p>
+          <p v-else class="release-notes muted">暂无更新说明</p>
+          <a
+            v-if="releasePreview.downloadUrl"
+            class="release-download"
+            :href="releasePreview.downloadUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            下载安装包
+          </a>
+        </div>
       </section>
 
-      <section v-else class="settings-card settings-card-muted">
-        <p class="muted-text">桌面专属选项（开机自启、检查更新等）请在 LinkX 客户端中使用。</p>
+      <section v-else class="settings-card">
+        <h2 class="section-title">版本与更新</h2>
+        <p class="section-desc">在 LinkX 桌面客户端中可使用「检查更新」与开机自启</p>
+        <button type="button" class="settings-action" :disabled="releaseLoading" @click="loadPublishedRelease">
+          {{ releaseLoading ? '加载中…' : '查看发布说明' }}
+        </button>
+        <div v-if="releasePreview" class="release-preview">
+          <div class="release-preview-head">
+            <span class="release-preview-title">最新发布 v{{ releasePreview.version }}</span>
+            <span v-if="releasePreview.forceUpdate" class="release-badge">强制更新</span>
+          </div>
+          <p v-if="releasePreview.releaseNotes" class="release-notes">{{ releasePreview.releaseNotes }}</p>
+          <p v-else class="release-notes muted">暂无更新说明</p>
+          <a
+            v-if="releasePreview.downloadUrl"
+            class="release-download"
+            :href="releasePreview.downloadUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            下载安装包
+          </a>
+        </div>
+        <p v-else-if="releaseLoadHint" class="update-hint">{{ releaseLoadHint }}</p>
       </section>
       </div>
     </div>
@@ -143,6 +182,14 @@ const autoLaunchLoading = ref(true)
 const clipboardImagePaste = ref(localStorage.getItem(CLIPBOARD_IMAGE_KEY) !== '0')
 const checkingUpdate = ref(false)
 const updateHint = ref('')
+const releaseLoading = ref(false)
+const releaseLoadHint = ref('')
+const releasePreview = ref<{
+  version?: string
+  releaseNotes?: string
+  downloadUrl?: string
+  forceUpdate?: boolean
+} | null>(null)
 const versions = reactive({
   app: '',
   electron: ''
@@ -189,6 +236,32 @@ function resolveReleasePlatform(): string {
   return 'win'
 }
 
+async function loadPublishedRelease() {
+  releaseLoading.value = true
+  releaseLoadHint.value = ''
+  try {
+    const platform = isDesktop ? resolveReleasePlatform() : 'win'
+    const res: any = await releaseApi.latest(platform)
+    const latest = res.data?.data ?? res.data
+    if (latest?.version) {
+      releasePreview.value = {
+        version: latest.version,
+        releaseNotes: latest.releaseNotes,
+        downloadUrl: latest.downloadUrl,
+        forceUpdate: latest.forceUpdate
+      }
+    } else {
+      releasePreview.value = null
+      releaseLoadHint.value = '暂无已发布版本'
+    }
+  } catch (e: unknown) {
+    releasePreview.value = null
+    releaseLoadHint.value = e instanceof Error ? e.message : '加载失败'
+  } finally {
+    releaseLoading.value = false
+  }
+}
+
 async function checkUpdates() {
   checkingUpdate.value = true
   updateHint.value = ''
@@ -199,9 +272,17 @@ async function checkUpdates() {
       const latest = res.data?.data ?? res.data
       const latestVersion = latest?.version || ''
       const current = versions.app || ''
+      if (latest?.version) {
+        releasePreview.value = {
+          version: latest.version,
+          releaseNotes: latest.releaseNotes,
+          downloadUrl: latest.downloadUrl,
+          forceUpdate: latest.forceUpdate
+        }
+      }
       if (latestVersion && current && latestVersion !== current) {
         const force = latest.forceUpdate ? '（建议立即更新）' : ''
-        updateHint.value = `服务端已发布新版本 ${latestVersion}${force}${latest.downloadUrl ? '，可在管理后台配置的下载地址获取安装包' : ''}`
+        updateHint.value = `服务端已发布新版本 ${latestVersion}${force}${latest.downloadUrl ? '，可在下方下载安装包' : ''}`
       } else if (latestVersion) {
         updateHint.value = `与服务器发布版本一致（${latestVersion}）`
       }
@@ -580,6 +661,56 @@ watch(clipboardImagePaste, () => {
 .settings-action:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.release-preview {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--linkx-border);
+  border-radius: var(--linkx-radius-md, 10px);
+  background: var(--linkx-bg);
+}
+
+.release-preview-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.release-preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--linkx-text);
+}
+
+.release-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(230, 81, 0, 0.12);
+  color: #e65100;
+  font-weight: 600;
+}
+
+.release-notes {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  color: var(--linkx-text-secondary);
+}
+
+.release-notes.muted {
+  font-style: italic;
+}
+
+.release-download {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--linkx-primary);
 }
 
 .update-hint,

@@ -28,6 +28,6 @@ public final class ChatEventType {
     public static final String MESSAGE_RECALLED = "MESSAGE_RECALLED";  // 行注：定义消息RECALLED常量
     /** 管理员强制下线 */
     public static final String FORCE_LOGOUT = "FORCE_LOGOUT";
-    /** 用户系统通知（角标刷新） */
+    /** 系统/业务通知（侧栏角标刷新） */
     public static final String NOTIFICATION = "NOTIFICATION";
 }

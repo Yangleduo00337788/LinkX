@@ -48,4 +48,10 @@ public interface ChatService {
 
     /** 会话偏好等变更后，向该用户推送最新会话列表项 */
     void refreshSessionPush(Long userId, Long targetId, Integer sessionType);
+
+    /** 置顶、免打扰、会话备注（单聊/群聊会话级） */
+    void updateSessionSettings(Long userId, Long targetId, Integer sessionType, Boolean pinned, Boolean notificationMuted, String sessionRemark);
+
+    /** 清空本地聊天记录（仅当前用户侧会话预览与已读游标，不删他人消息） */
+    void clearChatHistoryLocal(Long userId, Long targetId, Integer sessionType);
 }

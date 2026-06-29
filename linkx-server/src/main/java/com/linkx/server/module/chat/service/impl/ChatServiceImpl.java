@@ -54,6 +54,7 @@ import java.util.HashSet;  // 行注：引入 HashSet 类型
 import java.util.LinkedHashSet;  // 行注：引入 LinkedHashSet 类型
 import java.util.List;  // 行注：引入 List 类型
 import java.util.Map;  // 行注：引入 Map 类型
+import java.util.Objects;
 import java.util.Set;  // 行注：引入 Set 类型
 import java.util.stream.Collectors;  // 行注：引入 Collectors 类型
 
@@ -187,7 +188,9 @@ public class ChatServiceImpl implements ChatService {
 
         // 单聊会话需要补齐对端资料、好友状态与黑名单状态。
         // 行注：初始化用户映射
-        Map<Long, SysUser> userMap = chatMessageHelper.loadUserMap(singleSessions.stream().map(ImSession::getTargetId).collect(Collectors.toSet()));
+        Set<Long> singleTargetIds = singleSessions.stream().map(ImSession::getTargetId).collect(Collectors.toSet());
+        Map<Long, SysUser> userMap = chatMessageHelper.loadUserMap(singleTargetIds);
+        Map<Long, String> friendRemarkMap = loadFriendRemarkMap(userId, singleTargetIds);
         Map<Long, Boolean> blacklistCache = new HashMap<>();  // 行注：初始化黑名单缓存
         Map<Long, Boolean> friendshipCache = new HashMap<>();  // 行注：初始化好友关系缓存
 
@@ -199,7 +202,7 @@ public class ChatServiceImpl implements ChatService {
 
         return sessions.stream()  // 行注：返回处理结果
                 // 行注：继续调用映射
-                .map(session -> buildSessionDTO(userId, session, userMap, blacklistCache, friendshipCache, groupMap, myGroupMemberMap, groupMemberCountMap))
+                .map(session -> buildSessionDTO(userId, session, userMap, friendRemarkMap, blacklistCache, friendshipCache, groupMap, myGroupMemberMap, groupMemberCountMap))
                 // 行注：继续调用过滤
                 .filter(dto -> dto != null)
                 // 行注：继续调用排序
@@ -543,6 +546,8 @@ public class ChatServiceImpl implements ChatService {
             return List.of();  // 行注：返回处理结果
         }  // 行注：结束当前代码块
 
+        LocalDateTime historyClearTime = resolveHistoryClearTime(userId, targetId, ChatConstants.SESSION_TYPE_SINGLE);
+
         LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
         // 行注：补充当前表达式片段
         wrapper.and(w -> w
@@ -555,9 +560,11 @@ public class ChatServiceImpl implements ChatService {
                         // 行注：继续调用等值条件
                         .eq(ImMessage::getFromUserId, targetId)
                         // 行注：继续调用等值条件
-                        .eq(ImMessage::getToUserId, userId))
-                // 行注：继续调用排序降序
-                .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                        .eq(ImMessage::getToUserId, userId));
+        if (historyClearTime != null) {
+            wrapper.gt(ImMessage::getCreateTime, historyClearTime);
+        }
+        wrapper.orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
                 .last("LIMIT " + size + " OFFSET " + Math.max(page - 1, 0) * size);  // 行注：继续调用最后
         return toMessageList(messageMapper.selectList(wrapper), ChatConstants.SESSION_TYPE_SINGLE);  // 行注：返回处理结果
     }  // 行注：结束当前代码块
@@ -567,13 +574,17 @@ public class ChatServiceImpl implements ChatService {
         requireActiveGroup(groupId);  // 行注：调用require启用群
         requireGroupMember(groupId, userId);  // 行注：调用require群成员
 
+        LocalDateTime historyClearTime = resolveHistoryClearTime(userId, groupId, ChatConstants.SESSION_TYPE_GROUP);
+
         LambdaQueryWrapper<ImMessage> wrapper = new LambdaQueryWrapper<>();  // 行注：初始化条件封装器
         // 行注：调用等值条件
         wrapper.eq(ImMessage::getToUserId, groupId)
                 // 行注：继续调用等值条件
-                .eq(ImMessage::getSessionId, groupId)
-                // 行注：继续调用排序降序
-                .orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
+                .eq(ImMessage::getSessionId, groupId);
+        if (historyClearTime != null) {
+            wrapper.gt(ImMessage::getCreateTime, historyClearTime);
+        }
+        wrapper.orderByDesc(ImMessage::getCreateTime, ImMessage::getId)
                 .last("LIMIT " + size + " OFFSET " + Math.max(page - 1, 0) * size);  // 行注：继续调用最后
         return toMessageList(messageMapper.selectList(wrapper), ChatConstants.SESSION_TYPE_GROUP);  // 行注：返回处理结果
     }  // 行注：结束当前代码块
@@ -665,6 +676,53 @@ public class ChatServiceImpl implements ChatService {
         pushSessionUpdate(userId, targetId, sessionType);
     }
 
+    @Override
+    @Transactional
+    public void updateSessionSettings(Long userId, Long targetId, Integer sessionType, Boolean pinned,
+                                      Boolean notificationMuted, String sessionRemark) {
+        ImSession session = getOrCreateSession(userId, targetId, sessionType);
+        boolean changed = false;
+        if (pinned != null) {
+            int next = Boolean.TRUE.equals(pinned) ? 1 : 0;
+            if (!Objects.equals(session.getPinned(), next)) {
+                session.setPinned(next);
+                changed = true;
+            }
+        }
+        if (notificationMuted != null) {
+            int next = Boolean.TRUE.equals(notificationMuted) ? 1 : 0;
+            if (!Objects.equals(session.getNotificationMuted(), next)) {
+                session.setNotificationMuted(next);
+                changed = true;
+            }
+        }
+        if (sessionRemark != null) {
+            String normalized = TextNormalizer.normalizeOptionalSingleLine(sessionRemark, 100, "会话备注");
+            if (!Objects.equals(session.getSessionRemark(), normalized)) {
+                session.setSessionRemark(normalized);
+                changed = true;
+            }
+        }
+        if (!changed) {
+            return;
+        }
+        sessionMapper.updateById(session);
+        pushSessionUpdate(userId, targetId, sessionType);
+    }
+
+    @Override
+    @Transactional
+    public void clearChatHistoryLocal(Long userId, Long targetId, Integer sessionType) {
+        ImSession session = getOrCreateSession(userId, targetId, sessionType);
+        LocalDateTime now = LocalDateTime.now();
+        session.setHistoryClearTime(now);
+        session.setLastMessage(null);
+        session.setLastMessageTime(null);
+        session.setUnreadCount(0);
+        sessionMapper.updateById(session);
+        pushSessionUpdate(userId, targetId, sessionType);
+    }
+
     // 行注：定义推送会话更新方法
     private void pushSessionUpdate(Long userId, Long targetId, Integer sessionType) {
         ChatSessionDTO sessionDTO = getSessionDTO(userId, targetId, sessionType);  // 行注：初始化会话DTO
@@ -684,56 +742,39 @@ public class ChatServiceImpl implements ChatService {
         }  // 行注：结束当前代码块
         // 行注：判断是否满足当前条件
         if (sessionType == ChatConstants.SESSION_TYPE_SINGLE) {
-            return buildSessionDTO(  // 行注：返回处理结果
-                    // 行注：补充当前表达式片段
+            Set<Long> tid = Set.of(targetId);
+            return buildSessionDTO(
                     userId,
-                    // 行注：补充当前表达式片段
                     session,
-                    // 行注：调用加载用户映射
-                    chatMessageHelper.loadUserMap(Set.of(targetId)),
-                    // 行注：执行当前方法调用
+                    chatMessageHelper.loadUserMap(tid),
+                    loadFriendRemarkMap(userId, tid),
                     new HashMap<>(),
-                    // 行注：执行当前方法调用
                     new HashMap<>(),
-                    // 行注：调用of
                     Map.of(),
-                    // 行注：调用of
                     Map.of(),
-                    // 行注：调用of
                     Map.of()
-            );  // 行注：结束当前参数配置
-        }  // 行注：结束当前代码块
-        return buildSessionDTO(  // 行注：返回处理结果
-                // 行注：补充当前表达式片段
+            );
+        }
+        return buildSessionDTO(
                 userId,
-                // 行注：补充当前表达式片段
                 session,
-                // 行注：调用of
                 Map.of(),
-                // 行注：执行当前方法调用
+                Map.of(),
                 new HashMap<>(),
-                // 行注：执行当前方法调用
                 new HashMap<>(),
-                // 行注：调用of
                 loadActiveGroupMap(Set.of(targetId)),
-                // 行注：调用of
                 loadGroupMembersByUser(userId, Set.of(targetId)),
-                // 行注：调用of
                 loadGroupMemberCount(Set.of(targetId))
-        );  // 行注：结束当前参数配置
+        );
     }  // 行注：结束当前代码块
 
     // 行注：定义构建会话DTO方法
     private ChatSessionDTO buildSessionDTO(
-            // 行注：补充当前表达式片段
             Long userId,
-            // 行注：补充当前表达式片段
             ImSession session,
-            // 行注：补充当前表达式片段
             Map<Long, SysUser> userMap,
-            // 行注：补充当前表达式片段
+            Map<Long, String> friendRemarkMap,
             Map<Long, Boolean> blacklistCache,
-            // 行注：补充当前表达式片段
             Map<Long, Boolean> friendshipCache,
             // 行注：补充当前表达式片段
             Map<Long, ImGroupInfo> groupMap,
@@ -774,12 +815,17 @@ public class ChatServiceImpl implements ChatService {
                 return null;  // 行注：返回处理结果
             }  // 行注：结束当前代码块
 
-            ChatSessionDTO dto = baseSessionDTO(session);  // 行注：初始化DTO
-            dto.setTargetNickname(targetUser.getNickname());  // 行注：调用设置TargetNickname
-            dto.setTargetUsername(targetUser.getUsername());  // 行注：调用设置TargetUsername
-            dto.setTargetAvatar(targetUser.getAvatar());  // 行注：调用设置Target头像
-            dto.setTargetOnline(chatPresenceService.isOnline(targetUser.getId()));  // 行注：调用设置Target在线
-            return dto;  // 行注：返回处理结果
+            ChatSessionDTO dto = baseSessionDTO(session);
+            String friendRemark = friendRemarkMap.get(session.getTargetId());
+            dto.setFriendRemark(friendRemark);
+            String displayName = org.springframework.util.StringUtils.hasText(friendRemark)
+                    ? friendRemark.trim()
+                    : targetUser.getNickname();
+            dto.setTargetNickname(displayName);
+            dto.setTargetUsername(targetUser.getUsername());
+            dto.setTargetAvatar(targetUser.getAvatar());
+            dto.setTargetOnline(chatPresenceService.isOnline(targetUser.getId()));
+            return dto;
         }  // 行注：结束当前代码块
 
         ImGroupInfo groupInfo = groupMap.get(session.getTargetId());  // 行注：初始化群信息
@@ -854,6 +900,11 @@ public class ChatServiceImpl implements ChatService {
                 .eq(ImSession::getSessionType, sessionType);  // 行注：继续调用等值条件
         return sessionMapper.selectOne(wrapper);  // 行注：返回处理结果
     }  // 行注：结束当前代码块
+
+    private LocalDateTime resolveHistoryClearTime(Long userId, Long targetId, Integer sessionType) {
+        ImSession session = getSession(userId, targetId, sessionType);
+        return session != null ? session.getHistoryClearTime() : null;
+    }
 
     // 行注：定义require会话方法
     private ImSession requireSession(Long userId, Long targetId, Integer sessionType) {
@@ -1067,6 +1118,21 @@ public class ChatServiceImpl implements ChatService {
         }  // 行注：结束当前代码块
         return hasFriendRelation(userId, targetUserId);  // 行注：返回处理结果
     }  // 行注：结束当前代码块
+
+    private Map<Long, String> loadFriendRemarkMap(Long userId, Set<Long> friendIds) {
+        if (friendIds == null || friendIds.isEmpty()) {
+            return Map.of();
+        }
+        LambdaQueryWrapper<SysFriend> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysFriend::getUserId, userId).in(SysFriend::getFriendId, friendIds);
+        Map<Long, String> map = new HashMap<>();
+        for (SysFriend row : friendMapper.selectList(wrapper)) {
+            if (row.getFriendId() != null) {
+                map.put(row.getFriendId(), row.getRemark());
+            }
+        }
+        return map;
+    }
 
     // 行注：定义是否包含好友Relation方法
     private boolean hasFriendRelation(Long userId, Long targetUserId) {

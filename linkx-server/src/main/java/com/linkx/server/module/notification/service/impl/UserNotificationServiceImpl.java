@@ -8,12 +8,13 @@ import com.linkx.server.mapper.SysUserMapper;
 import com.linkx.server.mapper.SysUserNotificationMapper;
 import com.linkx.server.module.chat.ws.ChatEventPushService;
 import com.linkx.server.module.chat.ws.ChatEventType;
-import com.linkx.server.module.notification.dto.NotificationPushPayload;
 import com.linkx.server.module.notification.service.UserNotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -25,43 +26,18 @@ public class UserNotificationServiceImpl implements UserNotificationService {
 
     @Override
     public void notifyUser(Long userId, String title, String content, String bizType, String bizId) {
-        SysUserNotification n = insertNotification(userId, title, content, bizType, bizId);
-        pushUnreadHint(userId, n);
+        insertNotification(userId, title, content, bizType, bizId);
+        pushUnreadHint(userId);
     }
 
-    @Override
-    public int notifyUsers(Collection<Long> userIds, String title, String content, String bizType, String bizId) {
-        if (userIds == null || userIds.isEmpty()) {
-            return 0;
+    private void pushUnreadHint(Long userId) {
+        if (userId == null) {
+            return;
         }
-        int count = 0;
-        for (Long userId : userIds) {
-            if (userId == null) {
-                continue;
-            }
-            SysUserNotification n = insertNotification(userId, title, content, bizType, bizId);
-            pushUnreadHint(userId, n);
-            count++;
-        }
-        return count;
-    }
-
-    private SysUserNotification insertNotification(Long userId, String title, String content, String bizType,
-                                                   String bizId) {
-        SysUserNotification n = new SysUserNotification();
-        n.setUserId(userId);
-        n.setTitle(title);
-        n.setContent(content);
-        n.setBizType(bizType);
-        n.setBizId(bizId);
-        n.setReadFlag(0);
-        notificationMapper.insert(n);
-        return n;
-    }
-
-    private void pushUnreadHint(Long userId, SysUserNotification n) {
-        chatEventPushService.sendToUser(userId, ChatEventType.NOTIFICATION,
-                new NotificationPushPayload(n.getId(), n.getTitle(), n.getBizType()));
+        long unread = countUnread(userId);
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("unreadCount", unread);
+        chatEventPushService.sendToUser(userId, ChatEventType.NOTIFICATION, payload);
     }
 
     @Override
@@ -74,17 +50,26 @@ public class UserNotificationServiceImpl implements UserNotificationService {
             if (u.getId() == null) {
                 continue;
             }
-            notifyUser(u.getId(), title, content, "SYSTEM_BROADCAST", null);
+            insertNotification(u.getId(), title, content, "SYSTEM_BROADCAST", null);
             count++;
+        }
+        for (SysUser u : users) {
+            if (u.getId() != null) {
+                pushUnreadHint(u.getId());
+            }
         }
         return count;
     }
 
-    @Override
-    public long countUnread(Long userId) {
-        LambdaQueryWrapper<SysUserNotification> w = new LambdaQueryWrapper<>();
-        w.eq(SysUserNotification::getUserId, userId).eq(SysUserNotification::getReadFlag, 0);
-        return notificationMapper.selectCount(w);
+    private void insertNotification(Long userId, String title, String content, String bizType, String bizId) {
+        SysUserNotification n = new SysUserNotification();
+        n.setUserId(userId);
+        n.setTitle(title);
+        n.setContent(content);
+        n.setBizType(bizType);
+        n.setBizId(bizId);
+        n.setReadFlag(0);
+        notificationMapper.insert(n);
     }
 
     @Override
@@ -102,5 +87,29 @@ public class UserNotificationServiceImpl implements UserNotificationService {
         }
         n.setReadFlag(1);
         notificationMapper.updateById(n);
+    }
+
+    @Override
+    public long countUnread(Long userId) {
+        LambdaQueryWrapper<SysUserNotification> w = new LambdaQueryWrapper<>();
+        w.eq(SysUserNotification::getUserId, userId).eq(SysUserNotification::getReadFlag, 0);
+        return notificationMapper.selectCount(w);
+    }
+
+    @Override
+    public int notifyUsers(List<Long> userIds, String title, String content) {
+        if (userIds == null || userIds.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (Long uid : userIds) {
+            if (uid == null) {
+                continue;
+            }
+            insertNotification(uid, title, content, "SYSTEM_DIRECT", null);
+            pushUnreadHint(uid);
+            count++;
+        }
+        return count;
     }
 }

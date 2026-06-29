@@ -22,15 +22,15 @@ public class AdminFriendRequestController {
         return Result.success(adminFriendRequestService.list(page, size, status));
     }
 
-    @PutMapping("/{id}/accept")
-    public Result<Void> accept(@PathVariable Long id) {
-        adminFriendRequestService.accept(id);
+    @PostMapping("/{requestId}/accept")
+    public Result<Void> accept(@PathVariable Long requestId) {
+        adminFriendRequestService.acceptAsReceiver(requestId);
         return Result.success();
     }
 
-    @PutMapping("/{id}/reject")
-    public Result<Void> reject(@PathVariable Long id) {
-        adminFriendRequestService.reject(id);
+    @PostMapping("/{requestId}/reject")
+    public Result<Void> reject(@PathVariable Long requestId) {
+        adminFriendRequestService.rejectAsReceiver(requestId);
         return Result.success();
     }
 }

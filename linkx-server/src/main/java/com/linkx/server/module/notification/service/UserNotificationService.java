@@ -7,15 +7,15 @@ public interface UserNotificationService {
 
     void notifyUser(Long userId, String title, String content, String bizType, String bizId);
 
-    /** 向多个用户写入同一条通知，返回成功写入人数。 */
-    int notifyUsers(java.util.Collection<Long> userIds, String title, String content, String bizType, String bizId);
-
     /** 向所有未禁用用户写入同一条系统通知（桌面/Web 侧栏「通知」可见）。 */
     int broadcastToAllActiveUsers(String title, String content);
 
     Page<SysUserNotification> pageForUser(Long userId, int page, int size);
 
+    void markRead(Long userId, Long notificationId);
+
     long countUnread(Long userId);
 
-    void markRead(Long userId, Long notificationId);
+    /** 向指定用户 ID 列表发送同一条通知 */
+    int notifyUsers(java.util.List<Long> userIds, String title, String content);
 }

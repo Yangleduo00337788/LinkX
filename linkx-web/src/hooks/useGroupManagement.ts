@@ -63,6 +63,7 @@ interface UseGroupManagementOptions {  // 行注：开始当前逻辑块
   removeSessionByTarget: (targetId: string | number, sessionType: number) => void  // 行注：设置 removeSessionByTarget 配置项
   resetCurrentConversationState: () => void  // 行注：传入 resetCurrentConversationState 回调
   showMenu: Ref<boolean>  // 行注：设置 showMenu 配置项
+  onGroupDrawerTab?: (tab: 'info' | 'members' | 'files' | 'album' | 'highlights' | 'manage') => void
 }  // 行注：结束当前代码块
 
 export function useGroupManagement(options: UseGroupManagementOptions) {  // 行注：导出当前能力
@@ -276,20 +277,11 @@ export function useGroupManagement(options: UseGroupManagementOptions) {  // 行
     return true  // 行注：返回当前结果
   }  // 行注：结束当前代码块
 
-  async function openGroupMembersPage() {  // 行注：定义异步 openGroupMembersPage 方法
-    const targetGroupId = options.groupDetail.value?.id || options.currentTargetId.value  // 行注：初始化 targetGroupId 状态
-    if (!targetGroupId || !options.isGroupSession.value) {  // 行注：判断当前条件是否成立
-      return  // 行注：返回当前结果
-    }  // 行注：结束当前代码块
-    const closed = await closeGroupDrawer()  // 行注：接收 closed 异步结果
-    if (!closed) {  // 行注：判断当前条件是否成立
-      return  // 行注：返回当前结果
-    }  // 行注：结束当前代码块
-    await options.router.push({  // 行注：开始当前逻辑块
-      path: `/groups/${targetGroupId}/members`,  // 行注：设置 path 配置项
-      query: { from: 'chat' }  // 行注：设置 query 配置项
-    })  // 行注：结束当前调用配置
-  }  // 行注：结束当前代码块
+  /** 已改为 QQ 式侧栏：在聊天内打开群资料并切到「成员」Tab，不再跳转独立页 */
+  async function openGroupMembersPage() {
+    await openGroupDrawer()
+    options.onGroupDrawerTab?.('members')
+  }
 
   function openAddMembersModal() {  // 行注：定义 openAddMembersModal 方法
     addMembersSelection.value = []  // 行注：更新 addMembersSelection 状态
