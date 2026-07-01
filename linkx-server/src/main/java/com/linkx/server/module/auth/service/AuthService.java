@@ -1,8 +1,11 @@
 package com.linkx.server.module.auth.service;  // 行注：声明当前文件所在包 com.linkx.server.module.auth.service
 
-import com.linkx.server.module.auth.dto.AuthResponse;  // 行注：引入 AuthResponse 类型
-import com.linkx.server.module.auth.dto.LoginRequest;  // 行注：引入 LoginRequest 类型
-import com.linkx.server.module.auth.dto.RegisterRequest;  // 行注：引入 RegisterRequest 类型
+import com.linkx.server.module.auth.dto.AuthResponse;
+import com.linkx.server.module.auth.dto.AuthSessionDTO;
+import com.linkx.server.module.auth.dto.LoginRequest;
+import com.linkx.server.module.auth.dto.RegisterRequest;
+
+import java.util.List;
 
 /**
  * 用户认证核心业务：注册、登录、刷新令牌、登出。
@@ -29,4 +32,19 @@ public interface AuthService {
      * @param accessToken  请求体或 Authorization 头中的 access
      */
     void logout(Long userId, String refreshToken, String accessToken);  // 行注：调用登出
-}  // 行注：结束当前代码块
+
+    void changePassword(Long userId, String currentPassword, String newPassword);
+
+    AuthResponse register(RegisterRequest request, String clientIp, String userAgent);
+
+    List<AuthSessionDTO> listSessions(Long userId, String currentSessionId);
+
+    void revokeSession(Long userId, String sessionId, String currentSessionId);
+
+    void revokeOtherSessions(Long userId, String currentSessionId);
+
+    /** 申请找回密码（用户名 + 已绑定邮箱，返回一次性 token；开发环境可在响应中返回） */
+    String requestPasswordReset(String username, String email);
+
+    void resetPasswordWithToken(String resetToken, String newPassword);
+}

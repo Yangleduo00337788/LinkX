@@ -61,4 +61,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // 开发工具
   toggleDevTools: () => ipcRenderer.invoke('app:toggleDevTools'),
+
+  // 子窗口
+  openChildWindow: (payload) => ipcRenderer.invoke('child-window:open', payload),
+  closeChildWindow: () => ipcRenderer.invoke('child-window:close-self'),
 })

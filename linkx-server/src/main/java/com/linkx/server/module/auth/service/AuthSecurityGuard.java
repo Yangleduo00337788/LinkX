@@ -109,6 +109,18 @@ public class AuthSecurityGuard {
         ensureWithinLimit("captcha-issue", clientIp, maxRequests, properties.getWindowSeconds(), clientIp);  // 行注：调用获取窗口Seconds
     }  // 行注：结束当前代码块
 
+    /** 找回密码申请/确认按 IP + 标识限流 */
+    public void checkPasswordResetRateLimit(HttpServletRequest request, String bucketPart) {
+        LinkxSecurityProperties.AuthRateLimit properties = linkxSecurityProperties.getAuthRateLimit();
+        if (!properties.isEnabled()) {
+            return;
+        }
+        String clientIp = resolveClientIp(request);
+        String key = normalizeKeyPart(bucketPart);
+        long max = Math.max(properties.getLoginMaxRequests(), 5);
+        ensureWithinLimit("password-reset", clientIp + ":" + key, max, properties.getWindowSeconds(), clientIp);
+    }
+
     /**
      * 解析用于限流与审计的客户端 IP。
      * 未开启可信代理时仅使用 {@link HttpServletRequest#getRemoteAddr()}。

@@ -182,18 +182,18 @@ export function useGroupManagement(options: UseGroupManagementOptions) {  // 行
     revokeBlobUrl(previewUrl)  // 行注：调用 revokeBlobUrl 方法
   }  // 行注：结束当前代码块
 
-  async function submitCreateGroup() {  // 行注：定义异步 submitCreateGroup 方法
-    if (!createGroupForm.groupName.trim()) {  // 行注：判断当前条件是否成立
-      options.message.warning('请输入群名称')  // 行注：提示警告信息
-      return  // 行注：返回当前结果
-    }  // 行注：结束当前代码块
-    if (createGroupForm.memberIds.length === 0) {  // 行注：判断当前条件是否成立
-      options.message.warning('请至少选择一位好友')  // 行注：提示警告信息
-      return  // 行注：返回当前结果
-    }  // 行注：结束当前代码块
+  async function submitCreateGroup(): Promise<boolean> {
+    if (!createGroupForm.groupName.trim()) {
+      options.message.warning('请输入群名称')
+      return false
+    }
+    if (createGroupForm.memberIds.length === 0) {
+      options.message.warning('请至少选择一位好友')
+      return false
+    }
 
-    creatingGroup.value = true  // 行注：更新 creatingGroup 状态
-    try {  // 行注：尝试执行可能失败的逻辑
+    creatingGroup.value = true
+    try {
       const requestedGroupName = createGroupForm.groupName.trim()  // 行注：初始化 requestedGroupName 变量
       const requestedNotice = createGroupForm.notice.trim()  // 行注：初始化 requestedNotice 变量
       const requestedMemberCount = createGroupForm.memberIds.length + 1  // 行注：初始化 requestedMemberCount 变量
@@ -241,14 +241,16 @@ export function useGroupManagement(options: UseGroupManagementOptions) {  // 行
       if (groupSession) {  // 行注：判断当前条件是否成立
         await options.selectSession(groupSession)  // 行注：调用 selectSession 方法
       }  // 行注：结束当前代码块
-      options.message.success(`群聊创建成功，群号：${groupId}`)  // 行注：提示成功信息
-    } catch (error: any) {  // 行注：捕获并处理异常
-      console.error('submitCreateGroup error:', error)  // 行注：输出错误日志
-      options.message.error(error.response?.data?.message || '创建群聊失败')  // 行注：提示错误信息
-    } finally {  // 行注：执行收尾清理逻辑
-      creatingGroup.value = false  // 行注：更新 creatingGroup 状态
-    }  // 行注：结束当前代码块
-  }  // 行注：结束当前代码块
+      options.message.success(`群聊创建成功，群号：${groupId}`)
+      return true
+    } catch (error: any) {
+      console.error('submitCreateGroup error:', error)
+      options.message.error(error.response?.data?.message || '创建群聊失败')
+      return false
+    } finally {
+      creatingGroup.value = false
+    }
+  }
 
   async function openGroupDrawer() {  // 行注：定义异步 openGroupDrawer 方法
     options.showMenu.value = false  // 行注：更新 options.showMenu 状态
@@ -295,23 +297,29 @@ export function useGroupManagement(options: UseGroupManagementOptions) {  // 行
     addMembersMessage.value = ''  // 行注：更新 addMembersMessage 状态
   }  // 行注：结束当前代码块
 
-  async function submitAddMembers() {  // 行注：定义异步 submitAddMembers 方法
-    if (!options.currentTargetId.value || addMembersSelection.value.length === 0) {  // 行注：判断当前条件是否成立
-      options.message.warning('请选择要邀请的成员')  // 行注：提示警告信息
-      return  // 行注：返回当前结果
-    }  // 行注：结束当前代码块
-    addingMembers.value = true  // 行注：更新 addingMembers 状态
-    try {  // 行注：尝试执行可能失败的逻辑
-      await groupApi.inviteMembers(options.currentTargetId.value, addMembersSelection.value, addMembersMessage.value.trim())  // 行注：调用 inviteMembers 方法
-      closeAddMembersModal()  // 行注：调用 closeAddMembersModal 方法
-      options.message.success('入群邀请已发送')  // 行注：提示成功信息
-    } catch (error: any) {  // 行注：捕获并处理异常
-      console.error('submitAddMembers error:', error)  // 行注：输出错误日志
-      options.message.error(error.response?.data?.message || '邀请成员失败')  // 行注：提示错误信息
-    } finally {  // 行注：执行收尾清理逻辑
-      addingMembers.value = false  // 行注：更新 addingMembers 状态
-    }  // 行注：结束当前代码块
-  }  // 行注：结束当前代码块
+  async function submitAddMembers(): Promise<boolean> {
+    if (!options.currentTargetId.value || addMembersSelection.value.length === 0) {
+      options.message.warning('请选择要邀请的成员')
+      return false
+    }
+    addingMembers.value = true
+    try {
+      await groupApi.inviteMembers(
+        options.currentTargetId.value,
+        addMembersSelection.value,
+        addMembersMessage.value.trim()
+      )
+      closeAddMembersModal()
+      options.message.success('入群邀请已发送')
+      return true
+    } catch (error: any) {
+      console.error('submitAddMembers error:', error)
+      options.message.error(error.response?.data?.message || '邀请成员失败')
+      return false
+    } finally {
+      addingMembers.value = false
+    }
+  }
 
   async function submitUpdateNotice() {  // 行注：定义异步 submitUpdateNotice 方法
     if (!options.currentTargetId.value || !options.canEditNotice.value) {  // 行注：判断当前条件是否成立

@@ -119,26 +119,32 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    /** 签发 refresh token（不含 username claim） */
-    // 行注：定义generate刷新令牌方法
-    public String generateRefreshToken(Long userId) {
-        Date now = new Date();  // 行注：初始化now
-        Date expiryDate = new Date(now.getTime() + refreshExpiration);  // 行注：初始化expiry日期
-
-        // refresh token 只保留最小必要信息，职责单一，只用于换取新的 access。
-        return Jwts.builder()  // 行注：返回处理结果
-                // 行注：继续调用subject
+    /** 签发 refresh token；{@code sid} 标识登录设备会话 */
+    public String generateRefreshToken(Long userId, String sessionId) {
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + refreshExpiration);
+        var builder = Jwts.builder()
                 .subject(String.valueOf(userId))
-                // 行注：继续调用claim
                 .claim("type", TOKEN_TYPE_REFRESH)
-                // 行注：继续调用issuedAt
                 .issuedAt(now)
-                // 行注：继续调用过期时间
-                .expiration(expiryDate)
-                // 行注：继续调用sign
-                .signWith(getSigningKey())
-                .compact();  // 行注：继续调用compact
-    }  // 行注：结束当前代码块
+                .expiration(expiryDate);
+        if (StringUtils.hasText(sessionId)) {
+            builder.claim("sid", sessionId.trim());
+        }
+        return builder.signWith(getSigningKey()).compact();
+    }
+
+    public String generateRefreshToken(Long userId) {
+        return generateRefreshToken(userId, null);
+    }
+
+    public String getSessionIdFromToken(String token) {
+        ParsedToken parsed = parseToken(token);
+        if (parsed == null || parsed.claims() == null) {
+            return null;
+        }
+        return parsed.claims().get("sid", String.class);
+    }
 
     /**
      * 解析令牌；过期时仍返回 claims 并标记 expired=true，便于刷新流程判断。

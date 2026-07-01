@@ -37,4 +37,10 @@ public class UserNotificationController {
         notificationService.markRead(SecurityUtils.resolveUserId(userDetails), id);
         return Result.success();
     }
+
+    @PutMapping("/read-all")
+    public Result<Integer> markAllRead(@AuthenticationPrincipal UserDetails userDetails) {
+        int n = notificationService.markAllRead(SecurityUtils.resolveUserId(userDetails));
+        return Result.success(n);
+    }
 }

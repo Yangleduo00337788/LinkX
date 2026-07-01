@@ -7,6 +7,7 @@ const http = require('http')
 const path = require('path')
 
 let mainWindow = null
+let appRendererBaseUrl = ''
 let trayUnreadCount = 0
 let isDev = !!process.env.ELECTRON_DEV_URL
 let localRendererServer = null
@@ -203,10 +204,12 @@ async function createWindow() {
 
   if (isDev) {
     const url = process.env.ELECTRON_DEV_URL
+    appRendererBaseUrl = String(url).replace(/#.*$/, '').replace(/\/?$/, '/')
     debugLog('Loading URL:', url)
     await mainWindow.loadURL(url)
   } else {
     const url = await startLocalRendererServer()
+    appRendererBaseUrl = url.endsWith('/') ? url : `${url}/`
     debugLog('Loading local renderer URL:', url)
     await mainWindow.loadURL(url)
   }
@@ -498,6 +501,17 @@ function setupIPC() {
   ipcMain.handle('app:getAutoLaunch', () => {
     return app.getLoginItemSettings().openAtLogin
   })
+
+  try {
+    const { registerChildWindowIpc } = require('./childWindows')
+    registerChildWindowIpc(
+      ipcMain,
+      () => mainWindow,
+      () => appRendererBaseUrl
+    )
+  } catch (e) {
+    console.error('Child windows IPC error:', e.message)
+  }
 }
 
 if (process.platform === 'win32') {

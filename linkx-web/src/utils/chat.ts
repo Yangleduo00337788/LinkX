@@ -13,7 +13,8 @@ import {  // 行注：引入 { 模块
   SESSION_TYPE_GROUP,  // 行注：补充当前配置项
   SESSION_TYPE_SINGLE,  // 行注：补充当前配置项
   type ChatSession,  // 行注：补充当前配置项
-  type DisplayMessage  // 行注：补充当前表达式
+  type DisplayMessage,  // 行注：补充当前表达式
+  type GroupMember
 } from '../types/chat'  // 行注：补充当前表达式
 
 export function buildSessionKey(targetId: string | number, sessionType: number) {  // 行注：导出当前能力
@@ -173,3 +174,31 @@ export function getMessagePreview(msg: Pick<DisplayMessage, 'content' | 'msgType
   }  // 行注：结束当前代码块
   return '[消息]'  // 行注：返回当前结果
 }  // 行注：结束当前代码块
+
+/** 解析群成员在群聊中的展示名；preferCard 为 true 时优先使用群名片。 */
+export function resolveGroupMemberDisplayName(
+  member: Pick<GroupMember, 'nickname' | 'username' | 'memberCardName'> | null | undefined,
+  preferCard = true
+) {
+  if (!member) return ''
+  if (preferCard && member.memberCardName?.trim()) {
+    return member.memberCardName.trim()
+  }
+  return member.nickname?.trim() || member.username?.trim() || member.memberCardName?.trim() || ''
+}
+
+/** 解析群聊消息发送者展示名。 */
+export function resolveGroupMessageSenderName(
+  message: Pick<DisplayMessage, 'name' | 'fromUserId'>,
+  members: GroupMember[],
+  preferCard = true
+) {
+  const member = message.fromUserId
+    ? members.find(item => String(item.userId) === String(message.fromUserId))
+    : undefined
+  const fromMember = resolveGroupMemberDisplayName(member, preferCard)
+  if (fromMember) return fromMember
+  const fromMessage = message.name?.trim()
+  if (fromMessage) return fromMessage
+  return message.fromUserId ? '成员' : ''
+}

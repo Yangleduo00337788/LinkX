@@ -22,8 +22,9 @@ import com.linkx.server.mapper.SysFileMapper;  // 行注：引入 SysFileMapper 
 import com.linkx.server.mapper.SysUserMapper;  // 行注：引入 SysUserMapper 类型
 import com.linkx.server.module.blacklist.service.BlacklistService;  // 行注：引入 BlacklistService 类型
 import com.linkx.server.module.chat.constant.ChatConstants;  // 行注：引入 ChatConstants 类型
-import com.linkx.server.module.chat.dto.ChatSessionDTO;  // 行注：引入 ChatSessionDTO 类型
-import com.linkx.server.module.chat.dto.MessageDTO;  // 行注：引入 MessageDTO 类型
+import com.linkx.server.module.chat.dto.ChatSessionDTO;
+import com.linkx.server.module.chat.dto.MessageDTO;
+import com.linkx.server.module.chat.dto.MessageSearchHitDTO;
 import com.linkx.server.module.chat.service.ChatService;  // 行注：引入 ChatService 类型
 import com.linkx.server.module.compliance.dto.SensitiveCheckResult;
 import com.linkx.server.module.compliance.service.SensitiveWordService;
@@ -160,6 +161,52 @@ public class ChatServiceImpl implements ChatService {
                 ? getGroupHistory(userId, targetId, page, size)
                 : getSingleHistory(userId, targetId, page, size);  // 行注：调用获取单聊历史
     }  // 行注：结束当前代码块
+
+  @Override
+  public List<MessageSearchHitDTO> searchMessagesGlobal(Long userId, String keyword, int size) {
+    String normalized = TextNormalizer.normalizeRequiredSingleLine(keyword, 100, "关键词");
+    int limit = Math.min(Math.max(size, 1), 50);
+    List<ChatSessionDTO> sessions = getSessions(userId);
+    List<MessageSearchHitDTO> hits = new ArrayList<>();
+    for (ChatSessionDTO session : sessions) {
+      if (hits.size() >= limit) {
+        break;
+      }
+      Long targetId = session.getTargetId();
+      Integer sessionType = session.getSessionType();
+      if (targetId == null || sessionType == null) {
+        continue;
+      }
+      List<MessageDTO> page = getChatHistory(userId, targetId, sessionType, 1, 30);
+      for (MessageDTO msg : page) {
+        if (hits.size() >= limit) {
+          break;
+        }
+        if (msg.getMsgType() != null && msg.getMsgType() != ChatConstants.MESSAGE_TYPE_TEXT) {
+          continue;
+        }
+        String content = msg.getContent();
+        if (!StringUtils.hasText(content) || !content.contains(normalized)) {
+          continue;
+        }
+        String title = session.getSessionRemark() != null && !session.getSessionRemark().isBlank()
+            ? session.getSessionRemark()
+            : (session.getTargetNickname() != null ? session.getTargetNickname() : String.valueOf(targetId));
+        String preview = content.length() > 120 ? content.substring(0, 117) + "..." : content;
+        hits.add(MessageSearchHitDTO.builder()
+            .messageId(msg.getId())
+            .targetId(targetId)
+            .sessionType(sessionType)
+            .sessionTitle(title)
+            .contentPreview(preview)
+            .fromUserId(msg.getFromUserId())
+            .fromNickname(msg.getFromNickname())
+            .createTime(msg.getCreateTime())
+            .build());
+      }
+    }
+    return hits;
+  }
 
     /** {@inheritDoc} */
     @Override  // 行注：应用 @Override 注解
@@ -345,9 +392,10 @@ public class ChatServiceImpl implements ChatService {
             Set<Long> relatedUserIds = new LinkedHashSet<>();  // 行注：初始化related用户ID列表
             relatedUserIds.add(message.getFromUserId());  // 行注：调用添加
             relatedUserIds.addAll(chatMessageHelper.parseMentionUserIds(message.getMentionUserIds()));  // 行注：调用添加全部
-            // 行注：补充当前表达式片段
+            Map<Long, SysUser> relatedUsers = chatMessageHelper.loadUserMap(relatedUserIds);
+            Map<Long, String> groupSenderDisplayNames = loadGroupSenderDisplayNames(groupId, relatedUserIds, relatedUsers);
             MessageDTO messageDTO = chatMessageHelper.toMessageDTO(
-                    message, ChatConstants.SESSION_TYPE_GROUP, chatMessageHelper.loadUserMap(relatedUserIds), Map.of());  // 行注：调用加载用户映射
+                    message, ChatConstants.SESSION_TYPE_GROUP, relatedUsers, Map.of(), groupSenderDisplayNames);
             executeAfterCommit(() -> notifyGroupRecall(messageDTO, groupId, memberUserIds));  // 行注：调用executeAfterCommit
             return;  // 行注：返回处理结果
         }  // 行注：结束当前代码块
@@ -526,9 +574,10 @@ public class ChatServiceImpl implements ChatService {
         Set<Long> relatedUserIds = new LinkedHashSet<>();  // 行注：初始化related用户ID列表
         relatedUserIds.add(fromUserId);  // 行注：调用添加
         relatedUserIds.addAll(mentionContext.mentionUserIds());  // 行注：调用添加全部
-        // 行注：补充当前表达式片段
+        Map<Long, SysUser> relatedUsers = chatMessageHelper.loadUserMap(relatedUserIds);
+        Map<Long, String> groupSenderDisplayNames = loadGroupSenderDisplayNames(groupId, relatedUserIds, relatedUsers);
         MessageDTO messageDTO = chatMessageHelper.toMessageDTO(
-                message, ChatConstants.SESSION_TYPE_GROUP, chatMessageHelper.loadUserMap(relatedUserIds), Map.of());  // 行注：调用加载用户映射
+                message, ChatConstants.SESSION_TYPE_GROUP, relatedUsers, Map.of(), groupSenderDisplayNames);
         messageDTO.setClientMessageId(normalizedClientMessageId);  // 行注：调用设置客户端消息ID
         // 行注：补充当前表达式片段
         log.info("Chat group message sent, fromUserId={}, groupId={}, messageId={}, mentionAll={}, mentionCount={}, clientMessageId={}",
@@ -601,11 +650,42 @@ public class ChatServiceImpl implements ChatService {
         }  // 行注：结束当前代码块
         Map<Long, SysUser> userMap = chatMessageHelper.loadUserMap(userIds);  // 行注：初始化用户映射
         Map<String, SysFile> fileMap = chatMessageHelper.loadFileMap(messages);  // 行注：初始化文件映射
+        Map<Long, String> groupSenderDisplayNames = Map.of();
+        if (Objects.equals(sessionType, ChatConstants.SESSION_TYPE_GROUP) && !messages.isEmpty()) {
+            groupSenderDisplayNames = loadGroupSenderDisplayNames(messages.get(0).getToUserId(), userIds, userMap);
+        }
+        Map<Long, String> finalGroupSenderDisplayNames = groupSenderDisplayNames;
         return messages.stream()  // 行注：返回处理结果
                 // 行注：继续调用映射
-                .map(message -> chatMessageHelper.toMessageDTO(message, sessionType, userMap, fileMap))
+                .map(message -> chatMessageHelper.toMessageDTO(message, sessionType, userMap, fileMap, finalGroupSenderDisplayNames))
                 .collect(Collectors.toList());  // 行注：继续调用收集
     }  // 行注：结束当前代码块
+
+    private Map<Long, String> loadGroupSenderDisplayNames(Long groupId, Set<Long> userIds, Map<Long, SysUser> userMap) {
+        if (groupId == null || userIds == null || userIds.isEmpty()) {
+            return Map.of();
+        }
+        LambdaQueryWrapper<ImGroupMember> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ImGroupMember::getGroupId, groupId).in(ImGroupMember::getUserId, userIds);
+        Map<Long, String> displayNames = new HashMap<>();
+        for (ImGroupMember member : groupMemberMapper.selectList(wrapper)) {
+            displayNames.put(member.getUserId(), resolveGroupSenderDisplayName(member, userMap.get(member.getUserId())));
+        }
+        return displayNames;
+    }
+
+    private String resolveGroupSenderDisplayName(ImGroupMember member, SysUser user) {
+        if (member != null && StringUtils.hasText(member.getMemberCardName())) {
+            return member.getMemberCardName().trim();
+        }
+        if (user != null && StringUtils.hasText(user.getNickname())) {
+            return user.getNickname().trim();
+        }
+        if (user != null && StringUtils.hasText(user.getUsername())) {
+            return user.getUsername().trim();
+        }
+        return "成员";
+    }
 
     // 行注：定义notify单聊消息方法
     private void notifySingleMessage(MessageDTO messageDTO, Long fromUserId, Long toUserId) {
@@ -1326,9 +1406,12 @@ public class ChatServiceImpl implements ChatService {
         Set<Long> relatedUserIds = new LinkedHashSet<>();  // 行注：初始化related用户ID列表
         relatedUserIds.add(message.getFromUserId());  // 行注：调用添加
         relatedUserIds.addAll(chatMessageHelper.parseMentionUserIds(message.getMentionUserIds()));  // 行注：调用添加全部
-        // 行注：补充当前表达式片段
+        Map<Long, SysUser> relatedUsers = chatMessageHelper.loadUserMap(relatedUserIds);
+        Map<Long, String> groupSenderDisplayNames = Objects.equals(sessionType, ChatConstants.SESSION_TYPE_GROUP)
+                ? loadGroupSenderDisplayNames(targetId, relatedUserIds, relatedUsers)
+                : Map.of();
         MessageDTO dto = chatMessageHelper.toMessageDTO(
-                message, sessionType, chatMessageHelper.loadUserMap(relatedUserIds), Map.of());  // 行注：调用加载用户映射
+                message, sessionType, relatedUsers, Map.of(), groupSenderDisplayNames);
         dto.setClientMessageId(clientMessageId);  // 行注：调用设置客户端消息ID
         return dto;  // 行注：返回处理结果
     }  // 行注：结束当前代码块

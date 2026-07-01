@@ -15,6 +15,7 @@ import org.springframework.util.StringUtils;  // 行注：引入 StringUtils 类
 import java.util.ArrayList;  // 行注：引入 ArrayList 类型
 import java.util.List;  // 行注：引入 List 类型
 import java.util.Map;  // 行注：引入 Map 类型
+import java.util.Objects;
 import java.util.Set;  // 行注：引入 Set 类型
 import java.util.stream.Collectors;  // 行注：引入 Collectors 类型
 
@@ -88,8 +89,19 @@ public class ChatMessageHelper {
     /**
      * 将持久化消息转为 API/WS 使用的 DTO，并填充昵称、头像与文件信息。
      */
-    // 行注：定义转为消息DTO方法
     public MessageDTO toMessageDTO(ImMessage message, Integer sessionType, Map<Long, SysUser> userMap, Map<String, SysFile> fileMap) {
+        return toMessageDTO(message, sessionType, userMap, fileMap, Map.of());
+    }
+
+    /**
+     * 群聊场景可传入发送者在群内的展示名（群名片优先）。
+     */
+    public MessageDTO toMessageDTO(
+            ImMessage message,
+            Integer sessionType,
+            Map<Long, SysUser> userMap,
+            Map<String, SysFile> fileMap,
+            Map<Long, String> groupSenderDisplayNames) {
         List<Long> mentionUserIds = parseMentionUserIds(message.getMentionUserIds());  // 行注：初始化@提醒用户ID列表
         MessageDTO dto = new MessageDTO();  // 行注：初始化DTO
         dto.setId(message.getId());  // 行注：调用设置ID
@@ -107,9 +119,17 @@ public class ChatMessageHelper {
         dto.setCreateTime(message.getCreateTime());  // 行注：调用设置创建时间
 
         SysUser fromUser = userMap.get(message.getFromUserId());  // 行注：初始化用户
-        // 行注：判断是否满足当前条件
+        String senderDisplayName = null;
+        if (Objects.equals(sessionType, ChatConstants.SESSION_TYPE_GROUP) && groupSenderDisplayNames != null) {
+            senderDisplayName = groupSenderDisplayNames.get(message.getFromUserId());
+        }
+        if (!StringUtils.hasText(senderDisplayName)) {
+            senderDisplayName = resolveUserDisplayName(fromUser);
+        }
+        if (StringUtils.hasText(senderDisplayName)) {
+            dto.setFromNickname(senderDisplayName.trim());
+        }
         if (fromUser != null) {
-            dto.setFromNickname(fromUser.getNickname());  // 行注：调用设置Nickname
             dto.setFromAvatar(fromUser.getAvatar());  // 行注：调用设置头像
         }  // 行注：结束当前代码块
         // 行注：判断是否满足当前条件
@@ -150,5 +170,18 @@ public class ChatMessageHelper {
             }  // 行注：结束当前代码块
         }  // 行注：结束当前代码块
         return displayNames;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
+
+    private String resolveUserDisplayName(SysUser user) {
+        if (user == null) {
+            return null;
+        }
+        if (StringUtils.hasText(user.getNickname())) {
+            return user.getNickname().trim();
+        }
+        if (StringUtils.hasText(user.getUsername())) {
+            return user.getUsername().trim();
+        }
+        return null;
     }  // 行注：结束当前代码块
 }  // 行注：结束当前代码块

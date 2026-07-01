@@ -1,7 +1,8 @@
 package com.linkx.server.module.chat.service;  // 行注：声明当前文件所在包 com.linkx.server.module.chat.service
 
-import com.linkx.server.module.chat.dto.ChatSessionDTO;  // 行注：引入 ChatSessionDTO 类型
-import com.linkx.server.module.chat.dto.MessageDTO;  // 行注：引入 MessageDTO 类型
+import com.linkx.server.module.chat.dto.ChatSessionDTO;
+import com.linkx.server.module.chat.dto.MessageDTO;
+import com.linkx.server.module.chat.dto.MessageSearchHitDTO;
 
 import java.util.List;  // 行注：引入 List 类型
 
@@ -54,4 +55,7 @@ public interface ChatService {
 
     /** 清空本地聊天记录（仅当前用户侧会话预览与已读游标，不删他人消息） */
     void clearChatHistoryLocal(Long userId, Long targetId, Integer sessionType);
+
+    /** 跨会话搜索当前用户可访问的文本消息（单聊+群聊） */
+    List<MessageSearchHitDTO> searchMessagesGlobal(Long userId, String keyword, int size);
 }

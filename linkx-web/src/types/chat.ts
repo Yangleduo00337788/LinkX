@@ -49,6 +49,7 @@ export interface GroupMember {  // 行注：导出当前能力
   userId: string | number  // 行注：设置 userId 配置项
   username: string  // 行注：设置 username 配置项
   nickname: string  // 行注：设置 nickname 配置项
+  memberCardName?: string
   avatar?: string  // 行注：补充当前表达式
   role: number  // 行注：设置 role 配置项
   muted?: boolean  // 行注：补充当前表达式
@@ -141,6 +142,7 @@ export interface DisplayMessage {  // 行注：导出当前能力
   clientMessageId?: string  // 行注：补充当前表达式
   isMe: boolean  // 行注：设置 isMe 配置项
   isSystem: boolean  // 行注：设置 isSystem 配置项
+  fromUserId?: string | number
   name: string  // 行注：设置 name 配置项
   fromAvatar?: string  // 行注：补充当前表达式
   content: string  // 行注：设置 content 配置项

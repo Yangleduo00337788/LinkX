@@ -1,90 +1,240 @@
-package com.linkx.server.module.auth.service;  // 行注：声明当前文件所在包 com.linkx.server.module.auth.service
+package com.linkx.server.module.auth.service;
 
-import com.linkx.server.security.JwtTokenProvider;  // 行注：引入 JwtTokenProvider 类型
-import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
-import org.springframework.data.redis.core.RedisTemplate;  // 行注：引入 RedisTemplate 类型
-import org.springframework.stereotype.Service;  // 行注：引入 Service 类型
-import org.springframework.util.StringUtils;  // 行注：引入 StringUtils 类型
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.linkx.server.module.auth.dto.AuthSessionDTO;
+import com.linkx.server.security.JwtTokenProvider;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;  // 行注：引入 StandardCharsets 类型
-import java.security.MessageDigest;  // 行注：引入 MessageDigest 类型
-import java.security.NoSuchAlgorithmException;  // 行注：引入 NoSuchAlgorithmException 类型
-import java.time.Duration;  // 行注：引入 Duration 类型
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
- * 每用户仅保留一份有效 refresh：Redis 存 refresh 的 SHA-256 哈希。
- * <p>
- * 刷新或登出会轮换/删除；用 access 调 refresh 接口无效。
- * </p>
+ * 多设备 refresh 会话：每设备一条 Redis 记录，JWT refresh 携带 {@code sid} claim。
  */
-@Service  // 行注：应用 @Service 注解
-@RequiredArgsConstructor  // 行注：应用 @RequiredArgsConstructor 注解
-// 行注：定义 RefreshTokenSessionService 类
+@Service
+@RequiredArgsConstructor
 public class RefreshTokenSessionService {
 
-    private static final String KEY_PREFIX = "auth:refresh-token:";  // 行注：定义键PREFIX常量
+    private static final String TOKEN_KEY_PREFIX = "auth:refresh-token:";
+    private static final String USER_SESSIONS_PREFIX = "auth:user-sessions:";
+    private static final String LEGACY_KEY_PREFIX = "auth:refresh-token:";
 
-    private final RedisTemplate<String, Object> redisTemplate;  // 行注：注入RedisTemplate依赖
-    private final JwtTokenProvider jwtTokenProvider;  // 行注：注入JWT令牌提供器依赖
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final ObjectMapper objectMapper;
 
-    /** 登录/注册/刷新成功后写入当前 refresh 哈希 */
-    // 行注：定义申请令牌方法
-    public void issueToken(Long userId, String refreshToken) {
-        // 行注：判断是否满足当前条件
-        if (userId == null || !StringUtils.hasText(refreshToken)) {
-            return;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
-        long ttlMillis = jwtTokenProvider.getRemainingValidityMillis(refreshToken);  // 行注：初始化TTLMillis
-        // 行注：判断是否满足当前条件
+    public String newSessionId() {
+        return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    public void issueToken(Long userId, String sessionId, String refreshToken, String clientIp, String userAgent) {
+        if (userId == null || !StringUtils.hasText(refreshToken) || !StringUtils.hasText(sessionId)) {
+            return;
+        }
+        long ttlMillis = jwtTokenProvider.getRemainingValidityMillis(refreshToken);
         if (ttlMillis <= 0) {
-            revokeToken(userId);  // 行注：调用revoke令牌
-            return;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
-        redisTemplate.opsForValue().set(buildKey(userId), hashToken(refreshToken), Duration.ofMillis(ttlMillis));  // 行注：调用ops值
-    }  // 行注：结束当前代码块
-
-    /** 防止使用已轮换的旧 refresh */
-    // 行注：定义matches启用令牌方法
-    public boolean matchesActiveToken(Long userId, String refreshToken) {
-        // 行注：判断是否满足当前条件
-        if (userId == null || !StringUtils.hasText(refreshToken)) {
-            return false;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
-        String key = buildKey(userId);  // 行注：初始化键
-        Object storedHash = redisTemplate.opsForValue().get(key);  // 行注：初始化已存储值Hash
-        return storedHash != null && hashToken(refreshToken).equals(String.valueOf(storedHash));  // 行注：返回处理结果
-    }  // 行注：结束当前代码块
-
-    /** 登出或 refresh 轮换前删除 Redis 中的 refresh 会话 */
-    // 行注：定义revoke令牌方法
-    public void revokeToken(Long userId) {
-        // 行注：判断是否满足当前条件
-        if (userId == null) {
-            return;  // 行注：返回处理结果
-        }  // 行注：结束当前代码块
-        redisTemplate.delete(buildKey(userId));  // 行注：调用删除
-    }  // 行注：结束当前代码块
-
-    // 行注：定义构建键方法
-    private String buildKey(Long userId) {
-        return KEY_PREFIX + userId;  // 行注：返回处理结果
-    }  // 行注：结束当前代码块
-
-    // 行注：定义hash令牌方法
-    private String hashToken(String refreshToken) {
-        // 行注：尝试执行可能失败的逻辑
+            revokeSession(userId, sessionId);
+            return;
+        }
+        SessionMeta meta = new SessionMeta(
+                sessionId,
+                summarizeUserAgent(userAgent),
+                truncate(clientIp, 64),
+                truncate(userAgent, 512),
+                System.currentTimeMillis(),
+                System.currentTimeMillis() + ttlMillis
+        );
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");  // 行注：初始化摘要器
-            byte[] encoded = digest.digest(refreshToken.trim().getBytes(StandardCharsets.UTF_8));  // 行注：初始化编码结果
-            StringBuilder builder = new StringBuilder(encoded.length * 2);  // 行注：初始化构建器
-            // 行注：遍历当前集合或范围
+            String json = objectMapper.writeValueAsString(meta);
+            redisTemplate.opsForValue().set(tokenKey(userId, sessionId), hashToken(refreshToken), Duration.ofMillis(ttlMillis));
+            redisTemplate.opsForValue().set(metaKey(userId, sessionId), json, Duration.ofMillis(ttlMillis));
+            redisTemplate.opsForSet().add(userSessionsKey(userId), sessionId);
+            redisTemplate.expire(userSessionsKey(userId), ttlMillis, TimeUnit.MILLISECONDS);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("session meta serialize failed", e);
+        }
+    }
+
+    public boolean matchesActiveToken(Long userId, String sessionId, String refreshToken) {
+        if (userId == null || !StringUtils.hasText(refreshToken)) {
+            return false;
+        }
+        if (!StringUtils.hasText(sessionId)) {
+            return matchesLegacySingleToken(userId, refreshToken);
+        }
+        Object storedHash = redisTemplate.opsForValue().get(tokenKey(userId, sessionId));
+        return storedHash != null && hashToken(refreshToken).equals(String.valueOf(storedHash));
+    }
+
+    public void revokeSession(Long userId, String sessionId) {
+        if (userId == null || !StringUtils.hasText(sessionId)) {
+            return;
+        }
+        redisTemplate.delete(tokenKey(userId, sessionId));
+        redisTemplate.delete(metaKey(userId, sessionId));
+        redisTemplate.opsForSet().remove(userSessionsKey(userId), sessionId);
+    }
+
+    /** 吊销该用户全部 refresh 会话 */
+    public void revokeAllForUser(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        Set<Object> ids = redisTemplate.opsForSet().members(userSessionsKey(userId));
+        if (ids != null) {
+            for (Object id : ids) {
+                if (id != null) {
+                    revokeSession(userId, String.valueOf(id));
+                }
+            }
+        }
+        redisTemplate.delete(userSessionsKey(userId));
+        redisTemplate.delete(legacyKey(userId));
+    }
+
+    /** 兼容旧接口：吊销全部会话 */
+    public void revokeToken(Long userId) {
+        revokeAllForUser(userId);
+    }
+
+    public void revokeOtherSessions(Long userId, String keepSessionId) {
+        if (userId == null) {
+            return;
+        }
+        Set<Object> ids = redisTemplate.opsForSet().members(userSessionsKey(userId));
+        if (ids == null) {
+            return;
+        }
+        for (Object id : ids) {
+            String sid = String.valueOf(id);
+            if (!sid.equals(keepSessionId)) {
+                revokeSession(userId, sid);
+            }
+        }
+    }
+
+    public List<AuthSessionDTO> listSessions(Long userId, String currentSessionId) {
+        List<AuthSessionDTO> result = new ArrayList<>();
+        if (userId == null) {
+            return result;
+        }
+        Set<Object> ids = redisTemplate.opsForSet().members(userSessionsKey(userId));
+        if (ids == null || ids.isEmpty()) {
+            return result;
+        }
+        for (Object id : ids) {
+            String sessionId = String.valueOf(id);
+            SessionMeta meta = readMeta(userId, sessionId);
+            if (meta == null) {
+                continue;
+            }
+            result.add(AuthSessionDTO.builder()
+                    .sessionId(sessionId)
+                    .deviceLabel(meta.deviceLabel())
+                    .clientIp(meta.clientIp())
+                    .userAgent(meta.userAgent())
+                    .issuedAt(toLocalDateTime(meta.issuedAtMillis()))
+                    .expiresAt(toLocalDateTime(meta.expiresAtMillis()))
+                    .current(sessionId.equals(currentSessionId))
+                    .build());
+        }
+        result.sort(Comparator.comparing(AuthSessionDTO::getIssuedAt, Comparator.nullsLast(Comparator.reverseOrder())));
+        return result;
+    }
+
+    private SessionMeta readMeta(Long userId, String sessionId) {
+        Object raw = redisTemplate.opsForValue().get(metaKey(userId, sessionId));
+        if (raw == null) {
+            return null;
+        }
+        try {
+            return objectMapper.readValue(String.valueOf(raw), SessionMeta.class);
+        } catch (JsonProcessingException e) {
+            return null;
+        }
+    }
+
+    private boolean matchesLegacySingleToken(Long userId, String refreshToken) {
+        Object storedHash = redisTemplate.opsForValue().get(legacyKey(userId));
+        return storedHash != null && hashToken(refreshToken).equals(String.valueOf(storedHash));
+    }
+
+    private String tokenKey(Long userId, String sessionId) {
+        return TOKEN_KEY_PREFIX + userId + ":" + sessionId;
+    }
+
+    private String metaKey(Long userId, String sessionId) {
+        return TOKEN_KEY_PREFIX + userId + ":" + sessionId + ":meta";
+    }
+
+    private String userSessionsKey(Long userId) {
+        return USER_SESSIONS_PREFIX + userId;
+    }
+
+    private String legacyKey(Long userId) {
+        return LEGACY_KEY_PREFIX + userId;
+    }
+
+    private static LocalDateTime toLocalDateTime(long millis) {
+        return LocalDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.systemDefault());
+    }
+
+    static String summarizeUserAgent(String userAgent) {
+        if (!StringUtils.hasText(userAgent)) {
+            return "未知设备";
+        }
+        String ua = userAgent.trim();
+        if (ua.length() > 80) {
+            return ua.substring(0, 77) + "...";
+        }
+        return ua;
+    }
+
+    private static String truncate(String value, int max) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        String v = value.trim();
+        return v.length() <= max ? v : v.substring(0, max);
+    }
+
+    private String hashToken(String refreshToken) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encoded = digest.digest(refreshToken.trim().getBytes(StandardCharsets.UTF_8));
+            StringBuilder builder = new StringBuilder(encoded.length * 2);
             for (byte value : encoded) {
-                builder.append(String.format("%02x", value));  // 行注：调用append
-            }  // 行注：结束当前代码块
-            return builder.toString();  // 行注：返回处理结果
-        // 行注：执行当前方法调用
+                builder.append(String.format("%02x", value));
+            }
+            return builder.toString();
         } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 algorithm unavailable", exception);  // 行注：抛出异常并中断当前流程
-        }  // 行注：结束当前代码块
-    }  // 行注：结束当前代码块
-}  // 行注：结束当前代码块
+            throw new IllegalStateException("SHA-256 algorithm unavailable", exception);
+        }
+    }
+
+    record SessionMeta(
+            String sessionId,
+            String deviceLabel,
+            String clientIp,
+            String userAgent,
+            long issuedAtMillis,
+            long expiresAtMillis
+    ) {
+    }
+}

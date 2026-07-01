@@ -4,15 +4,9 @@
   <div class="session-panel">
     <!-- 行注：渲染容器 -->
     <div class="panel-header">
-      <!-- 行注：展示“消息”文案 -->
       <span class="header-title">消息</span>
-      <!-- 行注：展示“建群”文案 -->
-      <button class="create-group-btn" @click="$emit('create-group')">建群</button>
-    <!-- 行注：结束容器 -->
     </div>
-    <!-- 行注：渲染容器 -->
     <div class="session-search">
-      <!-- 行注：渲染容器 -->
       <div class="search-input-wrapper">
         <!-- 行注：渲染n-icon 节点 -->
         <n-icon :component="SearchOutline" class="search-icon" />
@@ -20,11 +14,12 @@
         <input
           :value="searchText"
           type="text"
-          placeholder="搜索会话..."
+          placeholder="搜索会话或聊天记录…"
           class="search-input"
           @input="handleSearchInput"
         />
         <!-- 行注：渲染容器 -->
+        <ChatPlusMenu @create-group="$emit('create-group')" @add-friend="$emit('add-friend')" />
         <div v-if="searchText" class="search-clear" @click="$emit('update:searchText', '')">
           <!-- 行注：渲染图标容器 -->
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
@@ -42,7 +37,20 @@
     </div>
     <!-- 行注：渲染容器 -->
     <div class="session-list">
-      <!-- 行注：渲染容器 -->
+      <div v-if="searchKeyword && messageSearchLoading" class="message-search-hint">正在搜索聊天记录…</div>
+      <template v-if="searchKeyword && messageHits.length">
+        <div class="message-search-label">聊天记录</div>
+        <button
+          v-for="hit in messageHits"
+          :key="`msg-${hit.id}`"
+          type="button"
+          class="message-hit-item"
+          @click="openMessageHit(hit)"
+        >
+          <span class="message-hit-title">{{ hit.targetName || '会话' }}</span>
+          <span class="message-hit-preview">{{ hit.content }}</span>
+        </button>
+      </template>
       <div
         v-for="session in filteredSessions"
         :key="buildSessionKey(session.targetId, session.sessionType)"
@@ -140,12 +148,21 @@
 /**
  * SessionSidebar 组件，负责当前界面片段的展示与交互。
  */
-import { computed } from 'vue'  // 行注：引入 computed 能力
-import { NIcon } from 'naive-ui'  // 行注：引入 NIcon 能力
-import { SearchOutline } from '@vicons/ionicons5'  // 行注：引入 SearchOutline 能力
-import { SESSION_TYPE_GROUP, SESSION_TYPE_SINGLE, type ChatSession } from '../../types/chat'  // 行注：引入 SESSION_TYPE_GROUP, SESSION_TYPE_SINGLE, type ChatSession 能力
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { NIcon } from 'naive-ui'
+import { SearchOutline } from '@vicons/ionicons5'
+import { chatApi } from '../../api/client'
+import { SESSION_TYPE_GROUP, SESSION_TYPE_SINGLE, type ChatSession } from '../../types/chat'
 import ProtectedImage from '../ProtectedImage.vue'
+import ChatPlusMenu from './ChatPlusMenu.vue'
 import { buildSessionKey, formatTime } from '../../utils/chat'
+import { mapSearchHits, type MessageSearchHitView } from '../../utils/messageSearchHit'
+
+const router = useRouter()
+const messageHits = ref<MessageSearchHitView[]>([])
+const messageSearchLoading = ref(false)
+let messageSearchTimer: ReturnType<typeof setTimeout> | null = null
 
 const props = defineProps<{
   sessions: ChatSession[]
@@ -164,22 +181,60 @@ function draftPreviewFor(session: ChatSession) {
   return text.length > 48 ? `${text.slice(0, 48)}…` : text
 }
 
-const emit = defineEmits<{  // 行注：开始解构当前返回值
-  (event: 'create-group'): void  // 行注：执行当前调用逻辑
-  (event: 'select-session', session: ChatSession): void  // 行注：执行当前调用逻辑
-  (event: 'update:searchText', value: string): void  // 行注：执行当前调用逻辑
-}>()  // 行注：执行当前调用逻辑
+const emit = defineEmits<{
+  (event: 'create-group'): void
+  (event: 'add-friend'): void
+  (event: 'select-session', session: ChatSession): void
+  (event: 'update:searchText', value: string): void
+}>()
 
-const filteredSessions = computed(() => {  // 行注：开始解构当前返回值
-  if (!props.searchText.trim()) {  // 行注：判断当前条件是否成立
-    return props.sessions  // 行注：返回当前结果
-  }  // 行注：结束当前代码块
-  const keyword = props.searchText.trim().toLowerCase()  // 行注：初始化 keyword 状态
-  return props.sessions.filter(session =>  // 行注：返回当前结果
-    session.targetNickname?.toLowerCase().includes(keyword)  // 行注：调用 toLowerCase 方法
-    || session.lastMessage?.toLowerCase().includes(keyword)  // 行注：调用 toLowerCase 方法
-  )  // 行注：结束当前调用
-})  // 行注：结束当前调用配置
+const searchKeyword = computed(() => props.searchText.trim())
+
+const filteredSessions = computed(() => {
+  if (!searchKeyword.value) {
+    return props.sessions
+  }
+  const keyword = searchKeyword.value.toLowerCase()
+  return props.sessions.filter(
+    session =>
+      session.targetNickname?.toLowerCase().includes(keyword) ||
+      session.lastMessage?.toLowerCase().includes(keyword)
+  )
+})
+
+watch(searchKeyword, keyword => {
+  if (messageSearchTimer) {
+    clearTimeout(messageSearchTimer)
+    messageSearchTimer = null
+  }
+  if (!keyword) {
+    messageHits.value = []
+    messageSearchLoading.value = false
+    return
+  }
+  messageSearchTimer = setTimeout(async () => {
+    messageSearchLoading.value = true
+    try {
+      const res = await chatApi.searchMessages(keyword, { size: 25 })
+      messageHits.value = mapSearchHits(res)
+    } catch {
+      messageHits.value = []
+    } finally {
+      messageSearchLoading.value = false
+    }
+  }, 350)
+})
+
+function openMessageHit(hit: MessageSearchHitView) {
+  const targetId = hit.targetId
+  if (targetId == null) return
+  const sessionType = hit.sessionType ?? SESSION_TYPE_SINGLE
+  if (sessionType === SESSION_TYPE_GROUP) {
+    void router.push({ name: 'Chat', query: { groupId: String(targetId) } })
+  } else {
+    void router.push({ name: 'ChatRoom', params: { targetId: String(targetId) } })
+  }
+}
 
 function isCurrentSession(session: ChatSession) {  // 行注：定义 isCurrentSession 方法
   if (!props.currentTargetId) {  // 行注：判断当前条件是否成立
@@ -237,6 +292,50 @@ function handleSearchInput(event: Event) {  // 行注：定义 handleSearchInput
   background: var(--linkx-primary-hover);  /* 行注：设置 background 样式 */
 }  /* 行注：结束当前样式块 */
 
+.message-search-hint,
+.message-search-label {
+  padding: 8px 16px 4px;
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+}
+
+.message-search-label {
+  font-weight: 600;
+  color: var(--linkx-primary);
+}
+
+.message-hit-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  border: none;
+  border-bottom: 1px solid var(--linkx-border);
+  background: var(--linkx-bg-muted, rgba(0, 0, 0, 0.03));
+  cursor: pointer;
+}
+
+.message-hit-item:hover {
+  background: var(--linkx-bg-hover, rgba(0, 0, 0, 0.06));
+}
+
+.message-hit-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--linkx-text);
+}
+
+.message-hit-preview {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--linkx-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .session-search {  /* 行注：定义 .session-search 样式 */
   padding: 12px 16px;  /* 行注：设置 padding 样式 */
   border-bottom: 1px solid var(--linkx-border);  /* 行注：设置 border-bottom 样式 */
@@ -257,9 +356,11 @@ function handleSearchInput(event: Event) {  // 行注：定义 handleSearchInput
 }  /* 行注：结束当前样式块 */
 
 .search-input {  /* 行注：定义 .search-input 样式 */
+  flex: 1;
+  min-width: 0;
   width: 100%;  /* 行注：设置 width 样式 */
   height: 36px;  /* 行注：设置 height 样式 */
-  padding: 0 36px;  /* 行注：设置 padding 样式 */
+  padding: 0 72px 0 36px;  /* 右侧留出加号与清除按钮 */
   background: var(--linkx-bg);  /* 行注：设置 background 样式 */
   border: 1px solid var(--linkx-border);  /* 行注：设置 border 样式 */
   border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */

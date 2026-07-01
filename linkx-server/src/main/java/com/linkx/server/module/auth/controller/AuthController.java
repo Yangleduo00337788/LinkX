@@ -2,6 +2,10 @@ package com.linkx.server.module.auth.controller;  // 行注：声明当前文件
 
 import com.linkx.server.common.Result;  // 行注：引入 Result 类型
 import com.linkx.server.module.auth.dto.AuthResponse;  // 行注：引入 AuthResponse 类型
+import com.linkx.server.module.auth.dto.ChangePasswordRequest;
+import com.linkx.server.module.auth.dto.PasswordResetApplyResponse;
+import com.linkx.server.module.auth.dto.PasswordResetConfirmDTO;
+import com.linkx.server.module.auth.dto.PasswordResetRequestDTO;
 import com.linkx.server.module.auth.dto.CaptchaIssueDTO;  // 行注：引入 CaptchaIssueDTO 类型
 import com.linkx.server.module.auth.dto.CaptchaMetaDTO;  // 行注：引入 CaptchaMetaDTO 类型
 import com.linkx.server.module.auth.service.CaptchaService;  // 行注：引入 CaptchaService 类型
@@ -65,7 +69,9 @@ public class AuthController {
     public Result<AuthResponse> register(@Valid @RequestBody RegisterRequest requestBody, HttpServletRequest request) {
         authSecurityGuard.checkRegisterRateLimit(request, requestBody.getUsername());  // 行注：调用检查注册Rate限制
         authSecurityGuard.validateRegisterCaptcha(requestBody.getCaptchaId(), requestBody.getCaptchaCode());  // 行注：调用validate注册验证码
-        AuthResponse response = authService.register(requestBody);  // 行注：初始化response
+        String clientIp = authSecurityGuard.resolveClientIp(request);
+        String userAgent = request.getHeader("User-Agent");
+        AuthResponse response = authService.register(requestBody, clientIp, userAgent);  // 行注：初始化response
         // 行注：补充当前表达式片段
         log.info("Auth register success, userId={}, username={}, clientIp={}",
                 response.getUserId(), response.getUsername(), authSecurityGuard.resolveClientIp(request));  // 行注：调用获取用户ID
@@ -97,6 +103,16 @@ public class AuthController {
                 response.getUserId(), response.getUsername(), authSecurityGuard.resolveClientIp(request));  // 行注：调用获取用户ID
         return Result.success(response);  // 行注：返回处理结果
     }  // 行注：结束当前代码块
+
+    /** 已登录用户修改密码；成功后当前 refresh 会话失效，需重新登录或刷新令牌 */
+    @PostMapping("/change-password")
+    public Result<Void> changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody ChangePasswordRequest requestBody) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        authService.changePassword(userId, requestBody.getCurrentPassword(), requestBody.getNewPassword());
+        return Result.success();
+    }
 
     /**
      * 登出：撤销 refresh、将 access 加入黑名单（若提供）。

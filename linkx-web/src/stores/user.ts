@@ -4,11 +4,12 @@
 import { defineStore } from 'pinia'  // 行注：引入 defineStore 能力
 import { ref } from 'vue'  // 行注：引入 ref 能力
 
-const AUTH_STORAGE_KEYS = ['token', 'refreshToken', 'userId', 'nickname', 'avatar', 'username'] as const  // 行注：初始化 AUTH_STORAGE_KEYS 变量
+const AUTH_STORAGE_KEYS = ['token', 'refreshToken', 'sessionId', 'userId', 'nickname', 'avatar', 'username'] as const
 
-export const useUserStore = defineStore('user', () => {  // 行注：导出当前能力
-  const token = ref(localStorage.getItem('token') || '')  // 行注：初始化 token 响应式状态
-  const refreshToken = ref(localStorage.getItem('refreshToken') || '')  // 行注：初始化 refreshToken 响应式状态
+export const useUserStore = defineStore('user', () => {
+  const token = ref(localStorage.getItem('token') || '')
+  const refreshToken = ref(localStorage.getItem('refreshToken') || '')
+  const sessionId = ref(localStorage.getItem('sessionId') || '')
   const userId = ref(localStorage.getItem('userId') || '')  // 行注：初始化 userId 响应式状态
   const nickname = ref(localStorage.getItem('nickname') || '')  // 行注：初始化 nickname 响应式状态
   const avatar = ref(localStorage.getItem('avatar') || '')  // 行注：初始化 avatar 响应式状态
@@ -21,10 +22,14 @@ export const useUserStore = defineStore('user', () => {  // 行注：导出当�
     userId.value = String(data.userId)  // 行注：更新 userId 状态
     nickname.value = data.nickname  // 行注：更新 nickname 状态
     avatar.value = data.avatar || ''  // 行注：更新 avatar 状态
-    username.value = data.username  // 行注：更新 username 状态
+    username.value = data.username
+    if (data.sessionId != null && data.sessionId !== '') {
+      sessionId.value = String(data.sessionId)
+      localStorage.setItem('sessionId', String(data.sessionId))
+    }
 
-    localStorage.setItem('token', data.accessToken)  // 行注：写入本地缓存
-    localStorage.setItem('refreshToken', data.refreshToken)  // 行注：写入本地缓存
+    localStorage.setItem('token', data.accessToken)
+    localStorage.setItem('refreshToken', data.refreshToken)
     localStorage.setItem('userId', String(data.userId))  // 行注：写入本地缓存
     localStorage.setItem('nickname', data.nickname)  // 行注：写入本地缓存
     localStorage.setItem('avatar', data.avatar || '')  // 行注：写入本地缓存
@@ -44,8 +49,9 @@ export const useUserStore = defineStore('user', () => {  // 行注：导出当�
     } catch {  // 行注：捕获并处理异常
       // clear local state even if server logout fails
     }  // 行注：结束当前代码块
-    token.value = ''  // 行注：更新 token 状态
-    refreshToken.value = ''  // 行注：更新 refreshToken 状态
+    token.value = ''
+    refreshToken.value = ''
+    sessionId.value = ''
     userId.value = ''  // 行注：更新 userId 状态
     nickname.value = ''  // 行注：更新 nickname 状态
     avatar.value = ''  // 行注：更新 avatar 状态
@@ -61,5 +67,5 @@ export const useUserStore = defineStore('user', () => {  // 行注：导出当�
     }  // 行注：结束当前代码块
   }  // 行注：结束当前代码块
 
-  return { token, refreshToken, userId, nickname, avatar, username, setLoginData, logout }  // 行注：返回当前结果
+  return { token, refreshToken, sessionId, userId, nickname, avatar, username, setLoginData, logout }
 })  // 行注：结束当前调用配置

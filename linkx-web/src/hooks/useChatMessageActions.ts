@@ -2,7 +2,8 @@
  * 处理消息发送、撤回、复制、下载和预览等操作。
  */
 import { ref, type ComputedRef, type Ref } from 'vue'  // 行注：引入 ref, type ComputedRef, type Ref 能力
-import { fileApi, groupApi, reportApi } from '../api/client'  // 行注：引入 fileApi 能力
+import { fileApi, groupApi, reportApi } from '../api/client'
+import { isSocketTransportError, sendFileViaRest, sendTextViaRest } from '../utils/chatSendFallback'
 import { resolveFileAccessUrl } from '../utils/file-access'  // 行注：引入 resolveFileAccessUrl 能力
 import { getDateTimeTimestamp } from '../utils/datetime'  // 行注：引入 getDateTimeTimestamp 能力
 import { openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload } from '../utils/url'  // 行注：引入 openSafeExternalUrl, resolveSafeDownloadUrl, triggerSafeDownload 能力
@@ -142,21 +143,37 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
     })  // 行注：结束当前调用配置
   }  // 行注：结束当前代码块
 
-  async function sendPendingTextMessage(localMessage: DisplayMessage, content: string) {  // 行注：定义异步 sendPendingTextMessage 方法
-    const response: any = await options.sendChatCommand('SEND_MESSAGE', {  // 行注：开始解构当前返回值
-      toUserId: localMessage.targetId,  // 行注：设置 toUserId 配置项
-      content,  // 行注：补充当前配置项
-      sessionType: localMessage.sessionType,  // 行注：设置 sessionType 配置项
-      clientMessageId: localMessage.clientMessageId,  // 行注：设置 clientMessageId 配置项
-      mentionAll: localMessage.mentionAll,  // 行注：设置 mentionAll 配置项
-      mentionUserIds: localMessage.mentionUserIds  // 行注：设置 mentionUserIds 配置项
-    })  // 行注：结束当前调用配置
-    if (response?.data) {  // 行注：判断当前条件是否成立
-      options.upsertMessage(options.toDisplayMessage(response.data))  // 行注：调用 upsertMessage 方法
-      return  // 行注：返回当前结果
-    }  // 行注：结束当前代码块
-    markMessageDelivery(localMessage.localId, 'sent')  // 行注：调用 markMessageDelivery 方法
-  }  // 行注：结束当前代码块
+  async function sendPendingTextMessage(localMessage: DisplayMessage, content: string) {
+    let response: any
+    try {
+      response = await options.sendChatCommand('SEND_MESSAGE', {
+        toUserId: localMessage.targetId,
+        content,
+        sessionType: localMessage.sessionType,
+        clientMessageId: localMessage.clientMessageId,
+        mentionAll: localMessage.mentionAll,
+        mentionUserIds: localMessage.mentionUserIds
+      })
+    } catch (error) {
+      if (!isSocketTransportError(error)) {
+        throw error
+      }
+      const data = await sendTextViaRest({
+        toUserId: localMessage.targetId!,
+        content,
+        sessionType: localMessage.sessionType ?? 1,
+        clientMessageId: localMessage.clientMessageId,
+        mentionAll: localMessage.mentionAll,
+        mentionUserIds: localMessage.mentionUserIds
+      })
+      response = { data }
+    }
+    if (response?.data) {
+      options.upsertMessage(options.toDisplayMessage(response.data))
+      return
+    }
+    markMessageDelivery(localMessage.localId, 'sent')
+  }
 
   async function sendPendingFileMessage(localMessage: DisplayMessage, file: File, msgType: number) {  // 行注：定义异步 sendPendingFileMessage 方法
     let fileId = localMessage.uploadedFileId  // 行注：初始化 fileId 状态
@@ -171,19 +188,34 @@ export function useChatMessageActions(options: UseChatMessageActionsOptions) {  
         fileSize: uploadResponse.data?.fileSize != null ? Number(uploadResponse.data.fileSize) : localMessage.fileSize  // 行注：设置 fileSize 配置项
       })  // 行注：结束当前调用配置
     }  // 行注：结束当前代码块
-    const response: any = await options.sendChatCommand('SEND_FILE_MESSAGE', {  // 行注：开始解构当前返回值
-      toUserId: localMessage.targetId,  // 行注：设置 toUserId 配置项
-      fileId,  // 行注：补充当前配置项
-      msgType,  // 行注：补充当前配置项
-      sessionType: localMessage.sessionType,  // 行注：设置 sessionType 配置项
-      clientMessageId: localMessage.clientMessageId  // 行注：设置 clientMessageId 配置项
-    })  // 行注：结束当前调用配置
-    if (response?.data) {  // 行注：判断当前条件是否成立
-      options.upsertMessage(options.toDisplayMessage(response.data))  // 行注：调用 upsertMessage 方法
-      return  // 行注：返回当前结果
-    }  // 行注：结束当前代码块
-    markMessageDelivery(localMessage.localId, 'sent')  // 行注：调用 markMessageDelivery 方法
-  }  // 行注：结束当前代码块
+    let response: any
+    try {
+      response = await options.sendChatCommand('SEND_FILE_MESSAGE', {
+        toUserId: localMessage.targetId,
+        fileId,
+        msgType,
+        sessionType: localMessage.sessionType,
+        clientMessageId: localMessage.clientMessageId
+      })
+    } catch (error) {
+      if (!isSocketTransportError(error) || !fileId) {
+        throw error
+      }
+      const data = await sendFileViaRest({
+        toUserId: localMessage.targetId!,
+        fileId: Number(fileId),
+        msgType,
+        sessionType: localMessage.sessionType ?? 1,
+        clientMessageId: localMessage.clientMessageId
+      })
+      response = { data }
+    }
+    if (response?.data) {
+      options.upsertMessage(options.toDisplayMessage(response.data))
+      return
+    }
+    markMessageDelivery(localMessage.localId, 'sent')
+  }
 
   async function executePendingMessage(localMessage: DisplayMessage, executor: () => Promise<void>, failureMessage: string) {  // 行注：定义异步 executePendingMessage 方法
     try {  // 行注：尝试执行可能失败的逻辑

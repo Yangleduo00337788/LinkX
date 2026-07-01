@@ -187,6 +187,8 @@
           </form>
           <!-- 行注：渲染容器 -->
           <div class="auth-footer">
+            <button type="button" class="link-btn" @click="router.push('/forgot-password')">忘记密码</button>
+            <span class="auth-footer-sep">·</span>
             <!-- 行注：展示“还没有账号？”文案 -->
             <span class="footer-text">还没有账号？</span>
             <!-- 行注：展示“立即注册”文案 -->

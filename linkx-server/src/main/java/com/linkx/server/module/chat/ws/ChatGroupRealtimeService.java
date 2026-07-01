@@ -151,11 +151,12 @@ public class ChatGroupRealtimeService {
         relatedUserIds.addAll(mentionUserIds);  // 行注：调用添加全部
         Map<Long, SysUser> userMap = loadUserMap(relatedUserIds);  // 行注：初始化用户映射
         SysUser fromUser = userMap.get(message.getFromUserId());  // 行注：初始化用户
+        ImGroupMember senderMember = getMember(message.getToUserId(), message.getFromUserId());
         MessageDTO dto = new MessageDTO();  // 行注：初始化DTO
         dto.setId(message.getId());  // 行注：调用设置ID
         dto.setSessionId(message.getSessionId());  // 行注：调用设置会话ID
         dto.setFromUserId(message.getFromUserId());  // 行注：调用设置用户ID
-        dto.setFromNickname(fromUser != null ? fromUser.getNickname() : null);  // 行注：执行初始化操作
+        dto.setFromNickname(resolveGroupSenderDisplayName(senderMember, fromUser));
         dto.setFromAvatar(fromUser != null ? fromUser.getAvatar() : null);  // 行注：执行初始化操作
         dto.setToUserId(message.getToUserId());  // 行注：调用设置转为用户ID
         dto.setSessionType(ChatConstants.SESSION_TYPE_GROUP);  // 行注：调用设置会话类型
@@ -442,5 +443,25 @@ public class ChatGroupRealtimeService {
             }  // 行注：结束当前代码块
         }  // 行注：结束当前代码块
         return displayNames;  // 行注：返回处理结果
+    }  // 行注：结束当前代码块
+
+    private String resolveGroupSenderDisplayName(ImGroupMember member, SysUser user) {
+        if (member != null && member.getMemberCardName() != null && !member.getMemberCardName().isBlank()) {
+            return member.getMemberCardName().trim();
+        }
+        return resolveSenderDisplayName(user);
+    }
+
+    private String resolveSenderDisplayName(SysUser user) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getNickname() != null && !user.getNickname().isBlank()) {
+            return user.getNickname().trim();
+        }
+        if (user.getUsername() != null && !user.getUsername().isBlank()) {
+            return user.getUsername().trim();
+        }
+        return null;
     }  // 行注：结束当前代码块
 }  // 行注：结束当前代码块

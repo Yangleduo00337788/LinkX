@@ -21,5 +21,7 @@ public class AuthResponse {
     /** 昵称 */
     private String nickname;  // 行注：声明nickname字段
     /** 头像 URL（可能为 ticket 化前的存储路径，前端再换 access-url） */
-    private String avatar;  // 行注：声明头像字段
-}  // 行注：结束当前代码块
+    private String avatar;
+    /** 当前 refresh 绑定的设备会话 ID（多设备管理） */
+    private String sessionId;
+}

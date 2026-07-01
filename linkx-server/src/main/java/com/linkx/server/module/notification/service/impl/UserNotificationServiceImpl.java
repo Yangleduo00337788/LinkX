@@ -1,6 +1,7 @@
 package com.linkx.server.module.notification.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.linkx.server.entity.SysUser;
 import com.linkx.server.entity.SysUserNotification;
@@ -87,6 +88,22 @@ public class UserNotificationServiceImpl implements UserNotificationService {
         }
         n.setReadFlag(1);
         notificationMapper.updateById(n);
+        pushUnreadHint(userId);
+    }
+
+    @Override
+    public int markAllRead(Long userId) {
+        if (userId == null) {
+            return 0;
+        }
+        LambdaUpdateWrapper<SysUserNotification> uw = new LambdaUpdateWrapper<>();
+        uw.eq(SysUserNotification::getUserId, userId).eq(SysUserNotification::getReadFlag, 0)
+                .set(SysUserNotification::getReadFlag, 1);
+        int updated = notificationMapper.update(null, uw);
+        if (updated > 0) {
+            pushUnreadHint(userId);
+        }
+        return updated;
     }
 
     @Override

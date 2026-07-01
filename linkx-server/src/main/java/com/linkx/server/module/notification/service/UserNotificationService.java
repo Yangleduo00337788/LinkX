@@ -14,6 +14,9 @@ public interface UserNotificationService {
 
     void markRead(Long userId, Long notificationId);
 
+    /** 将当前用户全部未读通知标为已读 */
+    int markAllRead(Long userId);
+
     long countUnread(Long userId);
 
     /** 向指定用户 ID 列表发送同一条通知 */

@@ -11,7 +11,7 @@
         <!-- 行注：渲染容器 -->
         <div class="sidebar-top">
           <!-- 行注：渲染容器 -->
-          <div class="sidebar-avatar" @click="goTo('profile')">
+          <div ref="sidebarAvatarRef" class="sidebar-avatar" @click="toggleProfileCard">
             <!-- 行注：渲染图片 -->
             <ProtectedImage v-if="userStore.avatar" :src="userStore.avatar" class="sidebar-avatar-img" />
             <!-- 行注：渲染文本节点 -->
@@ -151,97 +151,47 @@
     </div>
     <!-- 行注：渲染 Teleport 组件 -->
     <Teleport to="body">
-      <!-- 行注：渲染容器 -->
-      <div v-if="showProfile" class="profile-overlay" @click.self="showProfile = false">
-        <!-- 行注：渲染容器 -->
-        <div class="profile-popup">
-          <!-- 行注：渲染按钮 -->
-          <button class="profile-close" @click="showProfile = false">
-            <!-- 行注：渲染图标容器 -->
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <!-- 行注：补充图标线段 -->
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <!-- 行注：补充图标线段 -->
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            <!-- 行注：结束图标容器 -->
-            </svg>
-          <!-- 行注：结束按钮 -->
+      <div
+        v-if="showProfile"
+        class="profile-overlay"
+        @click.self="closeProfileCard"
+      >
+        <div
+          class="profile-popup"
+          :style="profilePopupStyle"
+          @click.stop
+        >
+          <div class="profile-popup-arrow" aria-hidden="true" />
+          <div class="profile-popup-top">
+            <div class="profile-popup-avatar">
+              <ProtectedImage
+                v-if="profile.avatar || userStore.avatar"
+                :src="profile.avatar || userStore.avatar"
+                class="profile-popup-avatar-img"
+              />
+              <span v-else>{{ displayNickname.charAt(0) || '?' }}</span>
+            </div>
+            <div class="profile-popup-meta">
+              <h2 class="profile-popup-title">{{ displayNickname }}</h2>
+              <p class="profile-popup-username">用户名：{{ displayUsername }}</p>
+              <p class="profile-popup-gender">性别：{{ genderLabel }}</p>
+            </div>
+          </div>
+          <div class="profile-popup-info">
+            <div class="profile-popup-info-item">
+              <span class="info-label">昵称</span>
+              <span class="info-value">{{ profile.nickname || displayNickname }}</span>
+            </div>
+            <div class="profile-popup-info-item">
+              <span class="info-label">用户名</span>
+              <span class="info-value">{{ profile.username || displayUsername }}</span>
+            </div>
+          </div>
+          <button type="button" class="profile-popup-settings-link" @click="openProfileEditPage">
+            编辑资料
           </button>
-          <!-- 行注：渲染容器 -->
-          <div class="profile-popup-header">
-            <!-- 行注：渲染容器 -->
-            <div class="profile-popup-cover"></div>
-            <!-- 行注：渲染容器 -->
-            <div class="profile-popup-avatar-wrapper">
-              <!-- 行注：渲染容器 -->
-              <div class="profile-popup-avatar">
-                <!-- 行注：渲染图片 -->
-                <ProtectedImage v-if="userStore.avatar" :src="userStore.avatar" class="profile-popup-avatar-img" />
-                <!-- 行注：渲染文本节点 -->
-                <span v-else>{{ userStore.nickname?.charAt(0) || '?' }}</span>
-              <!-- 行注：结束容器 -->
-              </div>
-            <!-- 行注：结束容器 -->
-            </div>
-          <!-- 行注：结束容器 -->
-          </div>
-          <!-- 行注：渲染容器 -->
-          <div class="profile-popup-content">
-            <!-- 行注：渲染容器 -->
-            <div class="profile-popup-name">
-              <!-- 行注：渲染二级标题 -->
-              <h2>{{ userStore.nickname || '未设置昵称' }}</h2>
-              <!-- 行注：展示“@{{ userStore.user”文案 -->
-              <span class="profile-popup-username">@{{ userStore.username }}</span>
-            <!-- 行注：结束容器 -->
-            </div>
-            <!-- 行注：渲染容器 -->
-            <div class="profile-popup-info">
-              <!-- 行注：渲染容器 -->
-              <div class="profile-popup-info-item">
-                <!-- 行注：展示“昵称”文案 -->
-                <span class="info-label">昵称</span>
-                <!-- 行注：渲染文本节点 -->
-                <span class="info-value">{{ profile.nickname || '-' }}</span>
-              <!-- 行注：结束容器 -->
-              </div>
-              <!-- 行注：渲染容器 -->
-              <div class="profile-popup-info-item">
-                <!-- 行注：展示“性别”文案 -->
-                <span class="info-label">性别</span>
-                <!-- 行注：渲染文本节点 -->
-                <span class="info-value">{{ profile.gender === 1 ? '男' : profile.gender === 2 ? '女' : '未知' }}</span>
-              <!-- 行注：结束容器 -->
-              </div>
-              <!-- 行注：渲染容器 -->
-              <div class="profile-popup-info-item">
-                <!-- 行注：展示“注册时间”文案 -->
-                <span class="info-label">注册时间</span>
-                <!-- 行注：渲染文本节点 -->
-                <span class="info-value">{{ profile.createTime?.substring(0, 10) || '-' }}</span>
-              <!-- 行注：结束容器 -->
-              </div>
-              <!-- 行注：渲染容器 -->
-              <div class="profile-popup-info-item">
-                <!-- 行注：展示“用户名”文案 -->
-                <span class="info-label">用户名</span>
-                <!-- 行注：渲染文本节点 -->
-                <span class="info-value">{{ profile.username }}</span>
-              <!-- 行注：结束容器 -->
-              </div>
-            <!-- 行注：结束容器 -->
-            </div>
-            <button type="button" class="profile-popup-settings-link" @click="openSettingsFromProfile">
-              打开设置
-            </button>
-            <p class="profile-popup-settings-note">外观与桌面选项请在设置页中修改</p>
-          <!-- 行注：结束容器 -->
-          </div>
-        <!-- 行注：结束容器 -->
         </div>
-      <!-- 行注：结束容器 -->
       </div>
-    <!-- 行注：结束Teleport 节点 -->
     </Teleport>
     <SystemNotificationsDrawer v-model:visible="showSystemNotifications" />
   <!-- 行注：结束容器 -->
@@ -253,7 +203,7 @@
 /**
  * 主布局页面，提供侧边导航和公共应用壳层。
  */
-import { ref, watch, reactive, onMounted } from 'vue'
+import { ref, watch, reactive, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '../stores/user'
 import { useNotificationStore } from '../stores/notification'
@@ -280,13 +230,31 @@ const message = useMessage()
 const currentTab = ref('chat')
 const showProfile = ref(false)
 const showSystemNotifications = ref(false)
-const profile = reactive({  // 行注：开始解构当前返回值
-  username: '',  // 行注：设置 username 配置项
-  nickname: '',  // 行注：设置 nickname 配置项
-  gender: 0,  // 行注：设置 gender 配置项
-  createTime: '',  // 行注：设置 createTime 配置项
-  avatar: ''  // 行注：设置 avatar 配置项
-})  // 行注：结束当前调用配置
+const sidebarAvatarRef = ref<HTMLElement | null>(null)
+const profilePopupPos = ref({ top: 0, left: 0 })
+const profile = reactive({
+  username: '',
+  nickname: '',
+  gender: 0,
+  createTime: '',
+  avatar: ''
+})
+
+const displayNickname = computed(
+  () => profile.nickname || userStore.nickname || '未设置昵称'
+)
+const displayUsername = computed(() => profile.username || userStore.username || '-')
+const genderLabel = computed(() => {
+  const g = profile.gender
+  if (g === 1) return '男'
+  if (g === 2) return '女'
+  return '未知'
+})
+
+const profilePopupStyle = computed(() => ({
+  top: `${profilePopupPos.value.top}px`,
+  left: `${profilePopupPos.value.left}px`
+}))
 
 watch(() => route.path, (path) => {  // 行注：监听状态变化
   if (path.startsWith('/chat')) currentTab.value = 'chat'  // 行注：判断当前条件是否成立
@@ -296,7 +264,6 @@ watch(() => route.path, (path) => {  // 行注：监听状态变化
   else if (path.startsWith('/blacklist')) currentTab.value = 'blacklist'
   else if (path.startsWith('/reports')) currentTab.value = 'reports'
   else if (path.startsWith('/settings')) currentTab.value = 'settings'
-  else if (path.startsWith('/profile')) currentTab.value = 'profile'
 }, { immediate: true })  // 行注：补充当前表达式
 
 watch(showProfile, async (val) => {  // 行注：监听状态变化
@@ -321,10 +288,55 @@ function goTo(tab: string) {
   router.push(`/${tab}`)
 }
 
-function openSettingsFromProfile() {
+const PROFILE_POPUP_WIDTH = 300
+const PROFILE_POPUP_GAP = 10
+
+function updateProfilePopupPosition() {
+  const el = sidebarAvatarRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  const margin = 12
+  const popupH = 220
+  const isBottomNav = window.matchMedia('(max-width: 760px)').matches
+  let top: number
+  let left: number
+  if (isBottomNav) {
+    left = Math.max(
+      margin,
+      Math.min(rect.left, window.innerWidth - PROFILE_POPUP_WIDTH - margin)
+    )
+    top = rect.top - popupH - PROFILE_POPUP_GAP
+    if (top < margin) top = rect.bottom + PROFILE_POPUP_GAP
+  } else {
+    top = rect.top + rect.height / 2 - 48
+    left = rect.right + PROFILE_POPUP_GAP
+    top = Math.max(margin, Math.min(top, window.innerHeight - margin - popupH))
+    left = Math.min(left, window.innerWidth - PROFILE_POPUP_WIDTH - margin)
+  }
+  profilePopupPos.value = { top, left }
+}
+
+function closeProfileCard() {
   showProfile.value = false
-  currentTab.value = 'settings'
-  router.push('/settings')
+}
+
+async function toggleProfileCard() {
+  if (showProfile.value) {
+    closeProfileCard()
+    return
+  }
+  showProfile.value = true
+  await nextTick()
+  updateProfilePopupPosition()
+}
+
+function openProfileEditPage() {
+  closeProfileCard()
+  router.push('/profile')
+}
+
+function onProfilePopupLayout() {
+  if (showProfile.value) updateProfilePopupPosition()
 }
 
 function handleLogout() {  // 行注：定义 handleLogout 方法
@@ -334,6 +346,13 @@ function handleLogout() {  // 行注：定义 handleLogout 方法
 
 onMounted(() => {
   void notificationStore.refreshUnread()
+  window.addEventListener('resize', onProfilePopupLayout)
+  window.addEventListener('scroll', onProfilePopupLayout, true)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', onProfilePopupLayout)
+  window.removeEventListener('scroll', onProfilePopupLayout, true)
 })
 
 watch(showSystemNotifications, (open) => {
@@ -492,146 +511,130 @@ watch(showSystemNotifications, (open) => {
   min-height: 0;  /* 行注：设置 min-height 样式 */
 }  /* 行注：结束当前样式块 */
 
-.profile-overlay {  /* 行注：定义 .profile-overlay 样式 */
-  position: fixed;  /* 行注：设置 position 样式 */
-  inset: 0;  /* 行注：设置 inset 样式 */
-  background: rgba(0, 0, 0, 0.5);  /* 行注：设置 background 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  align-items: center;  /* 行注：设置 align-items 样式 */
-  justify-content: center;  /* 行注：设置 justify-content 样式 */
-  z-index: 1000;  /* 行注：设置 z-index 样式 */
-  backdrop-filter: blur(4px);  /* 行注：设置 backdrop-filter 样式 */
-}  /* 行注：结束当前样式块 */
+/* 侧栏头像点击：微信式气泡，锚定在头像右侧 */
+.profile-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: transparent;
+}
 
-.profile-popup {  /* 行注：定义 .profile-popup 样式 */
-  width: min(360px, calc(100vw - 24px));  /* 行注：设置 width 样式 */
-  max-height: calc(100vh - 32px);  /* 行注：设置 max-height 样式 */
-  background: var(--linkx-bg-card);  /* 行注：设置 background 样式 */
-  border-radius: var(--linkx-radius-lg);  /* 行注：设置 border-radius 样式 */
-  overflow: hidden;  /* 行注：设置 overflow 样式 */
-  border: 1px solid var(--linkx-border);  /* 行注：设置 border 样式 */
-  box-shadow: var(--linkx-shadow-lg);  /* 行注：设置 box-shadow 样式 */
-  position: relative;  /* 行注：设置 position 样式 */
-  overflow-y: auto;  /* 行注：设置 overflow-y 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup {
+  position: fixed;
+  z-index: 1001;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  padding: 16px 16px 0;
+  background: var(--linkx-bg-card);
+  border: 1px solid var(--linkx-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+  color: var(--linkx-text);
+}
 
-.profile-close {  /* 行注：定义 .profile-close 样式 */
-  position: absolute;  /* 行注：设置 position 样式 */
-  top: 12px;  /* 行注：设置 top 样式 */
-  right: 12px;  /* 行注：设置 right 样式 */
-  width: 32px;  /* 行注：设置 width 样式 */
-  height: 32px;  /* 行注：设置 height 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  align-items: center;  /* 行注：设置 align-items 样式 */
-  justify-content: center;  /* 行注：设置 justify-content 样式 */
-  background: rgba(0, 0, 0, 0.3);  /* 行注：设置 background 样式 */
-  border: none;  /* 行注：设置 border 样式 */
-  border-radius: 50%;  /* 行注：设置 border-radius 样式 */
-  color: white;  /* 行注：设置 color 样式 */
-  cursor: pointer;  /* 行注：设置 cursor 样式 */
-  z-index: 10;  /* 行注：设置 z-index 样式 */
-  transition: var(--linkx-transition);  /* 行注：设置 transition 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-arrow {
+  position: absolute;
+  left: -6px;
+  top: 40px;
+  width: 12px;
+  height: 12px;
+  background: var(--linkx-bg-card);
+  border-left: 1px solid var(--linkx-border);
+  border-bottom: 1px solid var(--linkx-border);
+  transform: rotate(45deg);
+  box-shadow: -2px 2px 4px rgba(0, 0, 0, 0.04);
+}
 
-.profile-close:hover {  /* 行注：定义 .profile-close:hover 样式 */
-  background: rgba(0, 0, 0, 0.5);  /* 行注：设置 background 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
 
-.profile-popup-header {  /* 行注：定义 .profile-popup-header 样式 */
-  position: relative;  /* 行注：设置 position 样式 */
-  height: 90px;  /* 行注：设置 height 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-avatar {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  background: var(--linkx-bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--linkx-text-secondary);
+  overflow: hidden;
+}
 
-.profile-popup-cover {  /* 行注：定义 .profile-popup-cover 样式 */
-  height: 100%;  /* 行注：设置 height 样式 */
-  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 50%, #0095ff 100%);  /* 行注：设置 background 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 
-.profile-popup-avatar-wrapper {  /* 行注：定义 .profile-popup-avatar-wrapper 样式 */
-  position: absolute;  /* 行注：设置 position 样式 */
-  bottom: -36px;  /* 行注：设置 bottom 样式 */
-  left: 50%;  /* 行注：设置 left 样式 */
-  transform: translateX(-50%);  /* 行注：设置 transform 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-meta {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
 
-.profile-popup-avatar {  /* 行注：定义 .profile-popup-avatar 样式 */
-  width: 72px;  /* 行注：设置 width 样式 */
-  height: 72px;  /* 行注：设置 height 样式 */
-  border-radius: var(--linkx-radius-lg);  /* 行注：设置 border-radius 样式 */
-  background: linear-gradient(135deg, #00d68f 0%, #00c9a7 100%);  /* 行注：设置 background 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  align-items: center;  /* 行注：设置 align-items 样式 */
-  justify-content: center;  /* 行注：设置 justify-content 样式 */
-  font-size: 28px;  /* 行注：设置 font-size 样式 */
-  font-weight: 700;  /* 行注：设置 font-weight 样式 */
-  color: white;  /* 行注：设置 color 样式 */
-  border: 4px solid var(--linkx-bg-card);  /* 行注：设置 border 样式 */
-  box-shadow: 0 4px 16px var(--linkx-primary-glow);  /* 行注：设置 box-shadow 样式 */
-  overflow: hidden;  /* 行注：设置 overflow 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--linkx-text);
+  word-break: break-word;
+}
 
-.profile-popup-avatar-img {  /* 行注：定义 .profile-popup-avatar-img 样式 */
-  width: 100%;  /* 行注：设置 width 样式 */
-  height: 100%;  /* 行注：设置 height 样式 */
-  object-fit: cover;  /* 行注：设置 object-fit 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-username,
+.profile-popup-gender {
+  margin: 0 0 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--linkx-text-secondary);
+}
 
-.profile-popup-content {  /* 行注：定义 .profile-popup-content 样式 */
-  padding: 44px 20px 20px;  /* 行注：设置 padding 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-info {
+  background: var(--linkx-bg);
+  border-radius: var(--linkx-radius);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
 
-.profile-popup-name {  /* 行注：定义 .profile-popup-name 样式 */
-  text-align: center;  /* 行注：设置 text-align 样式 */
-  margin-bottom: 16px;  /* 行注：设置 margin-bottom 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-info-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
 
-.profile-popup-name h2 {  /* 行注：定义 .profile-popup-name h2 样式 */
-  font-size: 18px;  /* 行注：设置 font-size 样式 */
-  font-weight: 700;  /* 行注：设置 font-weight 样式 */
-  color: var(--linkx-text);  /* 行注：设置 color 样式 */
-  margin-bottom: 2px;  /* 行注：设置 margin-bottom 样式 */
-}  /* 行注：结束当前样式块 */
+.profile-popup-info-item:not(:last-child) {
+  border-bottom: 1px solid var(--linkx-border);
+}
 
-.profile-popup-username {  /* 行注：定义 .profile-popup-username 样式 */
-  font-size: 13px;  /* 行注：设置 font-size 样式 */
-  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
-}  /* 行注：结束当前样式块 */
+.info-label {
+  font-size: 13px;
+  color: var(--linkx-text-secondary);
+  flex-shrink: 0;
+}
 
-.profile-popup-info {  /* 行注：定义 .profile-popup-info 样式 */
-  background: var(--linkx-bg);  /* 行注：设置 background 样式 */
-  border-radius: var(--linkx-radius);  /* 行注：设置 border-radius 样式 */
-  overflow: hidden;  /* 行注：设置 overflow 样式 */
-  margin-bottom: 12px;  /* 行注：设置 margin-bottom 样式 */
-}  /* 行注：结束当前样式块 */
-
-.profile-popup-info-item {  /* 行注：定义 .profile-popup-info-item 样式 */
-  display: flex;  /* 行注：设置 display 样式 */
-  align-items: center;  /* 行注：设置 align-items 样式 */
-  justify-content: space-between;  /* 行注：设置 justify-content 样式 */
-  padding: 12px 16px;  /* 行注：设置 padding 样式 */
-}  /* 行注：结束当前样式块 */
-
-.profile-popup-info-item:not(:last-child) {  /* 行注：定义 .profile-popup-info-item:not(:last-child) 样式 */
-  border-bottom: 1px solid var(--linkx-border);  /* 行注：设置 border-bottom 样式 */
-}  /* 行注：结束当前样式块 */
-
-.info-label {  /* 行注：定义 .info-label 样式 */
-  font-size: 13px;  /* 行注：设置 font-size 样式 */
-  color: var(--linkx-text-secondary);  /* 行注：设置 color 样式 */
-}  /* 行注：结束当前样式块 */
-
-.info-value {  /* 行注：定义 .info-value 样式 */
-  font-size: 13px;  /* 行注：设置 font-size 样式 */
-  color: var(--linkx-text);  /* 行注：设置 color 样式 */
-}  /* 行注：结束当前样式块 */
+.info-value {
+  font-size: 13px;
+  color: var(--linkx-text);
+  text-align: right;
+  word-break: break-word;
+}
 
 .profile-popup-settings-link {
   width: 100%;
-  margin-top: 4px;
-  padding: 12px 14px;
-  border: 1px dashed var(--linkx-border);
-  border-radius: var(--linkx-radius);
-  background: var(--linkx-bg);
+  padding: 10px 12px;
+  border: none;
+  border-top: 1px solid var(--linkx-border);
+  border-radius: 0;
+  background: transparent;
   color: var(--linkx-primary);
   font-size: 13px;
   font-weight: 500;
@@ -640,16 +643,7 @@ watch(showSystemNotifications, (open) => {
 }
 
 .profile-popup-settings-link:hover {
-  border-color: var(--linkx-primary);
-  background: var(--linkx-primary-glow);
-}
-
-.profile-popup-settings-note {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--linkx-text-muted);
-  text-align: center;
-  line-height: 1.5;
+  background: var(--linkx-bg-hover);
 }
 
 @media (max-width: 760px) {  /* 行注：声明响应式样式区块 */
@@ -696,10 +690,6 @@ watch(showSystemNotifications, (open) => {
     min-height: 0;  /* 行注：设置 min-height 样式 */
   }  /* 行注：结束当前样式块 */
 
-  .profile-popup-content {  /* 行注：定义 .profile-popup-content 样式 */
-    padding: 44px 16px 16px;  /* 行注：设置 padding 样式 */
-  }  /* 行注：结束当前样式块 */
-
 }
 
 @media (max-width: 520px) {  /* 行注：声明响应式样式区块 */
@@ -730,4 +720,10 @@ watch(showSystemNotifications, (open) => {
     word-break: break-word;  /* 行注：设置 word-break 样式 */
   }  /* 行注：结束当前样式块 */
 }  /* 行注：结束当前样式块 */
+
+@media (max-width: 760px) {
+  .profile-popup-arrow {
+    display: none;
+  }
+}
 </style>

@@ -18,6 +18,8 @@ public class GroupMemberDTO {
     private String username;  // 行注：声明username字段
     /** 昵称 */
     private String nickname;  // 行注：声明nickname字段
+    /** 我在本群的群名片 */
+    private String memberCardName;
     /** 头像 URL */
     private String avatar;  // 行注：声明头像字段
     /** 角色 */

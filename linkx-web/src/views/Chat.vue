@@ -11,12 +11,16 @@
       :current-session-type="currentSessionType"
       :search-text="searchText"
       :flash-session-key="flashSessionKey"
-      @create-group="openCreateGroupModal"
+      @create-group="handleCreateGroupFromPlus"
+      @add-friend="handleAddFriendFromPlus"
       @select-session="selectSession"
       @update:search-text="updateSearchText"
     />
     <!-- 行注：渲染容器 -->
-    <div class="chat-panel" :class="{ 'has-group-drawer': showGroupDrawer && isGroupSession }">
+    <div
+      class="chat-panel"
+      :class="{ 'has-group-drawer': isGroupSession && (showGroupDrawer || showGroupManageSidebar) }"
+    >
       <!-- 行注：开始定义模板区域 -->
       <template v-if="currentTargetId">
         <div class="chat-panel-row">
@@ -123,7 +127,7 @@
               <div v-if="!isGroupSession" class="dropdown-item" @click="openSingleChatSettings">
                 好友与会话备注
               </div>
-              <div v-if="isGroupSession" class="dropdown-item" @click="openGroupManagePage">
+              <div v-if="isGroupSession" class="dropdown-item" @click="openGroupManageSidebar">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
                   <circle cx="8.5" cy="7" r="4" />
@@ -159,6 +163,8 @@
             :messages="messages"
             :loading-messages="loadingMessages"
             :is-group-session="isGroupSession"
+            :show-member-nicknames="showGroupMemberNicknames"
+            :group-members="groupDetail?.members || []"
             :user-avatar="userStore.avatar"
             :user-nickname="userStore.nickname"
             :active-jump-message-key="activeJumpMessageKey"
@@ -205,8 +211,43 @@
           @select-mention-candidate="selectMentionCandidate"
         />
         </div>
+        <GroupManageSidebar
+          v-if="isGroupSession && showGroupManageSidebar"
+          :visible="showGroupManageSidebar"
+          :group-detail="groupDetail"
+          :group-profile-name="groupProfileDraft.groupName"
+          :notice-draft="noticeDraft"
+          :group-remark="groupPreferenceDraft.groupRemark"
+          :member-card-name="groupPreferenceDraft.memberCardName"
+          :notification-muted="groupPreferenceDraft.notificationMuted"
+          :show-member-nicknames="showGroupMemberNicknames"
+          :can-edit-group-profile="canEditGroupProfile"
+          :can-edit-notice="canEditNotice"
+          :updating-group-profile="updatingGroupProfile"
+          :updating-notice="updatingNotice"
+          :is-group-profile-changed="isGroupProfileChanged"
+          :is-group-notice-changed="isGroupNoticeChanged"
+          :can-dissolve-group="canDissolveGroup"
+          :is-group-owner="isGroupOwner"
+          :can-manage-members="canManageMembers"
+          @close="closeGroupManageSidebar"
+          @add-members="handleAddMembersFromSidebar"
+          @update:group-profile-name="updateGroupProfileName"
+          @update:notice-draft="updateNoticeDraft"
+          @update:group-remark="groupPreferenceDraft.groupRemark = $event"
+          @update:member-card-name="groupPreferenceDraft.memberCardName = $event"
+          @update:notification-muted="groupPreferenceDraft.notificationMuted = $event"
+          @update:show-member-nicknames="setShowGroupMemberNicknames"
+          @save-group-profile="submitUpdateGroupProfile"
+          @save-notice="submitUpdateNotice"
+          @save-preferences="submitGroupPreferencesFromSidebar"
+          @search-chat="openGroupChatSearch"
+          @dissolve-group="handleDissolveGroup"
+          @transfer-owner="openTransferOwnerModal"
+          @leave-group="handleLeaveGroup"
+        />
         <GroupDetailPanel
-          v-if="isGroupSession"
+          v-if="isGroupSession && showGroupDrawer && !showGroupManageSidebar"
           :visible="showGroupDrawer"
           :active-tab="groupDrawerTab"
           :group-detail="groupDetail"
@@ -354,11 +395,11 @@
     :download-file-name="downloadFileName"
     :download-file-size="downloadFileSize"
     :download-progress="downloadProgress"
-    :show-create-group-modal="showCreateGroupModal"
+    :show-create-group-modal="false"
     :create-group-form="createGroupForm"
     :friends="friends"
     :creating-group="creatingGroup"
-    :show-add-members-modal="showAddMembersModal"
+    :show-add-members-modal="false"
     :available-friends-for-current-group="availableFriendsForCurrentGroup"
     :add-members-selection="addMembersSelection"
     :add-members-message="addMembersMessage"
@@ -401,6 +442,34 @@
     @update:show-notice-reminder="setShowNoticeReminder"
     @acknowledge-notice-reminder="acknowledgeNoticeReminder"
   />
+  <InitiateGroupChatWindow
+    :visible="showInitiateGroupWindow"
+    :friends="friends"
+    :selected-ids="createGroupForm.memberIds"
+    :creating="creatingGroup"
+    @close="closeInitiateGroupWindow"
+    @update:selected-ids="updateCreateGroupMemberIds"
+    @submit="submitCreateGroupFromWindow"
+  />
+  <AddFriendWindow
+    :visible="showAddFriendWindow"
+    :requesting-id="addFriendRequestingId"
+    @close="showAddFriendWindow = false"
+    @send-request="handleSendFriendRequestFromWindow"
+  />
+  <AddGroupMembersWindow
+    :visible="showAddMembersPickerWindow"
+    :friends="availableFriendsForCurrentGroup"
+    :selected-ids="addMembersSelection"
+    :adding="addingMembers"
+    @close="closeAddMembersPickerWindow"
+    @update:selected-ids="updateAddMembersSelection"
+    @submit="submitAddMembersFromPickerWindow"
+  />
+  <GlobalMessageSearch
+    v-model:visible="showSessionMessageSearch"
+    @select="handleSessionMessageSearchPick"
+  />
 <!-- 行注：结束模板区域 -->
 </template>
 <!-- 行注：开始定义脚本逻辑区域 -->
@@ -418,13 +487,18 @@ import MessagePane from '../components/chat/MessagePane.vue'  // 行注：引入
 import MessageComposer from '../components/chat/MessageComposer.vue'  // 行注：引入 MessageComposer 组件
 import ChatDialogs from '../components/chat/ChatDialogs.vue'  // 行注：引入 ChatDialogs 组件
 import GroupDetailPanel from '../components/chat/GroupDetailPanel.vue'
+import GroupManageSidebar from '../components/chat/GroupManageSidebar.vue'
+import InitiateGroupChatWindow from '../components/chat/InitiateGroupChatWindow.vue'
+import AddFriendWindow from '../components/chat/AddFriendWindow.vue'
+import AddGroupMembersWindow from '../components/chat/AddGroupMembersWindow.vue'
+import GlobalMessageSearch, { type GlobalSearchHit } from '../components/GlobalMessageSearch.vue'
 import { useChatRuntime } from '../hooks/useChatRuntime'  // 行注：引入 useChatRuntime 能力
 import { useGroupManagement } from '../hooks/useGroupManagement'  // 行注：引入 useGroupManagement 能力
 import { useChatComposer } from '../hooks/useChatComposer'  // 行注：引入 useChatComposer 能力
 import { useChatMessageActions } from '../hooks/useChatMessageActions'  // 行注：引入 useChatMessageActions 能力
 import { useConfirmDialog } from '../hooks/useConfirmDialog'  // 行注：引入 useConfirmDialog 能力
 import { useChatSessionActions } from '../hooks/useChatSessionActions'
-import { groupApi } from '../api/client'
+import { friendApi, groupApi } from '../api/client'
 import { useChatStore } from '../stores/chat'  // 行注：引入 useChatStore 能力
 import { useChatDraftStore } from '../stores/chatDraft'
 import { useUserStore } from '../stores/user'  // 行注：引入 useUserStore 能力
@@ -487,6 +561,15 @@ const menuRef = ref<HTMLElement>()  // 行注：初始化 menuRef 状态
 const menuBtnRef = ref<HTMLElement>()  // 行注：初始化 menuBtnRef 状态
 const groupProfileDirty = ref(false)  // 行注：初始化 groupProfileDirty 响应式状态
 const groupNoticeDirty = ref(false)  // 行注：初始化 groupNoticeDirty 响应式状态
+
+const showGroupManageSidebar = ref(false)
+const showInitiateGroupWindow = ref(false)
+const showAddFriendWindow = ref(false)
+const showAddMembersPickerWindow = ref(false)
+const showSessionMessageSearch = ref(false)
+const addFriendRequestingId = ref<string | number | null>(null)
+const GROUP_MEMBER_NICK_PREF = 'linkx.chat.showGroupMemberNicknames'
+const showGroupMemberNicknames = ref(localStorage.getItem(GROUP_MEMBER_NICK_PREF) !== '0')
 
 const currentSession = computed(() => {  // 行注：开始解构当前返回值
   if (!currentTargetId.value) {  // 行注：判断当前条件是否成立
@@ -677,10 +760,113 @@ function syncGroupPreferenceDraftFromDetail() {
 
 watch(groupDetail, () => syncGroupPreferenceDraftFromDetail(), { deep: true })
 
-function openGroupManagePage() {
+watch(
+  () => [currentTargetId.value, currentSessionType.value] as const,
+  () => {
+    if (!isGroupSession.value) {
+      showGroupManageSidebar.value = false
+    }
+  }
+)
+
+async function openGroupManageSidebar() {
   showMenu.value = false
   if (!currentTargetId.value || !isGroupSession.value) return
-  void router.push({ name: 'GroupMembers', params: { groupId: String(currentTargetId.value) } })
+  showGroupDrawer.value = false
+  showGroupManageSidebar.value = true
+  syncGroupPreferenceDraftFromDetail()
+  await loadGroupDetail(currentTargetId.value)
+  syncGroupProfileDraftImpl(groupDetail.value)
+}
+
+function closeGroupManageSidebar() {
+  showGroupManageSidebar.value = false
+}
+
+function openGroupManagePage() {
+  void openGroupManageSidebar()
+}
+
+function handleCreateGroupFromPlus() {
+  resetCreateGroupForm()
+  showInitiateGroupWindow.value = true
+}
+
+function closeInitiateGroupWindow() {
+  showInitiateGroupWindow.value = false
+  resetCreateGroupForm()
+}
+
+async function submitCreateGroupFromWindow() {
+  if (!createGroupForm.memberIds.length) {
+    message.warning('请至少选择一位好友')
+    return
+  }
+  if (!createGroupForm.groupName.trim()) {
+    createGroupForm.groupName = '群聊'
+  }
+  const ok = await submitCreateGroup()
+  if (ok) {
+    showInitiateGroupWindow.value = false
+  }
+}
+
+function handleAddFriendFromPlus() {
+  showAddFriendWindow.value = true
+}
+
+async function handleSendFriendRequestFromWindow(userId: string | number) {
+  addFriendRequestingId.value = userId
+  try {
+    await friendApi.sendRequest(userId, '')
+    message.success('好友申请已发送')
+    showAddFriendWindow.value = false
+  } catch (e: any) {
+    message.error(e?.response?.data?.message || e?.message || '发送失败')
+  } finally {
+    addFriendRequestingId.value = null
+  }
+}
+
+function handleAddMembersFromSidebar() {
+  addMembersSelection.value = []
+  showAddMembersPickerWindow.value = true
+}
+
+function closeAddMembersPickerWindow() {
+  showAddMembersPickerWindow.value = false
+  addMembersSelection.value = []
+}
+
+async function submitAddMembersFromPickerWindow() {
+  const ok = await submitAddMembers()
+  if (ok) {
+    showAddMembersPickerWindow.value = false
+  }
+}
+
+function setShowGroupMemberNicknames(v: boolean) {
+  showGroupMemberNicknames.value = v
+  localStorage.setItem(GROUP_MEMBER_NICK_PREF, v ? '1' : '0')
+}
+
+async function submitGroupPreferencesFromSidebar() {
+  await submitGroupPreferencesFromDrawer()
+}
+
+function openGroupChatSearch() {
+  showSessionMessageSearch.value = true
+}
+
+async function handleSessionMessageSearchPick(hit: GlobalSearchHit) {
+  const session = sessions.value.find(
+    s =>
+      String(s.targetId) === String(hit.targetId) &&
+      Number(s.sessionType) === Number(hit.sessionType ?? SESSION_TYPE_GROUP)
+  )
+  if (session) {
+    await selectSession(session)
+  }
 }
 
 async function handleToggleSessionPinned() {
@@ -1412,6 +1598,9 @@ onUnmounted(() => {
   min-height: 0;  /* 行注：设置 min-height 样式 */
   overflow-y: auto;  /* 行注：设置 overflow-y 样式 */
   padding: 18px 20px;  /* 行注：设置 padding 样式 */
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }  /* 行注：结束当前样式块 */
 
 .panel-placeholder {  /* 行注：定义 .panel-placeholder 样式 */

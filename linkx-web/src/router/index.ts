@@ -4,8 +4,17 @@
 import { createRouter, createWebHashHistory } from 'vue-router'  // 行注：引入 createRouter, createWebHashHistory 能力
 
 const routes = [  // 行注：初始化 routes 变量
-  { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },  // 行注：执行当前调用逻辑
-  { path: '/register', name: 'Register', component: () => import('../views/Register.vue') },  // 行注：执行当前调用逻辑
+  { path: '/login', name: 'Login', component: () => import('../views/Login.vue') },
+  { path: '/register', name: 'Register', component: () => import('../views/Register.vue') },
+  { path: '/forgot-password', name: 'ForgotPassword', component: () => import('../views/ForgotPassword.vue') },
+  { path: '/reset-password', name: 'ResetPassword', component: () => import('../views/ResetPassword.vue') },
+  { path: '/child/create-group', name: 'ChildCreateGroup', component: () => import('../views/child/CreateGroupChild.vue') },
+  { path: '/child/add-friend', name: 'ChildAddFriend', component: () => import('../views/child/AddFriendChild.vue') },
+  {
+    path: '/child/add-group-members',
+    name: 'ChildAddGroupMembers',
+    component: () => import('../views/child/AddGroupMembersChild.vue')
+  },
   {  // 行注：开始当前代码块
     path: '/',  // 行注：设置 path 配置项
     component: () => import('../views/Layout.vue'),  // 行注：传入 component 回调
@@ -18,6 +27,7 @@ const routes = [  // 行注：初始化 routes 变量
       { path: 'files', name: 'Files', component: () => import('../views/Files.vue') },  // 行注：执行当前调用逻辑
       { path: 'blacklist', name: 'Blacklist', component: () => import('../views/Blacklist.vue') },
       { path: 'settings', name: 'Settings', component: () => import('../views/Settings.vue') },
+      { path: 'settings/devices', name: 'LoginDevices', component: () => import('../views/LoginDevices.vue') },
       { path: 'releases', redirect: { name: 'Settings' } },
       { path: 'reports', name: 'Reports', component: () => import('../views/Reports.vue') },
       { path: 'profile', name: 'Profile', component: () => import('../views/Profile.vue') },
@@ -33,7 +43,8 @@ const router = createRouter({  // 行注：开始解构当前返回值
 // 进入受保护页面前先检查本地 token，未登录统一跳转到登录页。
 router.beforeEach((to, _from, next) => {  // 行注：调用 beforeEach 方法
   const token = localStorage.getItem('token')  // 行注：初始化 token 变量
-  if (to.name !== 'Login' && to.name !== 'Register' && !token) {  // 行注：判断当前条件是否成立
+  const publicNames = new Set(['Login', 'Register', 'ForgotPassword', 'ResetPassword'])
+  if (!publicNames.has(String(to.name)) && !token) {
     next('/login')  // 行注：调用 next 方法
   } else {  // 行注：开始当前逻辑块
     next()  // 行注：调用 next 方法

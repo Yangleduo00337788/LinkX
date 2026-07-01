@@ -8,6 +8,8 @@ import com.linkx.server.module.chat.dto.SendFileMessageRequest;  // 行注：引
 import com.linkx.server.module.chat.dto.SendMessageRequest;  // 行注：引入 SendMessageRequest 类型
 import com.linkx.server.module.chat.dto.UpdateSessionSettingsRequest;
 import com.linkx.server.module.chat.constant.ChatHistoryLimits;  // 行注：引入 ChatHistoryLimits 类型
+import com.linkx.server.module.chat.dto.MessageSearchHitDTO;
+import com.linkx.server.module.chat.service.ChatMessageSearchService;
 import com.linkx.server.module.chat.service.ChatService;  // 行注：引入 ChatService 类型
 import com.linkx.server.module.chat.ws.ChatWebSocketTicketService;  // 行注：引入 ChatWebSocketTicketService 类型
 import jakarta.validation.Valid;  // 行注：引入 Valid 类型
@@ -28,7 +30,19 @@ import java.util.List;  // 行注：引入 List 类型
 public class ChatController {
 
     private final ChatService chatService;  // 行注：注入聊天服务依赖
+    private final ChatMessageSearchService chatMessageSearchService;
     private final ChatWebSocketTicketService chatWebSocketTicketService;  // 行注：注入聊天Web连接票据服务依赖
+
+    /** 跨会话搜索（单聊 + 已加入群聊） */
+    @GetMapping("/messages/search")
+    public Result<List<MessageSearchHitDTO>> searchMessages(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam String keyword,
+            @RequestParam(required = false) Integer sessionType,
+            @RequestParam(defaultValue = "30") int size) {
+        Long userId = Long.parseLong(userDetails.getUsername());
+        return Result.success(chatMessageSearchService.searchGlobal(userId, keyword, sessionType, size));
+    }
 
     /** 发送文本或富文本消息（单聊/群聊由 sessionType 与 target 决定） */
     @PostMapping("/send")  // 行注：应用 @PostMapping 注解

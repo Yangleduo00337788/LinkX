@@ -1205,6 +1205,9 @@ public class GroupServiceImpl implements GroupService {
             dto.setNickname(user.getNickname());  // 行注：调用设置Nickname
             dto.setAvatar(user.getAvatar());  // 行注：调用设置头像
         }  // 行注：结束当前代码块
+        if (StringUtils.hasText(member.getMemberCardName())) {
+            dto.setMemberCardName(member.getMemberCardName().trim());
+        }
         return dto;  // 行注：返回处理结果
     }  // 行注：结束当前代码块
 

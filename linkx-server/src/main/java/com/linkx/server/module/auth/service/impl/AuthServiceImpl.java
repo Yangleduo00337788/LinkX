@@ -6,9 +6,13 @@ import com.linkx.server.common.ErrorCode;  // 行注：引入 ErrorCode 类型
 import com.linkx.server.common.TextNormalizer;  // 行注：引入 TextNormalizer 类型
 import com.linkx.server.entity.SysUser;  // 行注：引入 SysUser 类型
 import com.linkx.server.mapper.SysUserMapper;  // 行注：引入 SysUserMapper 类型
-import com.linkx.server.module.auth.dto.AuthResponse;  // 行注：引入 AuthResponse 类型
-import com.linkx.server.module.auth.dto.LoginRequest;  // 行注：引入 LoginRequest 类型
-import com.linkx.server.module.auth.dto.RegisterRequest;  // 行注：引入 RegisterRequest 类型
+import com.linkx.server.module.auth.dto.AuthResponse;
+import com.linkx.server.module.auth.dto.AuthSessionDTO;
+import com.linkx.server.module.auth.dto.LoginRequest;
+import com.linkx.server.module.auth.dto.RegisterRequest;
+import com.linkx.server.module.auth.service.PasswordResetService;
+
+import java.util.List;
 import com.linkx.server.module.auth.service.AccessTokenDenylistService;  // 行注：引入 AccessTokenDenylistService 类型
 import com.linkx.server.module.auth.service.AuthService;  // 行注：引入 AuthService 类型
 import com.linkx.server.module.auth.service.PasswordPolicy;  // 行注：引入 PasswordPolicy 类型
@@ -41,17 +45,16 @@ public class AuthServiceImpl implements AuthService {
     private final AccessTokenDenylistService accessTokenDenylistService;  // 行注：注入访问令牌拒绝列表服务依赖
     private final LoginLogService loginLogService;
     private final RuntimeConfigService runtimeConfigService;
+    private final PasswordResetService passwordResetService;
 
-    /**
-     * 注册相关逻辑。
-     *
-     * @param request 当前请求或请求对象
-     * @return 认证响应
-     */
-    @Override  // 行注：应用 @Override 注解
-    @Transactional  // 行注：应用 @Transactional 注解
-    // 行注：定义注册方法
+    @Override
     public AuthResponse register(RegisterRequest request) {
+        return register(request, null, null);
+    }
+
+    @Override
+    @Transactional
+    public AuthResponse register(RegisterRequest request, String clientIp, String userAgent) {
         if (!runtimeConfigService.getBoolean(RuntimeConfigService.KEY_REGISTER_ENABLED, true)) {
             throw new BusinessException(ErrorCode.FORBIDDEN, "当前未开放注册");
         }
@@ -112,26 +115,7 @@ public class AuthServiceImpl implements AuthService {
         }  // 行注：结束当前代码块
 
         // 注册完成后立即签发 access + refresh，前端可直接进入登录态，无需再次手动登录。
-        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());  // 行注：初始化访问令牌
-        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());  // 行注：初始化刷新令牌
-        // refresh token 只保留当前激活会话，后续刷新与登出都以 Redis 中的记录为准。
-        refreshTokenSessionService.issueToken(user.getId(), refreshToken);  // 行注：调用申请令牌
-        log.info("Auth register issued tokens, userId={}, username={}", user.getId(), user.getUsername());  // 行注：执行初始化操作
-
-        return AuthResponse.builder()  // 行注：返回处理结果
-                // 行注：继续调用访问令牌
-                .accessToken(accessToken)
-                // 行注：继续调用刷新令牌
-                .refreshToken(refreshToken)
-                // 行注：继续调用用户ID
-                .userId(user.getId())
-                // 行注：继续调用username
-                .username(user.getUsername())
-                // 行注：继续调用nickname
-                .nickname(user.getNickname())
-                // 行注：继续调用头像
-                .avatar(user.getAvatar())
-                .build();  // 行注：继续调用构建
+        return issueAuthResponse(user, clientIp, userAgent);
     }  // 行注：结束当前代码块
 
     /**
@@ -170,23 +154,12 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException(ErrorCode.USER_DISABLED);
         }
 
-        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
-        refreshTokenSessionService.issueToken(user.getId(), refreshToken);
         loginLogService.recordSuccess(user.getId(), user.getUsername(), "password", clientIp, userAgent);
         user.setLastLoginTime(LocalDateTime.now());
         user.setLastLoginIp(clientIp);
         userMapper.updateById(user);
         log.info("Auth login issued tokens, userId={}, username={}", user.getId(), user.getUsername());
-
-        return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
-                .userId(user.getId())
-                .username(user.getUsername())
-                .nickname(user.getNickname())
-                .avatar(user.getAvatar())
-                .build();
+        return issueAuthResponse(user, clientIp, userAgent);
     }
 
     /**
@@ -214,10 +187,11 @@ public class AuthServiceImpl implements AuthService {
         Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);  // 行注：初始化用户ID
         // 第三步到 Redis 检查该 refresh 是否仍是当前活跃会话，登出或异地登录后旧 token 应失效。
         // 行注：判断是否满足当前条件
-        if (!refreshTokenSessionService.matchesActiveToken(userId, refreshToken)) {
-            log.warn("Auth refresh rejected, reason=token_revoked, userId={}", userId);  // 行注：执行初始化操作
-            throw new BusinessException(ErrorCode.TOKEN_BLACKLISTED, "刷新令牌已失效，请重新登录");  // 行注：抛出异常并中断当前流程
-        }  // 行注：结束当前代码块
+        String sessionId = jwtTokenProvider.getSessionIdFromToken(refreshToken);
+        if (!refreshTokenSessionService.matchesActiveToken(userId, sessionId, refreshToken)) {
+            log.warn("Auth refresh rejected, reason=token_revoked, userId={}", userId);
+            throw new BusinessException(ErrorCode.TOKEN_BLACKLISTED, "刷新令牌已失效，请重新登录");
+        }
         SysUser user = userMapper.selectById(userId);  // 行注：初始化用户
 
         // 行注：判断是否满足当前条件
@@ -238,25 +212,24 @@ public class AuthServiceImpl implements AuthService {
         }  // 行注：结束当前代码块
 
         // 采用 refresh 轮换策略：签发新 access 的同时替换成新的 refresh，缩短旧 refresh 暴露窗口。
-        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());  // 行注：初始化新建访问令牌
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId());  // 行注：初始化新建刷新令牌
-        refreshTokenSessionService.issueToken(user.getId(), newRefreshToken);  // 行注：调用申请令牌
-        log.info("Auth refresh issued tokens, userId={}, username={}", user.getId(), user.getUsername());  // 行注：执行初始化操作
+        if (!StringUtils.hasText(sessionId)) {
+            sessionId = refreshTokenSessionService.newSessionId();
+        }
+        String newAccessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(user.getId(), sessionId);
+        refreshTokenSessionService.revokeSession(user.getId(), sessionId);
+        refreshTokenSessionService.issueToken(user.getId(), sessionId, newRefreshToken, null, null);
+        log.info("Auth refresh issued tokens, userId={}, username={}", user.getId(), user.getUsername());
 
-        return AuthResponse.builder()  // 行注：返回处理结果
-                // 行注：继续调用访问令牌
+        return AuthResponse.builder()
                 .accessToken(newAccessToken)
-                // 行注：继续调用刷新令牌
                 .refreshToken(newRefreshToken)
-                // 行注：继续调用用户ID
                 .userId(user.getId())
-                // 行注：继续调用username
                 .username(user.getUsername())
-                // 行注：继续调用nickname
                 .nickname(user.getNickname())
-                // 行注：继续调用头像
                 .avatar(user.getAvatar())
-                .build();  // 行注：继续调用构建
+                .sessionId(sessionId)
+                .build();
     }  // 行注：结束当前代码块
 
     /**
@@ -269,22 +242,19 @@ public class AuthServiceImpl implements AuthService {
     @Override  // 行注：应用 @Override 注解
     // 行注：定义登出方法
     public void logout(Long userId, String refreshToken, String accessToken) {
-        // 行注：判断是否满足当前条件
-        if (userId != null) {
-            // 有用户上下文时优先按当前登录人撤销 refresh，会覆盖最常见的正常登出路径。
-            refreshTokenSessionService.revokeToken(userId);  // 行注：调用revoke令牌
-        }  // 行注：结束当前代码块
-        // 行注：判断是否满足当前条件
-        if (StringUtils.hasText(refreshToken) && jwtTokenProvider.validateToken(refreshToken)
-                // 行注：调用是否刷新令牌
-                && jwtTokenProvider.isRefreshToken(refreshToken)) {
-            Long tokenUserId = jwtTokenProvider.getUserIdFromToken(refreshToken);  // 行注：初始化令牌用户ID
-            // body 中显式传入 refreshToken 时，再按 token 归属做一次兜底撤销，兼容上下文缺失场景。
-            // 行注：判断是否满足当前条件
+        if (StringUtils.hasText(refreshToken) && jwtTokenProvider.isRefreshToken(refreshToken)) {
+            Long tokenUserId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+            String sid = jwtTokenProvider.getSessionIdFromToken(refreshToken);
             if (userId == null || userId.equals(tokenUserId)) {
-                refreshTokenSessionService.revokeToken(tokenUserId);  // 行注：调用revoke令牌
-            }  // 行注：结束当前代码块
-        }  // 行注：结束当前代码块
+                if (StringUtils.hasText(sid)) {
+                    refreshTokenSessionService.revokeSession(tokenUserId, sid);
+                } else {
+                    refreshTokenSessionService.revokeAllForUser(tokenUserId);
+                }
+            }
+        } else if (userId != null) {
+            refreshTokenSessionService.revokeAllForUser(userId);
+        }
         // 行注：判断是否满足当前条件
         if (StringUtils.hasText(accessToken) && jwtTokenProvider.validateToken(accessToken)
                 // 行注：调用是否访问令牌
@@ -295,7 +265,93 @@ public class AuthServiceImpl implements AuthService {
         log.info("Auth logout completed, userId={}", userId);  // 行注：执行初始化操作
     }  // 行注：结束当前代码块
 
-    // 行注：定义解析注册Conflict方法
+    @Override
+    @Transactional
+    public void changePassword(Long userId, String currentPassword, String newPassword) {
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        }
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "当前密码不正确");
+        }
+        PasswordPolicy.validate(newPassword);
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userMapper.updateById(user);
+        refreshTokenSessionService.revokeAllForUser(userId);
+        log.info("Auth password changed, userId={}", userId);
+    }
+
+    @Override
+    public List<AuthSessionDTO> listSessions(Long userId, String currentSessionId) {
+        return refreshTokenSessionService.listSessions(userId, currentSessionId);
+    }
+
+    @Override
+    public void revokeSession(Long userId, String sessionId, String currentSessionId) {
+        if (userId == null || !StringUtils.hasText(sessionId)) {
+            return;
+        }
+        refreshTokenSessionService.revokeSession(userId, sessionId);
+    }
+
+    @Override
+    public void revokeOtherSessions(Long userId, String currentSessionId) {
+        refreshTokenSessionService.revokeOtherSessions(userId, currentSessionId);
+    }
+
+    @Override
+    public String requestPasswordReset(String username, String email) {
+        String normalizedUsername = TextNormalizer.normalizeRequiredSingleLine(username, 50, "用户名");
+        String normalizedEmail = TextNormalizer.normalizeRequiredSingleLine(email, 128, "邮箱");
+        LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUser::getUsername, normalizedUsername);
+        SysUser user = userMapper.selectOne(wrapper);
+        if (user == null || user.getStatus() != null && user.getStatus() == 0) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "用户名或邮箱不匹配");
+        }
+        if (!StringUtils.hasText(user.getEmail()) || !normalizedEmail.equalsIgnoreCase(user.getEmail().trim())) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "用户名或邮箱不匹配");
+        }
+        return passwordResetService.issueToken(user.getId());
+    }
+
+    @Override
+    @Transactional
+    public void resetPasswordWithToken(String resetToken, String newPassword) {
+        Long userId = passwordResetService.consumeToken(resetToken);
+        if (userId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "重置链接无效或已过期");
+        }
+        PasswordPolicy.validate(newPassword);
+        SysUser user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userMapper.updateById(user);
+        refreshTokenSessionService.revokeAllForUser(userId);
+    }
+
+    private AuthResponse issueAuthResponse(SysUser user, String clientIp, String userAgent) {
+        String sessionId = refreshTokenSessionService.newSessionId();
+        String accessToken = jwtTokenProvider.generateToken(user.getId(), user.getUsername());
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId(), sessionId);
+        refreshTokenSessionService.issueToken(user.getId(), sessionId, refreshToken, clientIp, userAgent);
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .userId(user.getId())
+                .username(user.getUsername())
+                .nickname(user.getNickname())
+                .avatar(user.getAvatar())
+                .sessionId(sessionId)
+                .build();
+    }
+
     private BusinessException resolveRegisterConflict(RegisterRequest request) {
         // 这里重新查询真实冲突字段，尽量把数据库唯一索引异常转成明确的业务错误码。
         String username = TextNormalizer.normalizeRequiredSingleLine(request.getUsername(), 50, "用户名");  // 行注：初始化username

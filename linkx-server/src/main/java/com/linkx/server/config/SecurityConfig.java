@@ -6,6 +6,7 @@ import com.linkx.server.security.JwtAuthenticationFilter;  // 行注：引入 Jw
 import lombok.RequiredArgsConstructor;  // 行注：引入 RequiredArgsConstructor 类型
 import org.springframework.context.annotation.Bean;  // 行注：引入 Bean 类型
 import org.springframework.context.annotation.Configuration;  // 行注：引入 Configuration 类型
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;  // 行注：引入 AuthenticationManager 类型
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;  // 行注：引入 AuthenticationConfiguration 类型
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;  // 行注：引入 HttpSecurity 类型
@@ -64,6 +65,9 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
             // 行注：继续调用授权 HTTP 请求
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.POST, "/api/auth/change-password").authenticated()
+                .requestMatchers("/api/auth/sessions/**").authenticated()
+                .requestMatchers("/api/auth/password-reset/**").permitAll()
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/admin/auth/login").permitAll()
                 .requestMatchers("/api/admin/auth/captcha", "/api/admin/auth/captcha/meta").permitAll()

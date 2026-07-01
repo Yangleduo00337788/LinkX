@@ -14,7 +14,9 @@
     "electron:build": "npm run build && node scripts/electron-builder.cjs --win",
     "electron:build:mac": "npm run build && node scripts/electron-builder.cjs --mac",
     "electron:build:linux": "npm run build && node scripts/electron-builder.cjs --linux",
-    "electron:publish": "npm run build && node scripts/electron-builder.cjs --win --publish always"
+    "electron:publish": "npm run build && node scripts/electron-builder.cjs --win --publish always",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "build": {
     "appId": "com.linkx.im",
@@ -97,6 +99,7 @@
     "typescript": "~6.0.2",
     "vite": "^8.0.12",
     "vite-plugin-electron": "^1.0.4",
-    "vue-tsc": "^3.2.8"
+    "vue-tsc": "^3.2.8",
+    "vitest": "^3.2.4"
   }
 }

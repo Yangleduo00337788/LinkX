@@ -16,6 +16,8 @@ public class RuntimeConfigService {
 
     public static final String KEY_REGISTER_ENABLED = "auth.register.enabled";
     public static final String KEY_USER_CAPTCHA_ENABLED = "auth.user.captcha.enabled";
+    /** 找回密码是否在 API 响应中返回 resetToken（无邮件通道时联调） */
+    public static final String KEY_PASSWORD_RESET_EXPOSE_TOKEN = "auth.password_reset.expose_token";
 
     private final SysRuntimeConfigMapper mapper;
 

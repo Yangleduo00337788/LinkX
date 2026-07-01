@@ -4,7 +4,18 @@
       <aside class="notif-panel" role="dialog" aria-labelledby="notif-title">
         <header class="notif-header">
           <h2 id="notif-title">系统通知</h2>
-          <button type="button" class="notif-close" aria-label="关闭" @click="close">×</button>
+          <div class="notif-header-actions">
+            <button
+              v-if="hasUnread"
+              type="button"
+              class="notif-mark-all"
+              :disabled="markingAll"
+              @click="markAllRead"
+            >
+              {{ markingAll ? '处理中…' : '全部已读' }}
+            </button>
+            <button type="button" class="notif-close" aria-label="关闭" @click="close">×</button>
+          </div>
         </header>
         <div v-if="loading" class="notif-state">加载中…</div>
         <div v-else-if="!items.length" class="notif-state">暂无通知</div>
@@ -42,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useMessage } from 'naive-ui'
 import { notificationApi } from '../api/client'
 import { useNotificationStore } from '../stores/notification'
@@ -66,7 +77,10 @@ const loadingMore = ref(false)
 const page = ref(1)
 const total = ref(0)
 const markingId = ref<number | string | null>(null)
+const markingAll = ref(false)
 const pageSize = 20
+
+const hasUnread = computed(() => items.value.some(row => row.readFlag === 0))
 
 function close() {
   emit('update:visible', false)
@@ -135,6 +149,23 @@ async function markRead(row: UserNotificationRow) {
   }
 }
 
+async function markAllRead() {
+  markingAll.value = true
+  try {
+    await notificationApi.markAllRead()
+    for (const row of items.value) {
+      row.readFlag = 1
+    }
+    void notificationStore.refreshUnread()
+    message.success('已全部标为已读')
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    message.error(err.message || '操作失败')
+  } finally {
+    markingAll.value = false
+  }
+}
+
 watch(
   () => props.visible,
   open => {
@@ -167,6 +198,24 @@ watch(
   justify-content: space-between;
   padding: 16px 18px;
   border-bottom: 1px solid var(--linkx-border);
+}
+.notif-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.notif-mark-all {
+  border: none;
+  background: var(--linkx-bg-muted, rgba(0, 0, 0, 0.06));
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--linkx-text);
+}
+.notif-mark-all:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 .notif-header h2 {
   margin: 0;

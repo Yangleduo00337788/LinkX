@@ -495,7 +495,8 @@ export function useChatRuntime(options: UseChatRuntimeOptions) {  // 行注：�
       clientMessageId: item.clientMessageId || '',  // 行注：设置 clientMessageId 配置项
       isMe,  // 行注：补充当前配置项
       isSystem,  // 行注：补充当前配置项
-      name: item.fromNickname,  // 行注：设置 name 配置项
+      fromUserId: item.fromUserId,
+      name: item.fromNickname || item.fromUsername || '',  // 行注：设置 name 配置项
       fromAvatar: item.fromAvatar || '',  // 行注：设置 fromAvatar 配置项
       content: item.content,  // 行注：设置 content 配置项
       msgType,  // 行注：补充当前配置项

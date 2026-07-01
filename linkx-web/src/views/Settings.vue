@@ -17,6 +17,29 @@
       </div>
       <div class="settings-scroll">
       <section class="settings-card">
+        <h2 class="section-title">账号安全</h2>
+        <p class="section-desc">修改密码后需重新登录。多设备登录可在下方管理。</p>
+        <router-link to="/settings/devices" class="settings-link-row">登录设备管理 →</router-link>
+        <div class="password-form">
+          <label class="pwd-field">
+            <span>当前密码</span>
+            <input v-model="pwdCurrent" type="password" autocomplete="current-password" />
+          </label>
+          <label class="pwd-field">
+            <span>新密码</span>
+            <input v-model="pwdNew" type="password" autocomplete="new-password" />
+          </label>
+          <label class="pwd-field">
+            <span>确认新密码</span>
+            <input v-model="pwdConfirm" type="password" autocomplete="new-password" />
+          </label>
+          <button type="button" class="settings-action" :disabled="pwdSaving" @click="submitChangePassword">
+            {{ pwdSaving ? '提交中…' : '修改密码' }}
+          </button>
+        </div>
+      </section>
+
+      <section class="settings-card">
         <h2 class="section-title">外观</h2>
         <p class="section-desc">浅色、深色或跟随系统外观</p>
         <div class="theme-grid">
@@ -167,15 +190,23 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useMessage } from 'naive-ui'
-import { releaseApi } from '../api/client'
+import { authApi, releaseApi } from '../api/client'
+import { useUserStore } from '../stores/user'
 import { getElectronAPI, isElectron } from '../utils/electron'
 import { useTheme } from '../utils/theme'
 
 const CLIPBOARD_IMAGE_KEY = 'linkx.clipboardImagePaste'
 
 const message = useMessage()
+const router = useRouter()
+const userStore = useUserStore()
 const { mode: themeMode, setMode: setThemeMode } = useTheme()
+const pwdCurrent = ref('')
+const pwdNew = ref('')
+const pwdConfirm = ref('')
+const pwdSaving = ref(false)
 const isDesktop = isElectron()
 const autoLaunch = ref(false)
 const autoLaunchLoading = ref(true)
@@ -221,6 +252,35 @@ async function saveAutoLaunch() {
     message.success(autoLaunch.value ? '已开启开机自启' : '已关闭开机自启')
   } catch {
     message.error('保存失败')
+  }
+}
+
+async function submitChangePassword() {
+  if (!pwdCurrent.value || !pwdNew.value) {
+    message.warning('请填写当前密码和新密码')
+    return
+  }
+  if (pwdNew.value !== pwdConfirm.value) {
+    message.warning('两次输入的新密码不一致')
+    return
+  }
+  pwdSaving.value = true
+  try {
+    await authApi.changePassword({
+      currentPassword: pwdCurrent.value,
+      newPassword: pwdNew.value
+    })
+    message.success('密码已修改，请重新登录')
+    pwdCurrent.value = ''
+    pwdNew.value = ''
+    pwdConfirm.value = ''
+    userStore.logout()
+    await router.push('/login')
+  } catch (e: unknown) {
+    const err = e as { message?: string }
+    message.error(err.message || '修改失败')
+  } finally {
+    pwdSaving.value = false
   }
 }
 
@@ -476,6 +536,39 @@ watch(clipboardImagePaste, () => {
   font-size: 16px;
   font-weight: 700;
   color: var(--linkx-text);
+}
+
+.settings-link-row {
+  display: inline-block;
+  margin: 8px 0 16px;
+  font-size: 14px;
+  color: var(--linkx-primary);
+  text-decoration: none;
+}
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 360px;
+  margin-top: 12px;
+}
+
+.pwd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--linkx-text-muted);
+}
+
+.pwd-field input {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--linkx-border);
+  background: var(--linkx-bg);
+  color: var(--linkx-text);
+  font-size: 14px;
 }
 
 .section-desc {

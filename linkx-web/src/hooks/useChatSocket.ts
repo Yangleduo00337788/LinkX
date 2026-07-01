@@ -143,7 +143,9 @@ export function useChatSocket(options: SocketOptions) {  // 行注：导出当�
           return  // 行注：返回当前结果
         }  // 行注：结束当前代码块
         openWaiters.delete(waiter)  // 行注：调用 delete 方法
-        reject(createSocketError('WebSocket 连接超时'))  // 行注：调用 reject 方法
+        const err = createSocketError('WebSocket 连接超时')
+        err.code = 'SOCKET_TIMEOUT'
+        reject(err)
       }, 10000)  // 行注：补充当前表达式
     })  // 行注：结束当前调用配置
   }  // 行注：结束当前代码块

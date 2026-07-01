@@ -65,7 +65,9 @@
         <!-- 行注：渲染容器 -->
         <div class="msg-content">
           <!-- 行注：渲染容器 -->
-          <div v-if="isGroupSession && !msg.isMe" class="msg-sender">{{ msg.name }}</div>
+          <div v-if="isGroupSession && !msg.isMe" class="msg-sender">
+            {{ resolveSenderName(msg) }}
+          </div>
           <!-- 行注：渲染容器 -->
           <div
             class="msg-bubble"
@@ -227,24 +229,33 @@ import {  // 行注：引入 { 模块
   MESSAGE_STATUS_RECALLED,  // 行注：补充 MESSAGE_STATUS_RECALLED 配置项
   MESSAGE_TYPE_FILE,  // 行注：补充当前配置项
   MESSAGE_TYPE_IMAGE,  // 行注：补充当前配置项
-  type DisplayMessage  // 行注：补充当前表达式
+  type DisplayMessage,  // 行注：补充当前表达式
+  type GroupMember
 } from '../../types/chat'  // 行注：补充当前表达式
 import ProtectedImage from '../ProtectedImage.vue'
-import { formatSize, getFileName, getMessageAnchorKey } from '../../utils/chat'
+import { formatSize, getFileName, getMessageAnchorKey, resolveGroupMessageSenderName } from '../../utils/chat'
 
-defineProps<{  // 行注：开始当前逻辑块
-  messages: DisplayMessage[]  // 行注：设置 messages 配置项
-  loadingMessages: boolean  // 行注：设置 loadingMessages 配置项
-  isGroupSession: boolean  // 行注：设置 isGroupSession 配置项
-  userAvatar: string  // 行注：设置 userAvatar 配置项
-  userNickname: string  // 行注：设置 userNickname 配置项
-  activeJumpMessageKey: string  // 行注：设置 activeJumpMessageKey 配置项
-  showMentionBanner: boolean  // 行注：设置 showMentionBanner 配置项
-  mentionBannerText: string  // 行注：设置 mentionBannerText 配置项
-  mentionBannerActionText: string  // 行注：设置 mentionBannerActionText 配置项
-  getResolvedMessageFileUrl: (message: DisplayMessage) => string  // 行注：设置 getResolvedMessageFileUrl 配置项
-  getMessageTextSegments: (content: string) => import('../../utils/chatText').ChatTextSegment[]
-}>()
+const props = withDefaults(
+  defineProps<{
+    messages: DisplayMessage[]
+    loadingMessages: boolean
+    isGroupSession: boolean
+    showMemberNicknames?: boolean
+    groupMembers?: GroupMember[]
+    userAvatar: string
+    userNickname: string
+    activeJumpMessageKey: string
+    showMentionBanner: boolean
+    mentionBannerText: string
+    mentionBannerActionText: string
+    getResolvedMessageFileUrl: (message: DisplayMessage) => string
+    getMessageTextSegments: (content: string) => import('../../utils/chatText').ChatTextSegment[]
+  }>(),
+  {
+    showMemberNicknames: true,
+    groupMembers: () => []
+  }
+)
 
 defineEmits<{
   (event: 'mention-banner-click'): void  // 行注：执行当前调用逻辑
@@ -260,6 +271,10 @@ defineEmits<{
 function getFileSizeText(message: DisplayMessage) {  // 行注：定义 getFileSizeText 方法
   return formatSize(message.fileSize)  // 行注：返回当前结果
 }  // 行注：结束当前代码块
+
+function resolveSenderName(message: DisplayMessage) {
+  return resolveGroupMessageSenderName(message, props.groupMembers, props.showMemberNicknames)
+}
 </script>
 <!-- 行注：开始定义样式区域 -->
 <style scoped>
